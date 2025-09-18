@@ -17,8 +17,15 @@
                     <input type="text" id="code_geo" name="code_geo" placeholder="Ex: ZV-A01-R2-N3" required>
                 </div>
                 <div class="form-group">
-                    <label for="univers">Univers de produit</label>
-                    <input type="text" id="univers" name="univers" placeholder="Ex: Épicerie Salée" required>
+                    <label for="univers_id">Univers de produit</label>
+                    <select id="univers_id" name="univers_id" required>
+                        <option value="">-- Choisir un univers --</option>
+                        <?php if (!empty($universList)): ?>
+                            <?php foreach ($universList as $univers): ?>
+                                <option value="<?= $univers['id'] ?>"><?= htmlspecialchars($univers['nom']) ?></option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
                 </div>
                 <div class="form-group form-group-full">
                     <label for="libelle">Libellé</label>
@@ -47,3 +54,4 @@
     <script src="js/app.js"></script>
 </body>
 </html>
+

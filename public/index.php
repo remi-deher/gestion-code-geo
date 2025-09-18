@@ -13,30 +13,56 @@ $controller = new GeoCodeController($db);
 $action = $_GET['action'] ?? 'list';
 
 switch ($action) {
+    // Actions pour les Codes Géo
     case 'create':
         $controller->createAction();
         break;
     case 'add':
         $controller->addAction();
         break;
+    case 'edit':
+        $controller->editAction();
+        break;
+    case 'update':
+        $controller->updateAction();
+        break;
+
+    // Actions pour le Plan
     case 'plan':
         $controller->planAction();
         break;
     case 'savePosition':
         $controller->savePositionAction();
         break;
-    case 'export': // Nouvelle route
+
+    // Actions pour l'Import/Export
+    case 'export':
         $controller->exportAction();
         break;
-    case 'showImport': // Nouvelle route
+    case 'showImport':
         $controller->showImportAction();
         break;
-    case 'handleImport': // Nouvelle route
+    case 'handleImport':
         $controller->handleImportAction();
         break;
-    case 'printLabels': // Nouvelle route
+        
+    // Action pour l'impression
+    case 'printLabels':
         $controller->printLabelsAction();
         break;
+
+    // Actions pour les Univers
+    case 'listUnivers':
+        $controller->listUniversAction();
+        break;
+    case 'addUnivers':
+        $controller->addUniversAction();
+        break;
+    case 'deleteUnivers':
+        $controller->deleteUniversAction();
+        break;
+
+    // Action par défaut
     case 'list':
     default:
         $controller->listAction();

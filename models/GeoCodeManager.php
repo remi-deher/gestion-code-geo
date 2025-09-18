@@ -7,17 +7,35 @@ class GeoCodeManager {
         $this->db = $db;
     }
 
+    /**
+     * Récupère un code géo par son ID.
+     * @param int $id
+     * @return array|false
+     */
+    public function getGeoCodeById(int $id) {
+        $sql = "SELECT * FROM geo_codes WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Récupère tous les codes géo, avec leurs positions et le nom de l'univers.
+     * @return array
+     */
     public function getAllGeoCodesWithPositions() {
         $sql = "
             SELECT 
-                gc.id, gc.code_geo, gc.libelle, gc.univers, gc.zone, gc.commentaire,
+                gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire,
                 gp.pos_x, gp.pos_y
             FROM 
                 geo_codes gc
             LEFT JOIN 
                 geo_positions gp ON gc.id = gp.geo_code_id
+            JOIN 
+                univers u ON gc.univers_id = u.id
             ORDER BY 
-                gc.univers, gc.code_geo
+                u.nom, gc.code_geo
         ";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
@@ -25,47 +43,49 @@ class GeoCodeManager {
     }
 
     /**
-     * NOUVELLE METHODE : Récupère tous les univers distincts.
-     * @return array
+     * Crée un nouveau code géo.
      */
-    public function getDistinctUnivers() {
-        $sql = "SELECT DISTINCT univers FROM geo_codes ORDER BY univers";
+    public function createGeoCode(string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
+        $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+        return $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire]);
     }
 
-
-    public function createGeoCode(string $code_geo, string $libelle, string $univers, string $zone, ?string $commentaire) {
-        // ON DUPLICATE KEY UPDATE permet d'éviter les erreurs si un code géo existe déjà
-        // et de le mettre à jour à la place.
-        $sql = "INSERT INTO geo_codes (code_geo, libelle, univers, zone, commentaire) 
-                VALUES (?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE 
-                libelle = VALUES(libelle), 
-                univers = VALUES(univers), 
-                zone = VALUES(zone), 
-                commentaire = VALUES(commentaire)";
+    /**
+     * Met à jour un code géo existant.
+     */
+    public function updateGeoCode(int $id, string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
+        $sql = "UPDATE geo_codes SET code_geo = ?, libelle = ?, univers_id = ?, zone = ?, commentaire = ? WHERE id = ?";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$code_geo, $libelle, $univers, $zone, $commentaire]);
+        return $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire, $id]);
     }
     
     /**
-     * NOUVELLE METHODE : Insère plusieurs codes géo en une seule transaction.
-     * @param array $codes
-     * @return bool
+     * Insère plusieurs codes géo (utilisé pour l'import).
      */
     public function createMultipleGeoCodes(array $codes) {
         $this->db->beginTransaction();
         try {
             foreach ($codes as $code) {
-                $this->createGeoCode(
+                 // On assume ici que l'import peut contenir le nom de l'univers, pas son ID
+                 // On cherche l'ID de l'univers, ou on le crée s'il n'existe pas.
+                $univers_id = $this->getOrCreateUniversId($code['univers']);
+                
+                $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) 
+                        VALUES (?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE 
+                        libelle = VALUES(libelle), 
+                        univers_id = VALUES(univers_id), 
+                        zone = VALUES(zone), 
+                        commentaire = VALUES(commentaire)";
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute([
                     $code['code_geo'],
                     $code['libelle'],
-                    $code['univers'],
+                    $univers_id,
                     $code['zone'],
                     $code['commentaire']
-                );
+                ]);
             }
             $this->db->commit();
             return true;
@@ -76,6 +96,9 @@ class GeoCodeManager {
     }
 
 
+    /**
+     * Sauvegarde la position d'un code géo.
+     */
     public function savePosition(int $geo_code_id, int $pos_x, int $pos_y) {
         $sql = "
             INSERT INTO geo_positions (geo_code_id, pos_x, pos_y) 
@@ -84,5 +107,57 @@ class GeoCodeManager {
         ";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$geo_code_id, $pos_x, $pos_y]);
+    }
+
+    // --- GESTION DES UNIVERS ---
+
+    /**
+     * Récupère tous les univers.
+     */
+    public function getAllUnivers() {
+        return $this->db->query("SELECT * FROM univers ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    /**
+     * Récupère l'ID d'un univers par son nom, ou le crée s'il n'existe pas.
+     */
+    private function getOrCreateUniversId(string $nom): int {
+        // Cherche l'univers
+        $stmt = $this->db->prepare("SELECT id FROM univers WHERE nom = ?");
+        $stmt->execute([$nom]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($result) {
+            return $result['id'];
+        } else {
+            // Crée l'univers
+            $this->addUnivers($nom);
+            return $this->db->lastInsertId();
+        }
+    }
+
+    /**
+     * Ajoute un nouvel univers.
+     */
+    public function addUnivers(string $nom) {
+        $sql = "INSERT INTO univers (nom) VALUES (?)";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([$nom]);
+    }
+
+    /**
+     * Supprime un univers.
+     */
+    public function deleteUnivers(int $id) {
+        $checkSql = "SELECT COUNT(*) FROM geo_codes WHERE univers_id = ?";
+        $checkStmt = $this->db->prepare($checkSql);
+        $checkStmt->execute([$id]);
+        if ($checkStmt->fetchColumn() > 0) {
+            return false; // Empêche la suppression si utilisé
+        }
+
+        $sql = "DELETE FROM univers WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([$id]);
     }
 }

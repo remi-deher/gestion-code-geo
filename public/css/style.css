@@ -201,3 +201,59 @@ button:hover { background-color: #0056b3; }
         color: inherit;
     }
 }
+
+/* --- Styles pour la liste des codes géo --- */
+.code-geo-item {
+    display: flex;
+    justify-content: space-between; /* Pour espacer le bouton modifier */
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.item-actions .btn-edit {
+    text-decoration: none;
+    background-color: #ffc107;
+    color: #333;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+.item-actions .btn-edit:hover {
+    background-color: #e0a800;
+}
+
+/* --- Styles pour la page de gestion des univers --- */
+.univers-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+@media (min-width: 768px) {
+    .univers-container {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.univers-list ul {
+    list-style: none;
+    padding: 0;
+}
+.univers-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.univers-list li:last-child {
+    border-bottom: none;
+}
+.btn-delete {
+    text-decoration: none;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+.btn-delete:hover {
+    opacity: 1;
+}

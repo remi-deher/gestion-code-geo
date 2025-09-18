@@ -1,18 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // --- Logique commune à plusieurs pages ---
+    // --- Common logic ---
     const searchInput = document.getElementById('recherche');
 
-    // --- Logique pour la page LISTE ---
+    // --- LOGIC FOR THE LIST PAGE ---
     const listeContainer = document.getElementById('liste-geocodes');
     if (listeContainer) {
-        // Génération des QR Codes
+        // Generate QR Codes
         document.querySelectorAll('.qr-code-container').forEach(container => {
             const codeText = container.dataset.code;
             if (codeText) new QRCode(container, { text: codeText, width: 80, height: 80 });
         });
 
-        // Filtrage de la recherche
+        // Search filter
         if (searchInput) {
             searchInput.addEventListener('input', () => {
                 const searchTerm = searchInput.value.toLowerCase();
@@ -23,17 +23,19 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // NOUVEAU : Filtrage par univers
+        // Universe filtering
         const universFilters = document.querySelectorAll('#filtres-univers input[type="checkbox"]');
         universFilters.forEach(checkbox => {
             checkbox.addEventListener('change', () => {
                 const allCheckbox = document.querySelector('#filtres-univers input[value="all"]');
                 
-                // Gérer la case "Tout voir"
+                // Handle "Select All" checkbox
                 if (checkbox.value === 'all' && checkbox.checked) {
                     universFilters.forEach(cb => cb.checked = true);
                 } else if (checkbox.value !== 'all' && !checkbox.checked) {
                     allCheckbox.checked = false;
+                } else if (Array.from(universFilters).every(cb => cb.value === 'all' || cb.checked)) {
+                    allCheckbox.checked = true;
                 }
 
                 const checkedUnivers = Array.from(universFilters)
@@ -49,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // --- Logique pour la page CRÉATION ---
+    // --- LOGIC FOR THE CREATE PAGE ---
     const creationForm = document.getElementById('creation-form');
     if (creationForm) {
         const codeGeoInput = document.getElementById('code_geo');
