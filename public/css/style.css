@@ -4,19 +4,18 @@
     --light-gray: #f8f9fa;
     --border-color: #dee2e6;
     --text-color: #333;
-    --navbar-height: 60px; /* Ajout d'une variable pour la hauteur de la navbar */
+    --navbar-height: 60px;
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     margin: 0;
-    /* On ajoute un padding en haut pour ne pas que le contenu soit caché par la navbar */
     padding-top: var(--navbar-height); 
     background-color: var(--light-gray);
     color: var(--text-color);
 }
 
-/* --- NOUVEAUX STYLES POUR LA NAVBAR --- */
+/* --- NAVBAR --- */
 .navbar {
     height: var(--navbar-height);
     width: 100%;
@@ -27,65 +26,95 @@ body {
     align-items: center;
     padding: 0 2rem;
     box-sizing: border-box;
-    position: fixed; /* La navbar reste en haut de l'écran */
+    position: fixed;
     top: 0;
     left: 0;
     z-index: 1000;
 }
 
-.navbar-brand {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: var(--primary-color);
-}
-
-.navbar-controls {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
+.navbar-brand { font-size: 1.5rem; font-weight: bold; color: var(--primary-color); }
+.navbar-links { display: flex; gap: 1.5rem; }
+.navbar-links a { text-decoration: none; color: #555; font-weight: 500; }
+.navbar-links a:hover { color: var(--primary-color); }
+.navbar-controls { display: flex; align-items: center; gap: 1rem; }
 
 #recherche {
     padding: 0.5rem 1rem;
     border: 1px solid var(--border-color);
-    border-radius: 20px; /* Bords arrondis pour un look moderne */
+    border-radius: 20px;
     font-size: 1rem;
 }
 
-/* --- Styles existants --- */
+/* NOUVEAU : Menu déroulant pour l'impression */
+.print-menu { position: relative; }
+.print-menu .print-options {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: white;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-radius: 4px;
+    padding: 0.5rem 0;
+    z-index: 1001;
+}
+.print-menu:hover .print-options { display: block; }
+.print-menu .print-options a {
+    display: block;
+    padding: 0.5rem 1rem;
+    white-space: nowrap;
+    text-decoration: none;
+    color: var(--text-color);
+}
+.print-menu .print-options a:hover { background-color: var(--light-gray); }
+
+
+/* --- Conteneurs et Titres --- */
 .container {
     max-width: 900px;
-    margin: 2rem auto; /* Marge en haut et en bas */
+    margin: 2rem auto;
     background-color: #fff;
     padding: 2rem;
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-h1, h2, h3 {
-    color: var(--primary-color);
-    margin-top: 0;
-}
-h1 { display: none; } /* On cache le H1 car le titre est maintenant dans la navbar */
+h1, h2, h3 { color: var(--primary-color); margin-top: 0; }
+h1 { display: none; }
+h2 { border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; }
+h3.univers-separator { margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem; }
 
-h2 {
-    border-bottom: 2px solid var(--border-color);
-    padding-bottom: 0.5rem;
+/* NOUVEAU : Barre d'outils avec filtres */
+.toolbar {
+    margin-bottom: 1.5rem;
+}
+#filtres-univers {
+    background-color: var(--light-gray);
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+}
+#filtres-univers label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
 }
 
-#creation-form form {
+
+/* --- Formulaires --- */
+#creation-form form, #import-form form {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1rem;
 }
 
 @media (min-width: 768px) {
-    #creation-form form {
-        grid-template-columns: 1fr 1fr;
-    }
-    .form-group-full {
-        grid-column: 1 / -1;
-    }
+    #creation-form form { grid-template-columns: 1fr 1fr; }
+    .form-group-full { grid-column: 1 / -1; }
 }
 
 .form-group { display: flex; flex-direction: column; }
@@ -128,12 +157,7 @@ button {
 }
 button:hover { background-color: #0056b3; }
 
-.univers-groupe {
-    margin-top: 2rem;
-    border-top: 1px solid #eee;
-    padding-top: 1rem;
-}
-
+/* --- Liste des codes géo --- */
 .code-geo-item {
     display: flex;
     align-items: center;
@@ -141,68 +165,39 @@ button:hover { background-color: #0056b3; }
     padding: 1rem;
     border-bottom: 1px solid var(--border-color);
 }
-
 .code-geo-item .qr-code-container { flex-shrink: 0; }
 .code-geo-item .details h4 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
 .code-geo-item .details p { margin: 0.25rem 0; }
 
-/* --- NOUVEAUX STYLES POUR LA PAGE PLAN --- */
-.container-full {
-    display: flex;
-    height: calc(100vh - var(--navbar-height));
-}
+/* --- PAGE PLAN --- */
+/* (styles existants non modifiés) */
 
-#unplaced-codes-sidebar {
-    width: 250px;
-    background-color: #f8f9fa;
-    padding: 1rem;
-    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-    overflow-y: auto;
-    flex-shrink: 0;
+/* NOUVEAU : Styles pour l'impression */
+@media print {
+    body {
+        padding-top: 0;
+        background-color: #fff;
+    }
+    .navbar, .toolbar, #print-btn, #recherche {
+        display: none !important;
+    }
+    .container {
+        box-shadow: none;
+        border: none;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    .code-geo-item {
+        page-break-inside: avoid; /* Évite de couper un item entre deux pages */
+    }
+    .qr-code-container canvas, .qr-code-container img {
+        width: 100px !important;
+        height: 100px !important;
+    }
+    a {
+        text-decoration: none;
+        color: inherit;
+    }
 }
-
-#unplaced-codes-sidebar h3 {
-    margin-top: 0;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.5rem;
-}
-
-#plan-container {
-    flex-grow: 1;
-    position: relative; /* Contexte pour le positionnement des étiquettes */
-    overflow: auto; /* Permet de scroller si l'image est grande */
-    padding: 2rem;
-}
-
-#map-image {
-    display: block;
-    max-width: 100%;
-    height: auto;
-}
-
-.geo-tag {
-    position: absolute; /* Permet de positionner avec left/top */
-    background-color: rgba(0, 123, 255, 0.9);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 15px;
-    font-size: 0.9rem;
-    font-weight: bold;
-    cursor: grab;
-    user-select: none; /* Empêche la sélection du texte pendant le drag */
-    border: 2px solid white;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-}
-
-#unplaced-list .geo-tag {
-    position: static; /* Positionnement normal dans la sidebar */
-    margin-bottom: 0.5rem;
-    display: block;
-    width: fit-content;
-}
-
-/* On change le curseur quand on déplace l'étiquette */
-.geo-tag:active {
-    cursor: grabbing;
-}
-

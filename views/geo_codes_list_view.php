@@ -12,17 +12,29 @@
 
     <div class="container">
         <section id="classeur">
-            <h2>📚 Classeur des emplacements</h2>
+            <div class="toolbar">
+                <h2>📚 Classeur des emplacements</h2>
+                <div id="filtres-univers">
+                    <strong>Filtrer par univers :</strong>
+                    <label><input type="checkbox" value="all" checked> Tout voir</label>
+                    <?php foreach ($univers as $u): ?>
+                        <label><input type="checkbox" value="<?= htmlspecialchars($u) ?>" checked> <?= htmlspecialchars($u) ?></label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
             <div id="liste-geocodes">
                  <?php 
                 $currentUnivers = null;
                 foreach ($geoCodes as $code): 
                     if ($code['univers'] !== $currentUnivers):
                         $currentUnivers = $code['univers'];
-                        echo "<h3>" . htmlspecialchars($currentUnivers) . "</h3>";
+                        echo "<h3 class='univers-separator' data-univers=\"".htmlspecialchars($currentUnivers)."\">" . htmlspecialchars($currentUnivers) . "</h3>";
                     endif;
                 ?>
-                    <div class="code-geo-item" data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'])) ?>">
+                    <div class="code-geo-item" 
+                         data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'])) ?>"
+                         data-univers="<?= htmlspecialchars($code['univers']) ?>">
                         <div class="qr-code-container" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
                         <div class="details">
                             <h4><?= htmlspecialchars($code['code_geo']) ?> <small> (<?= htmlspecialchars($code['zone']) ?>)</small></h4>

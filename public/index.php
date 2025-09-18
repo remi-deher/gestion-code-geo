@@ -22,12 +22,23 @@ switch ($action) {
     case 'plan':
         $controller->planAction();
         break;
-    case 'savePosition': // Nouvelle route pour la sauvegarde
+    case 'savePosition':
         $controller->savePositionAction();
+        break;
+    case 'export': // Nouvelle route
+        $controller->exportAction();
+        break;
+    case 'showImport': // Nouvelle route
+        $controller->showImportAction();
+        break;
+    case 'handleImport': // Nouvelle route
+        $controller->handleImportAction();
+        break;
+    case 'printLabels': // Nouvelle route
+        $controller->printLabelsAction();
         break;
     case 'list':
     default:
         $controller->listAction();
         break;
 }
-

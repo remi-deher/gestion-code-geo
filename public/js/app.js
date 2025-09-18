@@ -2,10 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- Logique commune à plusieurs pages ---
     const searchInput = document.getElementById('recherche');
-    const printButton = document.getElementById('print-btn');
-    if(printButton) {
-        printButton.addEventListener('click', () => window.print());
-    }
 
     // --- Logique pour la page LISTE ---
     const listeContainer = document.getElementById('liste-geocodes');
@@ -26,6 +22,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
         }
+
+        // NOUVEAU : Filtrage par univers
+        const universFilters = document.querySelectorAll('#filtres-univers input[type="checkbox"]');
+        universFilters.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const allCheckbox = document.querySelector('#filtres-univers input[value="all"]');
+                
+                // Gérer la case "Tout voir"
+                if (checkbox.value === 'all' && checkbox.checked) {
+                    universFilters.forEach(cb => cb.checked = true);
+                } else if (checkbox.value !== 'all' && !checkbox.checked) {
+                    allCheckbox.checked = false;
+                }
+
+                const checkedUnivers = Array.from(universFilters)
+                                            .filter(cb => cb.checked && cb.value !== 'all')
+                                            .map(cb => cb.value);
+
+                document.querySelectorAll('.code-geo-item, .univers-separator').forEach(item => {
+                    const itemUnivers = item.dataset.univers;
+                    item.style.display = checkedUnivers.includes(itemUnivers) ? '' : 'none';
+                });
+            });
+        });
+
     }
 
     // --- Logique pour la page CRÉATION ---
@@ -45,4 +66,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-
