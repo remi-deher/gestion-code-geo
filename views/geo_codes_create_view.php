@@ -12,7 +12,6 @@
         <section id="creation-form">
             <h2>Ajouter un nouvel emplacement</h2>
             <form action="index.php?action=add" method="POST">
-                <!-- ... (le même code de formulaire qu'avant) ... -->
                  <div class="form-group">
                     <label for="code_geo">Code Géo</label>
                     <input type="text" id="code_geo" name="code_geo" placeholder="Ex: ZV-A01-R2-N3" required>

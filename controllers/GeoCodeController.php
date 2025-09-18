@@ -10,26 +10,15 @@ class GeoCodeController {
         $this->manager = new GeoCodeManager($db);
     }
 
-    /**
-     * Affiche la page avec la LISTE de tous les codes géo.
-     */
     public function listAction() {
-        $geoCodes = $this->manager->getAllGeoCodes();
-        // On charge la vue qui affiche uniquement la liste
+        $geoCodes = $this->manager->getAllGeoCodesWithPositions();
         require '../views/geo_codes_list_view.php';
     }
 
-    /**
-     * Affiche la page avec le FORMULAIRE de création.
-     */
     public function createAction() {
-        // Cette vue contient uniquement le formulaire
         require '../views/geo_codes_create_view.php';
     }
 
-    /**
-     * Gère l'AJOUT d'un nouveau code géo (traitement du formulaire).
-     */
     public function addAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $code_geo = trim($_POST['code_geo'] ?? '');
@@ -42,16 +31,36 @@ class GeoCodeController {
                 $this->manager->createGeoCode($code_geo, $libelle, $univers, $zone, $commentaire);
             }
         }
-        // Après l'ajout, on redirige vers la liste pour voir le résultat
         header('Location: index.php?action=list');
         exit();
     }
 
-    /**
-     * Affiche la page du PLAN du magasin.
-     */
     public function planAction() {
-        // Pour le futur, on récupérera ici les positions des codes
+        // On récupère tous les codes avec leurs positions
+        $geoCodes = $this->manager->getAllGeoCodesWithPositions();
         require '../views/plan_view.php';
     }
+
+    /**
+     * NOUVELLE ACTION : Gère la sauvegarde de la position d'une étiquette.
+     * Reçoit les données en JSON et retourne une réponse en JSON.
+     */
+    public function savePositionAction() {
+        header('Content-Type: application/json');
+        
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (isset($input['id'], $input['x'], $input['y'])) {
+            $success = $this->manager->savePosition((int)$input['id'], (int)$input['x'], (int)$input['y']);
+            if ($success) {
+                echo json_encode(['status' => 'success']);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Database error']);
+            }
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid data']);
+        }
+        exit();
+    }
 }
+

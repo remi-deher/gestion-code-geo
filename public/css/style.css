@@ -145,3 +145,64 @@ button:hover { background-color: #0056b3; }
 .code-geo-item .qr-code-container { flex-shrink: 0; }
 .code-geo-item .details h4 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
 .code-geo-item .details p { margin: 0.25rem 0; }
+
+/* --- NOUVEAUX STYLES POUR LA PAGE PLAN --- */
+.container-full {
+    display: flex;
+    height: calc(100vh - var(--navbar-height));
+}
+
+#unplaced-codes-sidebar {
+    width: 250px;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+#unplaced-codes-sidebar h3 {
+    margin-top: 0;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+#plan-container {
+    flex-grow: 1;
+    position: relative; /* Contexte pour le positionnement des étiquettes */
+    overflow: auto; /* Permet de scroller si l'image est grande */
+    padding: 2rem;
+}
+
+#map-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+.geo-tag {
+    position: absolute; /* Permet de positionner avec left/top */
+    background-color: rgba(0, 123, 255, 0.9);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: grab;
+    user-select: none; /* Empêche la sélection du texte pendant le drag */
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+#unplaced-list .geo-tag {
+    position: static; /* Positionnement normal dans la sidebar */
+    margin-bottom: 0.5rem;
+    display: block;
+    width: fit-content;
+}
+
+/* On change le curseur quand on déplace l'étiquette */
+.geo-tag:active {
+    cursor: grabbing;
+}
+
