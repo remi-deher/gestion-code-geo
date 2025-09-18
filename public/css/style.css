@@ -309,3 +309,113 @@ button:hover { background-color: #0056b3; }
     }
     a { text-decoration: none; color: inherit; }
 }
+
+/* --- Sélecteur de Vue --- */
+.view-switcher {
+    margin-bottom: 1.5rem;
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1rem;
+}
+.view-switcher button {
+    background-color: var(--light-gray);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+.view-switcher button.active {
+    background-color: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+/* --- Styles pour la Vue Tableau --- */
+.geo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+.geo-table th, .geo-table td {
+    border: 1px solid var(--border-color);
+    padding: 0.75rem;
+    text-align: left;
+}
+.geo-table thead {
+    background-color: var(--light-gray);
+}
+.geo-table th {
+    font-weight: bold;
+}
+/* Style pour le tri */
+.geo-table th[data-sort] {
+    cursor: pointer;
+    position: relative;
+}
+.geo-table th[data-sort]::after {
+    content: ' ▲';
+    opacity: 0.2;
+    position: absolute;
+    right: 10px;
+}
+.geo-table th[data-sort].asc::after {
+    content: ' ▲';
+    opacity: 1;
+}
+.geo-table th[data-sort].desc::after {
+    content: ' ▼';
+    opacity: 1;
+}
+
+.geo-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+.geo-table tbody tr:hover {
+    background-color: #e9ecef;
+}
+.geo-table .item-actions {
+    text-align: center;
+}
+
+
+/* --- Styles d'Impression Améliorés --- */
+@media print {
+    body {
+        padding-top: 0;
+        background-color: #fff;
+    }
+    .navbar, .toolbar, #print-btn, #recherche, .item-actions, .view-switcher {
+        display: none !important;
+    }
+    .container {
+        box-shadow: none;
+        border: none;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* On cache la vue qui n'est pas "tableau" */
+    #list-view {
+        display: none !important;
+    }
+    
+    /* On force l'affichage de la vue tableau */
+    #table-view {
+        display: block !important;
+    }
+    
+    .geo-table {
+        font-size: 10pt; /* Plus petit pour tenir sur la page */
+    }
+    .geo-table th, .geo-table td {
+        padding: 5px;
+    }
+    .geo-table .item-actions {
+        display: none; /* Cache la colonne actions à l'impression */
+    }
+    .geo-table th.no-sort {
+         display: none;
+    }
+    a { text-decoration: none; color: inherit; }
+}
