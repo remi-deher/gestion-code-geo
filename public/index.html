@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionnaire de Codes Géo</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        /* --- Styles Généraux et Mobile-First --- */
+        :root {
+            --primary-color: #007bff;
+            --light-gray: #f8f9fa;
+            --border-color: #dee2e6;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 1rem;
+            background-color: var(--light-gray);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        h1, h2 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+        
+        h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* --- Section Formulaire --- */
+        #creation-form form {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        @media (min-width: 768px) {
+            #creation-form form {
+                grid-template-columns: 1fr 1fr; /* 2 colonnes sur grand écran */
+            }
+            .form-group-full {
+                grid-column: 1 / -1;
+            }
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        #qrcode-preview {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--light-gray);
+            border-radius: 4px;
+            min-height: 150px;
+            color: #6c757d;
+        }
+
+        #qrcode-preview canvas, #qrcode-preview img {
+            max-width: 128px;
+            max-height: 128px;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #fff;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        /* --- Section Classeur --- */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        #recherche {
+            flex-grow: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .univers-groupe {
+            margin-top: 2rem;
+            border-top: 1px solid #eee;
+            padding-top: 1rem;
+        }
+
+        .code-geo-item {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #fff;
+            transition: background-color 0.2s;
+        }
+        
+        .code-geo-item:hover {
+            background-color: var(--light-gray);
+        }
+
+        .code-geo-item .qr-code-container {
+            flex-shrink: 0;
+        }
+
+        .code-geo-item .details h4 {
+            margin: 0 0 0.25rem 0;
+            font-size: 1.1rem;
+        }
+        
+        .code-geo-item .details p {
+            margin: 0.25rem 0;
+        }
+        
+        .code-geo-item .details .libelle {
+            font-style: italic;
+            color: #555;
+        }
+        
+        .code-geo-item .details .commentaire {
+            font-size: 0.9rem;
+            color: #777;
+        }
+
+        /* --- Styles pour l'impression --- */
+        @media print {
+            body {
+                padding: 0;
+                background-color: #fff;
+            }
+            #creation-form, .controls {
+                display: none !important;
+            }
+            .container {
+                box-shadow: none;
+                padding: 0;
+            }
+            .code-geo-item {
+                page-break-inside: avoid; /* Évite qu'un item soit coupé entre deux pages */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Gestionnaire de Codes Géo 🏬</h1>
+        </header>
+
+        <section id="creation-form">
+            <h2>Ajouter un nouvel emplacement</h2>
+            <form id="form-add-geo">
+                <div class="form-group">
+                    <label for="code_geo">Code Géo</label>
+                    <input type="text" id="code_geo" placeholder="Ex: ZV-A01-R2-N3" required>
+                </div>
+                <div class="form-group">
+                    <label for="univers">Univers de produit</label>
+                    <input type="text" id="univers" placeholder="Ex: Épicerie Salée" required>
+                </div>
+                <div class="form-group form-group-full">
+                    <label for="libelle">Libellé</label>
+                    <input type="text" id="libelle" placeholder="Ex: Rayon Pâtes, 2ème étagère" required>
+                </div>
+                <div class="form-group form-group-full">
+                    <label for="commentaire">Commentaire (optionnel)</label>
+                    <textarea id="commentaire" placeholder="Informations additionnelles..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="zone">Zone de stockage</label>
+                    <select id="zone" required>
+                        <option value="vente">Zone de Vente</option>
+                        <option value="reserve">Réserve</option>
+                    </select>
+                </div>
+                 <div class="form-group">
+                    <label>Aperçu du QR Code</label>
+                    <div id="qrcode-preview">Saisir un code géo...</div>
+                </div>
+                <button type="submit" class="form-group-full">Ajouter le code géo</button>
+            </form>
+        </section>
+
+        <hr style="margin: 3rem 0;">
+
+        <section id="classeur">
+            <h2>📚 Classeur des emplacements</h2>
+            <div class="controls">
+                <input type="search" id="recherche" placeholder="Rechercher par code, libellé, univers...">
+                <button id="print-btn">🖨️ Imprimer le classeur</button>
+            </div>
+            <div id="liste-geocodes">
+                </div>
+        </section>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- VARIABLES ET ÉLÉMENTS DU DOM ---
+            const form = document.getElementById('form-add-geo');
+            const codeGeoInput = document.getElementById('code_geo');
+            const qrCodePreview = document.getElementById('qrcode-preview');
+            const listeContainer = document.getElementById('liste-geocodes');
+            const searchInput = document.getElementById('recherche');
+            const printButton = document.getElementById('print-btn');
+
+            // --- DONNÉES D'EXEMPLE ---
+            // À terme, ces données viendront de votre base de données via l'API PHP
+            let geoCodes = [
+                { id: 1, code_geo: "ZV-A01-R1-N1", libelle: "Entrée du magasin, tête de gondole", commentaire: "Promotions de la semaine", univers: "Promotions", zone: "vente" },
+                { id: 2, code_geo: "ZV-E12-R3-N2", libelle: "Rayon Pâtes et Sauces", commentaire: "", univers: "Épicerie Salée", zone: "vente" },
+                { id: 3, code_geo: "ZV-E12-R3-N3", libelle: "Rayon Pâtes sans gluten", commentaire: "Produits fragiles", univers: "Épicerie Salée", zone: "vente" },
+                { id: 4, code_geo: "RE-P01-E4", libelle: "Palette stock eaux minérales", commentaire: "Rotation rapide", univers: "Boissons", zone: "reserve" },
+            ];
+
+            // --- FONCTIONS PRINCIPALES ---
+
+            /**
+             * Affiche les codes géo dans la liste, groupés par univers
+             * @param {Array} codes - Le tableau des codes à afficher
+             */
+            const renderGeoCodes = (codes) => {
+                listeContainer.innerHTML = ''; // Vider la liste actuelle
+
+                if (codes.length === 0) {
+                    listeContainer.innerHTML = '<p>Aucun code géo trouvé.</p>';
+                    return;
+                }
+
+                // 1. Grouper les codes par univers
+                const groupedByUnivers = codes.reduce((acc, code) => {
+                    (acc[code.univers] = acc[code.univers] || []).push(code);
+                    return acc;
+                }, {});
+                
+                // 2. Créer le HTML pour chaque groupe
+                for (const univers in groupedByUnivers) {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'univers-groupe';
+                    
+                    const title = document.createElement('h3');
+                    title.textContent = univers;
+                    groupDiv.appendChild(title);
+
+                    groupedByUnivers[univers].forEach(code => {
+                        const itemHtml = `
+                            <div class="code-geo-item">
+                                <div class="qr-code-container" id="qr-${code.id}"></div>
+                                <div class="details">
+                                    <h4>${code.code_geo} <small>(${code.zone})</small></h4>
+                                    <p class="libelle">${code.libelle}</p>
+                                    ${code.commentaire ? `<p class="commentaire">Note: ${code.commentaire}</p>` : ''}
+                                </div>
+                            </div>
+                        `;
+                        groupDiv.innerHTML += itemHtml;
+                    });
+                    
+                    listeContainer.appendChild(groupDiv);
+                }
+
+                // 3. Générer les QR codes maintenant que le HTML est dans la page
+                codes.forEach(code => {
+                    new QRCode(document.getElementById(`qr-${code.id}`), {
+                        text: code.code_geo,
+                        width: 80,
+                        height: 80,
+                    });
+                });
+            };
+
+            /**
+             * Met à jour l'aperçu du QR Code dans le formulaire
+             */
+            const updateQRCodePreview = () => {
+                const text = codeGeoInput.value.trim();
+                qrCodePreview.innerHTML = ''; // Vider l'aperçu
+                if (text) {
+                    new QRCode(qrCodePreview, {
+                        text: text,
+                        width: 128,
+                        height: 128,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                } else {
+                    qrCodePreview.textContent = 'Saisir un code géo...';
+                }
+            };
+            
+            /**
+             * Gère la soumission du formulaire
+             */
+            const handleFormSubmit = (event) => {
+                event.preventDefault(); // Empêche le rechargement de la page
+
+                const newCode = {
+                    id: Date.now(), // ID unique simple pour l'exemple
+                    code_geo: document.getElementById('code_geo').value.trim(),
+                    libelle: document.getElementById('libelle').value.trim(),
+                    commentaire: document.getElementById('commentaire').value.trim(),
+                    univers: document.getElementById('univers').value.trim(),
+                    zone: document.getElementById('zone').value,
+                };
+                
+                // --- À REMPLACER PAR UN APPEL API (POST) ---
+                console.log("Envoi du nouveau code à l'API :", newCode);
+                geoCodes.push(newCode); // Ajout aux données locales pour la démo
+                // --- FIN DE LA PARTIE À REMPLACER ---
+                
+                renderGeoCodes(geoCodes);
+                form.reset(); // Vider le formulaire
+                updateQRCodePreview();
+                
+                // Ici, on pourrait envoyer le newCode via WebSocket au serveur Ratchet
+            };
+
+            /**
+             * Filtre la liste affichée en fonction de la recherche
+             */
+            const filterCodes = () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filtered = geoCodes.filter(code => 
+                    code.code_geo.toLowerCase().includes(searchTerm) ||
+                    code.libelle.toLowerCase().includes(searchTerm) ||
+                    code.univers.toLowerCase().includes(searchTerm)
+                );
+                renderGeoCodes(filtered);
+            };
+
+            // --- ÉCOUTEURS D'ÉVÉNEMENTS ---
+            form.addEventListener('submit', handleFormSubmit);
+            codeGeoInput.addEventListener('input', updateQRCodePreview);
+            searchInput.addEventListener('input', filterCodes);
+            printButton.addEventListener('click', () => window.print());
+
+            // --- INITIALISATION ---
+            // À terme, remplacer par un appel API (GET) pour charger les données
+            renderGeoCodes(geoCodes);
+            
+            // Écouter les messages du WebSocket pour mettre à jour la liste en temps réel
+            // const socket = new WebSocket('ws://localhost:8082');
+            // socket.onmessage = (event) => {
+            //     const updatedData = JSON.parse(event.data);
+            //     geoCodes = updatedData.codes; // Mettre à jour la source de données
+            //     renderGeoCodes(geoCodes);
+            // };
+        });
+    </script>
+</body>
+</html>
