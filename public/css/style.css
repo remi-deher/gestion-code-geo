@@ -4,19 +4,58 @@
     --light-gray: #f8f9fa;
     --border-color: #dee2e6;
     --text-color: #333;
+    --navbar-height: 60px; /* Ajout d'une variable pour la hauteur de la navbar */
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     margin: 0;
-    padding: 1rem;
+    /* On ajoute un padding en haut pour ne pas que le contenu soit caché par la navbar */
+    padding-top: var(--navbar-height); 
     background-color: var(--light-gray);
     color: var(--text-color);
 }
 
+/* --- NOUVEAUX STYLES POUR LA NAVBAR --- */
+.navbar {
+    height: var(--navbar-height);
+    width: 100%;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 2rem;
+    box-sizing: border-box;
+    position: fixed; /* La navbar reste en haut de l'écran */
+    top: 0;
+    left: 0;
+    z-index: 1000;
+}
+
+.navbar-brand {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.navbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+#recherche {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 20px; /* Bords arrondis pour un look moderne */
+    font-size: 1rem;
+}
+
+/* --- Styles existants --- */
 .container {
     max-width: 900px;
-    margin: auto;
+    margin: 2rem auto; /* Marge en haut et en bas */
     background-color: #fff;
     padding: 2rem;
     border-radius: 8px;
@@ -27,13 +66,13 @@ h1, h2, h3 {
     color: var(--primary-color);
     margin-top: 0;
 }
+h1 { display: none; } /* On cache le H1 car le titre est maintenant dans la navbar */
 
 h2 {
     border-bottom: 2px solid var(--border-color);
     padding-bottom: 0.5rem;
 }
 
-/* --- Section Formulaire --- */
 #creation-form form {
     display: grid;
     grid-template-columns: 1fr;
@@ -89,7 +128,6 @@ button {
 }
 button:hover { background-color: #0056b3; }
 
-/* --- Section Classeur --- */
 .univers-groupe {
     margin-top: 2rem;
     border-top: 1px solid #eee;

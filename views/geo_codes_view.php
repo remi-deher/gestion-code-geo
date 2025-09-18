@@ -9,9 +9,18 @@
 </head>
 <body>
 
+    <!-- NOUVELLE BARRE DE NAVIGATION -->
+    <nav class="navbar">
+        <div class="navbar-brand">Gestion Géo 🏬</div>
+        <div class="navbar-controls">
+            <input type="search" id="recherche" placeholder="Rechercher...">
+            <button id="print-btn">🖨️ Imprimer</button>
+        </div>
+    </nav>
+
     <div class="container">
         <header>
-            <h1>Gestionnaire de Codes Géo 🏬</h1>
+            <h1>Gestionnaire de Codes Géo</h1>
         </header>
 
         <section id="creation-form">
