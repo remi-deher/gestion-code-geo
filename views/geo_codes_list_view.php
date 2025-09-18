@@ -21,6 +21,12 @@
                         <label><input type="checkbox" value="<?= htmlspecialchars($u['nom']) ?>" checked> <?= htmlspecialchars($u['nom']) ?></label>
                     <?php endforeach; ?>
                 </div>
+                <!-- NOUVEAU : Onglets pour filtrer par zone -->
+                <div class="zone-tabs">
+                    <button class="zone-tab active" data-zone="all">Toutes les zones</button>
+                    <button class="zone-tab" data-zone="vente">Zone de Vente</button>
+                    <button class="zone-tab" data-zone="reserve">Réserve</button>
+                </div>
             </div>
 
             <div id="liste-geocodes">
@@ -35,7 +41,8 @@
                     ?>
                         <div class="code-geo-item" 
                              data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'])) ?>"
-                             data-univers="<?= htmlspecialchars($code['univers']) ?>">
+                             data-univers="<?= htmlspecialchars($code['univers']) ?>"
+                             data-zone="<?= htmlspecialchars($code['zone']) ?>">
                             <div class="qr-code-container" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
                             <div class="details">
                                 <h4><?= htmlspecialchars($code['code_geo']) ?> <small> (<?= htmlspecialchars($code['zone']) ?>)</small></h4>

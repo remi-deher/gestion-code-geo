@@ -1,4 +1,4 @@
-/* --- Styles Généraux et Mobile-First --- */
+/* --- Variables et Styles Généraux --- */
 :root {
     --primary-color: #007bff;
     --light-gray: #f8f9fa;
@@ -15,7 +15,7 @@ body {
     color: var(--text-color);
 }
 
-/* --- NAVBAR --- */
+/* --- Barre de Navigation --- */
 .navbar {
     height: var(--navbar-height);
     width: 100%;
@@ -34,7 +34,7 @@ body {
 
 .navbar-brand { font-size: 1.5rem; font-weight: bold; color: var(--primary-color); }
 .navbar-links { display: flex; gap: 1.5rem; }
-.navbar-links a { text-decoration: none; color: #555; font-weight: 500; }
+.navbar-links a { text-decoration: none; color: #555; font-weight: 500; transition: color 0.2s; }
 .navbar-links a:hover { color: var(--primary-color); }
 .navbar-controls { display: flex; align-items: center; gap: 1rem; }
 
@@ -45,7 +45,7 @@ body {
     font-size: 1rem;
 }
 
-/* NOUVEAU : Menu déroulant pour l'impression */
+/* Menu déroulant pour l'impression */
 .print-menu { position: relative; }
 .print-menu .print-options {
     display: none;
@@ -57,6 +57,7 @@ body {
     border-radius: 4px;
     padding: 0.5rem 0;
     z-index: 1001;
+    min-width: 180px;
 }
 .print-menu:hover .print-options { display: block; }
 .print-menu .print-options a {
@@ -84,10 +85,8 @@ h1 { display: none; }
 h2 { border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; }
 h3.univers-separator { margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem; }
 
-/* NOUVEAU : Barre d'outils avec filtres */
-.toolbar {
-    margin-bottom: 1.5rem;
-}
+/* --- Barre d'outils avec Filtres --- */
+.toolbar { margin-bottom: 1.5rem; }
 #filtres-univers {
     background-color: var(--light-gray);
     padding: 1rem;
@@ -104,16 +103,41 @@ h3.univers-separator { margin-top: 2rem; border-top: 1px solid #eee; padding-top
     cursor: pointer;
 }
 
+/* Onglets pour filtrer par zone */
+.zone-tabs {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+}
+.zone-tab {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    transition: all 0.2s;
+}
+.zone-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+.zone-tab:hover {
+    color: var(--primary-color);
+}
 
 /* --- Formulaires --- */
-#creation-form form, #import-form form {
+#creation-form form, #edit-form form, #import-form form {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 1.5rem;
 }
 
 @media (min-width: 768px) {
-    #creation-form form { grid-template-columns: 1fr 1fr; }
+    #creation-form form, #edit-form form { grid-template-columns: 1fr 1fr; }
     .form-group-full { grid-column: 1 / -1; }
 }
 
@@ -157,9 +181,10 @@ button {
 }
 button:hover { background-color: #0056b3; }
 
-/* --- Liste des codes géo --- */
+/* --- Liste des Codes Géo --- */
 .code-geo-item {
     display: flex;
+    justify-content: space-between;
     align-items: center;
     gap: 1.5rem;
     padding: 1rem;
@@ -168,17 +193,103 @@ button:hover { background-color: #0056b3; }
 .code-geo-item .qr-code-container { flex-shrink: 0; }
 .code-geo-item .details h4 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
 .code-geo-item .details p { margin: 0.25rem 0; }
+.code-geo-item .details p.comment { font-size: 0.9em; color: #555; }
 
-/* --- PAGE PLAN --- */
-/* (styles existants non modifiés) */
+.item-actions .btn-edit {
+    text-decoration: none;
+    background-color: #ffc107;
+    color: #333;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+.item-actions .btn-edit:hover {
+    background-color: #e0a800;
+}
 
-/* NOUVEAU : Styles pour l'impression */
+
+/* --- Page de Gestion des Univers --- */
+.univers-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+@media (min-width: 768px) {
+    .univers-container { grid-template-columns: 1fr 1fr; }
+}
+.univers-list ul { list-style: none; padding: 0; }
+.univers-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.univers-list li:last-child { border-bottom: none; }
+.btn-delete { text-decoration: none; opacity: 0.6; transition: opacity 0.2s; }
+.btn-delete:hover { opacity: 1; }
+
+
+/* --- Page Plan --- */
+.container-full {
+    display: flex;
+    height: calc(100vh - var(--navbar-height));
+}
+#unplaced-codes-sidebar {
+    width: 250px;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+#unplaced-codes-sidebar h3 {
+    margin-top: 0;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+#plan-container {
+    flex-grow: 1;
+    position: relative;
+    overflow: auto;
+    padding: 2rem;
+}
+#map-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+.geo-tag {
+    position: absolute;
+    background-color: rgba(0, 123, 255, 0.9);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: grab;
+    user-select: none;
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+#unplaced-list .geo-tag {
+    position: static;
+    margin-bottom: 0.5rem;
+    display: block;
+    width: fit-content;
+}
+.geo-tag:active { cursor: grabbing; }
+
+
+/* --- Styles pour l'Impression --- */
 @media print {
     body {
         padding-top: 0;
         background-color: #fff;
     }
-    .navbar, .toolbar, #print-btn, #recherche {
+    .navbar, .toolbar, #print-btn, #recherche, .item-actions {
         display: none !important;
     }
     .container {
@@ -190,70 +301,11 @@ button:hover { background-color: #0056b3; }
         padding: 0;
     }
     .code-geo-item {
-        page-break-inside: avoid; /* Évite de couper un item entre deux pages */
+        page-break-inside: avoid;
     }
     .qr-code-container canvas, .qr-code-container img {
         width: 100px !important;
         height: 100px !important;
     }
-    a {
-        text-decoration: none;
-        color: inherit;
-    }
-}
-
-/* --- Styles pour la liste des codes géo --- */
-.code-geo-item {
-    display: flex;
-    justify-content: space-between; /* Pour espacer le bouton modifier */
-    align-items: center;
-    gap: 1.5rem;
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color);
-}
-.item-actions .btn-edit {
-    text-decoration: none;
-    background-color: #ffc107;
-    color: #333;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    font-weight: bold;
-}
-.item-actions .btn-edit:hover {
-    background-color: #e0a800;
-}
-
-/* --- Styles pour la page de gestion des univers --- */
-.univers-container {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-}
-@media (min-width: 768px) {
-    .univers-container {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-.univers-list ul {
-    list-style: none;
-    padding: 0;
-}
-.univers-list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--border-color);
-}
-.univers-list li:last-child {
-    border-bottom: none;
-}
-.btn-delete {
-    text-decoration: none;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-}
-.btn-delete:hover {
-    opacity: 1;
+    a { text-decoration: none; color: inherit; }
 }
