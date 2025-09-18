@@ -9,6 +9,7 @@
 <body>
 
     <?php include 'partials/navbar.php'; ?>
+    <?php include 'partials/flash_messages.php'; ?>
 
     <div class="container">
         <section id="classeur">
@@ -17,11 +18,13 @@
                 <div id="filtres-univers">
                     <strong>Filtrer par univers :</strong>
                     <label><input type="checkbox" value="all" checked> Tout voir</label>
-                    <?php foreach ($univers as $u): ?>
-                        <label data-univers-name="<?= htmlspecialchars($u['nom']) ?>">
-                            <input type="checkbox" value="<?= htmlspecialchars($u['nom']) ?>" checked> <?= htmlspecialchars($u['nom']) ?>
-                        </label>
-                    <?php endforeach; ?>
+                    <?php if (!empty($univers)): ?>
+                        <?php foreach ($univers as $u): ?>
+                            <label data-univers-name="<?= htmlspecialchars($u['nom']) ?>">
+                                <input type="checkbox" value="<?= htmlspecialchars($u['nom']) ?>" checked> <?= htmlspecialchars($u['nom']) ?>
+                            </label>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
                 <div class="zone-tabs">
                     <button class="zone-tab active" data-zone="all">Toutes les zones</button>
@@ -41,9 +44,10 @@
                         <?php 
                         $currentUnivers = null;
                         foreach ($geoCodes as $code): 
+                            // Affiche le titre de l'univers uniquement s'il change
                             if ($code['univers'] !== $currentUnivers):
                                 $currentUnivers = $code['univers'];
-                                echo "<h3 class='univers-separator' data-univers=\"".htmlspecialchars($currentUnivers)."\">" . htmlspecialchars($currentUnivers) . "</h3>";
+                                echo "<h3 class='univers-separator' data-univers=\"".htmlspecialchars($currentUnivers)."\">" . htmlspecialchars($currentUnivers ?: 'Sans Univers') . "</h3>";
                             endif;
                         ?>
                             <div class="code-geo-item" 
@@ -88,7 +92,7 @@
                                     data-zone="<?= htmlspecialchars($code['zone']) ?>">
                                     <td data-label="Code Géo"><?= htmlspecialchars($code['code_geo']) ?></td>
                                     <td data-label="Libellé"><?= htmlspecialchars($code['libelle']) ?></td>
-                                    <td data-label="Univers"><?= htmlspecialchars($code['univers']) ?></td>
+                                    <td data-label="Univers"><?= htmlspecialchars($code['univers'] ?: 'N/A') ?></td>
                                     <td data-label="Zone"><?= htmlspecialchars($code['zone']) ?></td>
                                     <td data-label="Actions" class="item-actions">
                                         <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn-edit">✏️ Modifier</a>
@@ -99,7 +103,6 @@
                     </tbody>
                 </table>
             </div>
-            
         </section>
     </div>
     

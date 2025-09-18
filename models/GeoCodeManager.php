@@ -24,6 +24,8 @@ class GeoCodeManager {
      * @return array
      */
     public function getAllGeoCodesWithPositions() {
+        // CORRECTION : Remplacement de "JOIN univers" par "LEFT JOIN univers"
+        // Cela assure que les codes géo sont affichés même si leur univers a été supprimé.
         $sql = "
             SELECT 
                 gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire,
@@ -32,7 +34,7 @@ class GeoCodeManager {
                 geo_codes gc
             LEFT JOIN 
                 geo_positions gp ON gc.id = gp.geo_code_id
-            JOIN 
+            LEFT JOIN 
                 univers u ON gc.univers_id = u.id
             ORDER BY 
                 u.nom, gc.code_geo
@@ -67,8 +69,6 @@ class GeoCodeManager {
         $this->db->beginTransaction();
         try {
             foreach ($codes as $code) {
-                 // On assume ici que l'import peut contenir le nom de l'univers, pas son ID
-                 // On cherche l'ID de l'univers, ou on le crée s'il n'existe pas.
                 $univers_id = $this->getOrCreateUniversId($code['univers']);
                 
                 $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) 
@@ -91,6 +91,7 @@ class GeoCodeManager {
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
+            // Log l'erreur peut être une bonne idée ici
             return false;
         }
     }
@@ -122,7 +123,6 @@ class GeoCodeManager {
      * Récupère l'ID d'un univers par son nom, ou le crée s'il n'existe pas.
      */
     private function getOrCreateUniversId(string $nom): int {
-        // Cherche l'univers
         $stmt = $this->db->prepare("SELECT id FROM univers WHERE nom = ?");
         $stmt->execute([$nom]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -130,7 +130,6 @@ class GeoCodeManager {
         if ($result) {
             return $result['id'];
         } else {
-            // Crée l'univers
             $this->addUnivers($nom);
             return $this->db->lastInsertId();
         }
@@ -140,7 +139,7 @@ class GeoCodeManager {
      * Ajoute un nouvel univers.
      */
     public function addUnivers(string $nom) {
-        $sql = "INSERT INTO univers (nom) VALUES (?)";
+        $sql = "INSERT INTO univers (nom) VALUES (?) ON DUPLICATE KEY UPDATE nom=nom"; // Évite les erreurs si l'univers existe déjà
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$nom]);
     }
