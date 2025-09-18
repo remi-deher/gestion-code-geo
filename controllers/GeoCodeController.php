@@ -1,6 +1,6 @@
 <?php
 
-require_once 'models/GeoCodeManager.php';
+require_once '../models/GeoCodeManager.php';
 
 class GeoCodeController {
     
@@ -14,11 +14,9 @@ class GeoCodeController {
      * Affiche la liste de tous les codes géo.
      */
     public function listAction() {
-        // 1. Demande les données au Modèle
+        // ... (votre code existant pour listAction)
         $geoCodes = $this->manager->getAllGeoCodes();
-
-        // 2. Charge la Vue et lui passe les données
-        require 'views/geo_codes_view.php';
+        require '../views/geo_codes_view.php';
     }
 
     /**
@@ -26,17 +24,26 @@ class GeoCodeController {
      */
     public function addAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Récupérer et nettoyer les données du formulaire
-            $code_geo = trim($_POST['code_geo']);
-            $libelle = trim($_POST['libelle']);
-            // ... récupérer les autres champs
-            
-            // 1. Demande au Modèle d'enregistrer les données
-            $success = $this->manager->createGeoCode($code_geo, $libelle, ...);
+            // Récupérer et nettoyer toutes les données du formulaire
+            $code_geo = trim($_POST['code_geo'] ?? '');
+            $libelle = trim($_POST['libelle'] ?? '');
+            $univers = trim($_POST['univers'] ?? '');
+            $zone = $_POST['zone'] ?? ''; // Pas de trim sur un select
+            $commentaire = trim($_POST['commentaire'] ?? null);
 
-            // 2. Redirige vers la liste pour voir le résultat
+            // Vérification simple (vous pourrez l'améliorer)
+            if (!empty($code_geo) && !empty($libelle) && !empty($univers) && !empty($zone)) {
+                // Demande au Modèle d'enregistrer les données avec toutes les variables
+                $this->manager->createGeoCode($code_geo, $libelle, $univers, $zone, $commentaire);
+            }
+            
+            // Redirige vers la liste pour voir le résultat
             header('Location: index.php?action=list');
             exit();
         }
+        
+        // Si ce n'est pas une requête POST, on redirige aussi pour éviter une page blanche
+        header('Location: index.php?action=list');
+        exit();
     }
 }
