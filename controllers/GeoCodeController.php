@@ -12,6 +12,7 @@ class GeoCodeController {
     }
 
     // --- Actions pour les Codes Géo ---
+    // ... (les autres actions comme listAction, createAction, etc., restent inchangées)
     public function listAction() {
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();
         $univers = $this->manager->getAllUnivers();
@@ -105,11 +106,22 @@ class GeoCodeController {
         header('Location: index.php?action=list');
         exit();
     }
-
+    
     // --- Actions pour le Plan ---
     public function planAction() {
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();
-        $plans = $this->manager->getAllPlans(); // On charge les plans pour le sélecteur
+        $plans = $this->manager->getAllPlans();
+        $universList = $this->manager->getAllUnivers();
+
+        // Création de la palette de couleurs pour les univers
+        $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+        $universColors = [];
+        $colorIndex = 0;
+        foreach ($universList as $univers) {
+            $universColors[$univers['nom']] = $colors[$colorIndex % count($colors)];
+            $colorIndex++;
+        }
+
         require __DIR__ . '/../views/plan_view.php';
     }
 
@@ -126,6 +138,7 @@ class GeoCodeController {
     }
 
     // --- Actions pour l'Import/Export ---
+    // ... (les autres actions restent inchangées)
     public function exportAction() {
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="export_geocodes_'.date('Y-m-d').'.csv"');
@@ -240,9 +253,8 @@ class GeoCodeController {
         }
         exit();
     }
-
-    // --- NOUVELLES ACTIONS POUR LA GESTION DES PLANS ---
-
+    
+    // --- Actions pour la Gestion des Plans ---
     public function listPlansAction() {
         $plans = $this->manager->getAllPlans();
         require __DIR__ . '/../views/plans_list_view.php';
@@ -263,27 +275,24 @@ class GeoCodeController {
                 $safeFilename = preg_replace('/[^a-zA-Z0-9-_\.]/','_', basename($file['name'], "." . $extension));
                 $newFilenameBase = time() . '_' . $safeFilename;
                 
-                $finalFilename = $newFilenameBase . '.png'; // On convertit tout en PNG
+                $finalFilename = $newFilenameBase . '.png';
                 $destination = $uploadDir . $finalFilename;
 
-                // Conversion du PDF en PNG si nécessaire
                 if ($extension === 'pdf' && class_exists('Imagick')) {
                     try {
                         $imagick = new Imagick();
-                        $imagick->readImage($file['tmp_name'] . '[0]'); // Prend la première page
+                        $imagick->readImage($file['tmp_name'] . '[0]');
                         $imagick->setImageFormat('png');
                         $imagick->writeImage($destination);
                         $imagick->clear();
                         $imagick->destroy();
                     } catch (Exception $e) {
-                        // Gérer l'erreur si Imagick échoue
                         header('Location: index.php?action=listPlans&error=pdf');
                         exit();
                     }
                 } else if (in_array($extension, ['png', 'jpg', 'jpeg'])) {
                     move_uploaded_file($file['tmp_name'], $destination);
                 } else {
-                    // Type de fichier non supporté
                     header('Location: index.php?action=listPlans&error=type');
                     exit();
                 }

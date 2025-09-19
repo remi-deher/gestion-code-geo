@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Récupération des éléments du DOM ---
     const planContainer = document.getElementById('plan-container');
     const unplacedList = document.getElementById('unplaced-list');
     const mapImage = document.getElementById('map-image');
@@ -7,8 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const printBtn = document.getElementById('print-plan-btn');
     const placeholder = document.getElementById('plan-placeholder');
 
-    // Vérification de la présence des éléments
-    if (!planContainer || !unplacedList || !mapImage || !planSelector || typeof geoCodesData === 'undefined') {
+    if (!planContainer || !unplacedList || !mapImage || !planSelector || typeof geoCodesData === 'undefined' || typeof universColors === 'undefined') {
         console.error('Éléments de la page du plan manquants ou données non chargées.');
         return;
     }
@@ -25,15 +23,36 @@ document.addEventListener('DOMContentLoaded', () => {
         tag.className = 'geo-tag';
         tag.textContent = code.code_geo;
         tag.dataset.id = code.id;
+        tag.dataset.univers = code.univers; // Ajout pour futurs filtres
         tag.draggable = true;
+
+        // NOUVEAU : Application de la couleur par univers
+        const tagColor = universColors[code.univers] || '#7f8c8d'; // Couleur par défaut si univers inconnu
+        tag.style.backgroundColor = tagColor;
+        
+        // Adapte la couleur du texte pour une meilleure lisibilité
+        tag.style.color = isColorDark(tagColor) ? '#FFFFFF' : '#333333';
 
         const tooltip = document.createElement('span');
         tooltip.className = 'tag-tooltip';
-        tooltip.textContent = code.libelle || 'Pas de libellé';
+        tooltip.textContent = `${code.libelle} (${code.univers})` || 'Pas de libellé';
         tag.appendChild(tooltip);
 
         return tag;
     }
+    
+    /**
+     * Helper pour déterminer si une couleur hex est sombre ou claire
+     */
+    function isColorDark(hexColor) {
+        const hex = hexColor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        return brightness < 128;
+    }
+
 
     /**
      * Met à jour l'affichage en fonction du plan sélectionné.
@@ -41,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateDisplayForPlan(planId) {
         currentPlanId = planId;
         
-        // Nettoyage de l'interface
         unplacedList.innerHTML = '';
         planContainer.querySelectorAll('.geo-tag').forEach(tag => tag.remove());
 
@@ -52,14 +70,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Affiche la bonne image de plan
         const selectedOption = planSelector.querySelector(`option[value="${planId}"]`);
         mapImage.src = `uploads/plans/${selectedOption.dataset.filename}`;
         mapImage.style.display = 'block';
         placeholder.style.display = 'none';
         printBtn.disabled = false;
         
-        // Filtre et affiche les étiquettes
         const placedCodesIds = new Set();
         geoCodesData.forEach(code => {
             if (code.plan_id == planId && code.pos_x != null && code.pos_y != null) {
@@ -71,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // Remplit la liste des codes non placés
         geoCodesData.forEach(code => {
             if (!placedCodesIds.has(code.id.toString()) && code.plan_id != planId) {
                  unplacedList.appendChild(createTag(code));
@@ -83,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * Sauvegarde la position d'une étiquette via Fetch API.
      */
     async function savePosition(id, x, y) {
-        if (!currentPlanId) return; // Ne sauvegarde rien si aucun plan n'est sélectionné
+        if (!currentPlanId) return;
 
         try {
             const response = await fetch('index.php?action=savePosition', {
@@ -98,7 +113,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
-            // Met à jour les données locales pour ne pas avoir à recharger la page
             const code = geoCodesData.find(c => c.id == id);
             if(code) {
                 code.plan_id = currentPlanId;
@@ -112,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- GESTION DES ÉVÉNEMENTS ---
-
     planSelector.addEventListener('change', (e) => {
         updateDisplayForPlan(e.target.value);
     });

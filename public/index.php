@@ -1,6 +1,13 @@
 <?php
 // Fichier : public/index.php
 
+// --- DÉBUT DES AJOUTS POUR LE DÉBOGAGE ---
+ini_set('display_errors', 1); // Affiche les erreurs à l'écran (à désactiver en production)
+ini_set('log_errors', 1); // S'assure que les erreurs sont bien enregistrées dans les logs
+error_reporting(E_ALL); // Affiche tous les types d'erreurs
+session_start(); // Démarre la session pour les messages flash
+// --- FIN DES AJOUTS ---
+
 $dbConfig = require_once '../config/database.php';
 $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset={$dbConfig['charset']}";
 try {
