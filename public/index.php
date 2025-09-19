@@ -1,4 +1,6 @@
 <?php
+// Fichier : public/index.php
+
 $dbConfig = require_once '../config/database.php';
 $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset={$dbConfig['charset']}";
 try {
@@ -26,7 +28,7 @@ switch ($action) {
     case 'update':
         $controller->updateAction();
         break;
-    case 'delete': // Route pour la suppression
+    case 'delete':
         $controller->deleteAction();
         break;
 
@@ -49,12 +51,12 @@ switch ($action) {
         $controller->handleImportAction();
         break;
         
-    // Action pour l'impression (MODIFIÉE)
+    // Actions pour l'impression
     case 'printLabels':
-        $controller->showPrintOptionsAction(); // Mène à la page de sélection
+        $controller->showPrintOptionsAction();
         break;
-    case 'generatePrint': // NOUVELLE ROUTE
-        $controller->generatePrintPageAction(); // Génère la page à imprimer
+    case 'generatePrint':
+        $controller->generatePrintPageAction();
         break;
 
     // Actions pour les Univers
@@ -66,6 +68,9 @@ switch ($action) {
         break;
     case 'deleteUnivers':
         $controller->deleteUniversAction();
+        break;
+    case 'updateUniversZone': // Route pour la mise à jour de la zone
+        $controller->updateUniversZoneAction();
         break;
 
     // Action par défaut
