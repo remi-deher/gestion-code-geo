@@ -71,6 +71,36 @@ class GeoCodeManager {
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$id]);
     }
+
+    /**
+     * NOUVELLE METHODE : Insère une série de codes géo en une seule transaction.
+     * @param array $codes
+     * @return bool
+     */
+    public function createBatchGeoCodes(array $codes): bool {
+        $this->db->beginTransaction();
+        try {
+            $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
+            $stmt = $this->db->prepare($sql);
+
+            foreach ($codes as $code) {
+                $stmt->execute([
+                    $code['code_geo'],
+                    $code['libelle'],
+                    $code['univers_id'],
+                    $code['zone'],
+                    $code['commentaire'] // Sera null ici
+                ]);
+            }
+            
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log($e->getMessage()); // C'est une bonne pratique de logger l'erreur
+            return false;
+        }
+    }
     
     /**
      * Insère ou met à jour plusieurs codes géo (corrigé pour l'import).

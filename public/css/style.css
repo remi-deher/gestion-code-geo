@@ -300,3 +300,49 @@ button:hover { background-color: #0056b3; }
     .geo-table .item-actions, .geo-table th.no-sort { display: none; }
     a { text-decoration: none; color: inherit; }
 }
+
+/* ... (tout le CSS existant) ... */
+
+/* --- Styles pour la page d'Ajout par Lot --- */
+.form-group-selection {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 1rem;
+    background-color: var(--light-gray);
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+
+@media (min-width: 768px) {
+    .form-group-selection {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.batch-table input.form-control {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.batch-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+}
+
+.btn-delete-row {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+.btn-delete-row:hover {
+    opacity: 1;
+}

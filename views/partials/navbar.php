@@ -3,6 +3,7 @@
     <div class="navbar-links">
         <a href="index.php?action=list">Liste des codes</a>
         <a href="index.php?action=create">Ajouter un code</a>
+        <a href="index.php?action=showBatchCreate">Ajout par lot</a> <!-- NOUVEAU LIEN -->
         <a href="index.php?action=plan">Plan du magasin</a>
         <a href="index.php?action=listUnivers">Gérer les univers</a>
         <a href="index.php?action=showImport">Importer</a>

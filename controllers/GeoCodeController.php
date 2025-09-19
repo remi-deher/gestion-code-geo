@@ -76,6 +76,52 @@ class GeoCodeController {
         exit();
     }
 
+    /**
+     * NOUVELLE ACTION : Affiche la page de création par lot.
+     */
+    public function showBatchCreateAction() {
+        $universList = $this->manager->getAllUnivers();
+        require '../views/batch_create_view.php';
+    }
+
+    /**
+     * NOUVELLE ACTION : Traite les données envoyées par le formulaire de création par lot.
+     */
+    public function handleBatchCreateAction() {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $univers_id = (int)($_POST['univers_id'] ?? 0);
+            $zone = $_POST['zone'] ?? '';
+            $codes_geo = $_POST['codes_geo'] ?? [];
+            $libelles = $_POST['libelles'] ?? [];
+
+            $codesToInsert = [];
+            // On s'assure qu'on a le même nombre d'éléments pour les deux tableaux
+            if (count($codes_geo) === count($libelles)) {
+                for ($i = 0; $i < count($codes_geo); $i++) {
+                    $code_geo = trim($codes_geo[$i]);
+                    $libelle = trim($libelles[$i]);
+                    
+                    // On n'ajoute que les lignes qui sont complètement remplies
+                    if (!empty($code_geo) && !empty($libelle)) {
+                        $codesToInsert[] = [
+                            'code_geo'   => $code_geo,
+                            'libelle'    => $libelle,
+                            'univers_id' => $univers_id,
+                            'zone'       => $zone,
+                            'commentaire'=> null
+                        ];
+                    }
+                }
+            }
+            
+            if (!empty($codesToInsert) && !empty($univers_id) && !empty($zone)) {
+                $this->manager->createBatchGeoCodes($codesToInsert);
+            }
+        }
+        header('Location: index.php?action=list');
+        exit();
+    }
+
     // --- Actions pour le Plan ---
     public function planAction() {
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();

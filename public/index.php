@@ -32,6 +32,14 @@ switch ($action) {
         $controller->deleteAction();
         break;
 
+    // NOUVELLES ROUTES POUR L'AJOUT PAR LOT
+    case 'showBatchCreate':
+        $controller->showBatchCreateAction();
+        break;
+    case 'handleBatchCreate':
+        $controller->handleBatchCreateAction();
+        break;
+
     // Actions pour le Plan
     case 'plan':
         $controller->planAction();
