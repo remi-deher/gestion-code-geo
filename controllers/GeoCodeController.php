@@ -1,7 +1,7 @@
 <?php
 // Fichier : controllers/GeoCodeController.php
 
-require_once '../models/GeoCodeManager.php';
+require_once __DIR__ . '/../models/GeoCodeManager.php';
 
 class GeoCodeController {
     
@@ -15,12 +15,12 @@ class GeoCodeController {
     public function listAction() {
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();
         $univers = $this->manager->getAllUnivers();
-        require '../views/geo_codes_list_view.php';
+        require __DIR__ . '/../views/geo_codes_list_view.php';
     }
 
     public function createAction() {
         $universList = $this->manager->getAllUnivers();
-        require '../views/geo_codes_create_view.php';
+        require __DIR__ . '/../views/geo_codes_create_view.php';
     }
 
     public function addAction() {
@@ -30,8 +30,7 @@ class GeoCodeController {
             $univers_id = (int)($_POST['univers_id'] ?? 0);
             $zone = $_POST['zone'] ?? '';
             $commentaire = trim($_POST['commentaire'] ?? null);
-
-            if (!empty($code_geo) && !empty($libelle) && !empty($univers_id) && !empty($zone)) {
+            if (!empty($code_geo) && !empty($libelle) && $univers_id > 0 && !empty($zone)) {
                 $this->manager->createGeoCode($code_geo, $libelle, $univers_id, $zone, $commentaire);
             }
         }
@@ -47,7 +46,7 @@ class GeoCodeController {
             exit();
         }
         $universList = $this->manager->getAllUnivers();
-        require '../views/geo_codes_edit_view.php';
+        require __DIR__ . '/../views/geo_codes_edit_view.php';
     }
 
     public function updateAction() {
@@ -58,7 +57,6 @@ class GeoCodeController {
             $univers_id = (int)$_POST['univers_id'];
             $zone = $_POST['zone'] ?? '';
             $commentaire = trim($_POST['commentaire'] ?? null);
-
             if (!empty($id) && !empty($code_geo) && !empty($libelle) && !empty($univers_id) && !empty($zone)) {
                 $this->manager->updateGeoCode($id, $code_geo, $libelle, $univers_id, $zone, $commentaire);
             }
@@ -75,45 +73,31 @@ class GeoCodeController {
         header('Location: index.php?action=list');
         exit();
     }
-
-    /**
-     * NOUVELLE ACTION : Affiche la page de création par lot.
-     */
+    
     public function showBatchCreateAction() {
         $universList = $this->manager->getAllUnivers();
-        require '../views/batch_create_view.php';
+        require __DIR__ . '/../views/batch_create_view.php';
     }
 
-    /**
-     * NOUVELLE ACTION : Traite les données envoyées par le formulaire de création par lot.
-     */
     public function handleBatchCreateAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $univers_id = (int)($_POST['univers_id'] ?? 0);
             $zone = $_POST['zone'] ?? '';
             $codes_geo = $_POST['codes_geo'] ?? [];
             $libelles = $_POST['libelles'] ?? [];
-
             $codesToInsert = [];
-            // On s'assure qu'on a le même nombre d'éléments pour les deux tableaux
             if (count($codes_geo) === count($libelles)) {
                 for ($i = 0; $i < count($codes_geo); $i++) {
                     $code_geo = trim($codes_geo[$i]);
                     $libelle = trim($libelles[$i]);
-                    
-                    // On n'ajoute que les lignes qui sont complètement remplies
                     if (!empty($code_geo) && !empty($libelle)) {
                         $codesToInsert[] = [
-                            'code_geo'   => $code_geo,
-                            'libelle'    => $libelle,
-                            'univers_id' => $univers_id,
-                            'zone'       => $zone,
-                            'commentaire'=> null
+                            'code_geo'   => $code_geo, 'libelle'    => $libelle, 'univers_id' => $univers_id,
+                            'zone'       => $zone, 'commentaire'=> null
                         ];
                     }
                 }
             }
-            
             if (!empty($codesToInsert) && !empty($univers_id) && !empty($zone)) {
                 $this->manager->createBatchGeoCodes($codesToInsert);
             }
@@ -125,7 +109,7 @@ class GeoCodeController {
     // --- Actions pour le Plan ---
     public function planAction() {
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();
-        require '../views/plan_view.php';
+        require __DIR__ . '/../views/plan_view.php';
     }
 
     public function savePositionAction() {
@@ -140,41 +124,35 @@ class GeoCodeController {
         exit();
     }
 
-    // --- Actions pour l'Import/Export (CORRIGÉES) ---
+    // --- Actions pour l'Import/Export ---
     public function exportAction() {
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="export_geocodes_'.date('Y-m-d').'.csv"');
-        
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();
         $output = fopen('php://output', 'w');
         fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire']);
         foreach ($geoCodes as $code) {
-            fputcsv($output, [
-                $code['code_geo'], $code['libelle'], $code['univers'], $code['zone'], $code['commentaire']
-            ]);
+            fputcsv($output, [ $code['code_geo'], $code['libelle'], $code['univers'], $code['zone'], $code['commentaire'] ]);
         }
         fclose($output);
         exit();
     }
 
     public function showImportAction() {
-        require '../views/import_view.php';
+        require __DIR__ . '/../views/import_view.php';
     }
 
     public function handleImportAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csvFile']) && $_FILES['csvFile']['error'] == UPLOAD_ERR_OK) {
             $file = $_FILES['csvFile']['tmp_name'];
             $handle = fopen($file, "r");
-            fgetcsv($handle, 1000, ","); // Ignore header row
+            fgetcsv($handle, 1000, ",");
             $codesToInsert = [];
             while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-                if (isset($data[0], $data[1], $data[2], $data[3])) { // Basic validation
+                if (isset($data[0], $data[1], $data[2], $data[3])) {
                     $codesToInsert[] = [
-                        'code_geo'    => $data[0],
-                        'libelle'     => $data[1],
-                        'univers'     => $data[2],
-                        'zone'        => $data[3],
-                        'commentaire' => $data[4] ?? null
+                        'code_geo'    => $data[0], 'libelle'     => $data[1], 'univers'     => $data[2],
+                        'zone'        => $data[3], 'commentaire' => $data[4] ?? null
                     ];
                 }
             }
@@ -186,11 +164,30 @@ class GeoCodeController {
         header('Location: index.php?action=list');
         exit();
     }
+
+    public function exportTemplateAction() {
+        $univers_id = (int)($_GET['id'] ?? 0);
+        if ($univers_id <= 0) die("ID d'univers invalide.");
+        $univers = $this->manager->getUniversById($univers_id);
+        if (!$univers) die("Univers non trouvé.");
+        $safe_name = preg_replace('/[^a-zA-Z0-9-_\.]/','_', $univers['nom']);
+        $filename = "Modele-Import-{$safe_name}.csv";
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $output = fopen('php://output', 'w');
+        fwrite($output, "\xEF\xBB\xBF");
+        fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire']);
+        for ($i = 0; $i < 10; $i++) {
+            fputcsv($output, [ '', '', $univers['nom'], $univers['zone_assignee'], '' ]);
+        }
+        fclose($output);
+        exit();
+    }
     
     // --- Actions pour l'Impression ---
     public function showPrintOptionsAction() {
         $universList = $this->manager->getAllUnivers();
-        require '../views/print_options_view.php';
+        require __DIR__ . '/../views/print_options_view.php';
     }
     
     public function generatePrintPageAction() {
@@ -203,13 +200,13 @@ class GeoCodeController {
                 $groupedCodes[$code['univers']][] = $code;
             }
         }
-        require '../views/print_page_view.php';
+        require __DIR__ . '/../views/print_page_view.php';
     }
 
     // --- Actions pour les Univers ---
     public function listUniversAction() {
         $universList = $this->manager->getAllUnivers();
-        require '../views/univers_list_view.php';
+        require __DIR__ . '/../views/univers_list_view.php';
     }
 
     public function addUniversAction() {
@@ -234,7 +231,6 @@ class GeoCodeController {
     public function updateUniversZoneAction() {
         header('Content-Type: application/json');
         $input = json_decode(file_get_contents('php://input'), true);
-        
         if (isset($input['id'], $input['zone'])) {
             $success = $this->manager->updateUniversZone((int)$input['id'], $input['zone']);
             echo json_encode(['status' => $success ? 'success' : 'error']);

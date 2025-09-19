@@ -33,12 +33,13 @@
                 <!-- Liste des univers existants -->
                 <div class="univers-list">
                     <h3>Liste existante</h3>
-                    <p>Changez la zone assignée directement depuis le menu déroulant. La sauvegarde est automatique.</p>
+                    <p>Changez la zone ou téléchargez un modèle d'import pour l'import par lot.</p>
                     <table class="geo-table">
                         <thead>
                             <tr>
                                 <th>Nom de l'univers</th>
                                 <th>Zone Assignée</th>
+                                <th>Modèle d'Import</th>
                                 <th class="no-sort">Actions</th>
                             </tr>
                         </thead>
@@ -53,6 +54,10 @@
                                                 <option value="reserve" <?= ($univers['zone_assignee'] == 'reserve') ? 'selected' : '' ?>>Réserve</option>
                                             </select>
                                         </td>
+                                        <!-- Colonne pour le téléchargement du modèle -->
+                                        <td class="item-actions">
+                                            <a href="index.php?action=exportTemplate&id=<?= $univers['id'] ?>" class="btn-download">📥 Télécharger</a>
+                                        </td>
                                         <td class="item-actions">
                                             <a href="index.php?action=deleteUnivers&id=<?= $univers['id'] ?>" class="btn-delete" onclick="return confirm('Attention ! La suppression est impossible si l\'univers est utilisé.');">❌</a>
                                         </td>
@@ -60,7 +65,7 @@
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="3">Aucun univers n'a été créé.</td>
+                                    <td colspan="4">Aucun univers n'a été créé.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -76,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const universId = event.target.dataset.id;
             const newZone = event.target.value;
             const icon = document.createElement('span');
-            icon.textContent = '💾';
+            icon.textContent = ' 💾';
             event.target.parentNode.appendChild(icon);
 
             fetch('index.php?action=updateUniversZone', {
@@ -87,9 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    icon.textContent = '✅';
+                    icon.textContent = ' ✅';
                 } else {
-                    icon.textContent = '❌';
+                    icon.textContent = ' ❌';
                     alert('Erreur lors de la mise à jour.');
                 }
                 setTimeout(() => icon.remove(), 2000);

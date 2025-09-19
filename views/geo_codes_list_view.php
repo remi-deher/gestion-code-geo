@@ -17,11 +17,16 @@
                 <div id="filtres-univers">
                     <strong>Filtrer par univers :</strong>
                     <label><input type="checkbox" value="all" checked> Tout voir</label>
-                    <?php foreach ($univers as $u): ?>
-                        <label data-univers-name="<?= htmlspecialchars($u['nom']) ?>">
-                            <input type="checkbox" value="<?= htmlspecialchars($u['nom']) ?>" checked> <?= htmlspecialchars($u['nom']) ?>
-                        </label>
-                    <?php endforeach; ?>
+                    
+                    <!-- CORRECTION : On vérifie que la variable $univers est bien un tableau avant la boucle -->
+                    <?php if (!empty($univers) && is_array($univers)): ?>
+                        <?php foreach ($univers as $u): ?>
+                            <label data-univers-name="<?= htmlspecialchars($u['nom']) ?>">
+                                <input type="checkbox" value="<?= htmlspecialchars($u['nom']) ?>" checked> <?= htmlspecialchars($u['nom']) ?>
+                            </label>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+
                 </div>
                 <div class="zone-tabs">
                     <button class="zone-tab active" data-zone="all">Toutes les zones</button>
@@ -38,7 +43,8 @@
             <!-- Vue Liste -->
             <div id="list-view">
                 <div id="liste-geocodes">
-                    <?php if (!empty($geoCodes)): ?>
+                    <!-- CORRECTION : On vérifie que $geoCodes est bien un tableau avant la boucle -->
+                    <?php if (!empty($geoCodes) && is_array($geoCodes)): ?>
                         <?php 
                         $currentUnivers = null;
                         foreach ($geoCodes as $code): 
@@ -84,7 +90,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (!empty($geoCodes)): ?>
+                        <!-- CORRECTION : On vérifie que $geoCodes est bien un tableau avant la boucle -->
+                        <?php if (!empty($geoCodes) && is_array($geoCodes)): ?>
                             <?php foreach ($geoCodes as $code): ?>
                                 <tr data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'])) ?>"
                                     data-univers="<?= htmlspecialchars($code['univers']) ?>"

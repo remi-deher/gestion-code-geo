@@ -18,6 +18,10 @@ class GeoCodeManager {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * CORRIGÉ : Utilise LEFT JOIN pour être plus robuste.
+     * Affiche tous les codes géo même si l'univers ou la position est manquant.
+     */
     public function getAllGeoCodesWithPositions() {
         $sql = "
             SELECT 
@@ -27,7 +31,7 @@ class GeoCodeManager {
                 geo_codes gc
             LEFT JOIN 
                 geo_positions gp ON gc.id = gp.geo_code_id
-            JOIN 
+            LEFT JOIN 
                 univers u ON gc.univers_id = u.id
             ORDER BY 
                 u.nom, gc.code_geo
@@ -71,40 +75,7 @@ class GeoCodeManager {
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$id]);
     }
-
-    /**
-     * NOUVELLE METHODE : Insère une série de codes géo en une seule transaction.
-     * @param array $codes
-     * @return bool
-     */
-    public function createBatchGeoCodes(array $codes): bool {
-        $this->db->beginTransaction();
-        try {
-            $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
-            $stmt = $this->db->prepare($sql);
-
-            foreach ($codes as $code) {
-                $stmt->execute([
-                    $code['code_geo'],
-                    $code['libelle'],
-                    $code['univers_id'],
-                    $code['zone'],
-                    $code['commentaire'] // Sera null ici
-                ]);
-            }
-            
-            $this->db->commit();
-            return true;
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            error_log($e->getMessage()); // C'est une bonne pratique de logger l'erreur
-            return false;
-        }
-    }
     
-    /**
-     * Insère ou met à jour plusieurs codes géo (corrigé pour l'import).
-     */
     public function createMultipleGeoCodes(array $codes) {
         $this->db->beginTransaction();
         try {
@@ -116,25 +87,33 @@ class GeoCodeManager {
                     zone = VALUES(zone), 
                     commentaire = VALUES(commentaire)";
             $stmt = $this->db->prepare($sql);
-
             foreach ($codes as $code) {
-                // Conversion du nom de l'univers en ID
                 $univers_id = $this->getOrCreateUniversId($code['univers']);
                 $zone = in_array($code['zone'], ['vente', 'reserve']) ? $code['zone'] : 'vente';
-
-                $stmt->execute([
-                    $code['code_geo'],
-                    $code['libelle'],
-                    $univers_id,
-                    $zone,
-                    $code['commentaire']
-                ]);
+                $stmt->execute([ $code['code_geo'], $code['libelle'], $univers_id, $zone, $code['commentaire'] ]);
             }
             $this->db->commit();
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log($e->getMessage()); // Logger l'erreur est une bonne pratique
+            error_log($e->getMessage());
+            return false;
+        }
+    }
+
+    public function createBatchGeoCodes(array $codes): bool {
+        $this->db->beginTransaction();
+        try {
+            $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
+            $stmt = $this->db->prepare($sql);
+            foreach ($codes as $code) {
+                $stmt->execute([ $code['code_geo'], $code['libelle'], $code['univers_id'], $code['zone'], $code['commentaire'] ]);
+            }
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log($e->getMessage());
             return false;
         }
     }
@@ -148,6 +127,11 @@ class GeoCodeManager {
     }
 
     // --- GESTION DES UNIVERS ---
+    public function getUniversById(int $id) {
+        $stmt = $this->db->prepare("SELECT * FROM univers WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 
     public function getAllUnivers() {
         return $this->db->query("SELECT id, nom, zone_assignee FROM univers ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
@@ -160,11 +144,10 @@ class GeoCodeManager {
         $stmt = $this->db->prepare("SELECT id FROM univers WHERE nom = ?");
         $stmt->execute([$nom]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
         if ($result) {
             return (int)$result['id'];
         } else {
-            $this->addUnivers($nom, 'vente'); // Zone par défaut
+            $this->addUnivers($nom, 'vente');
             return (int)$this->db->lastInsertId();
         }
     }

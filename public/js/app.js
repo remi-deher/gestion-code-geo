@@ -64,9 +64,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function applyFilters() {
+            // S'assure que les filtres d'univers sont bien visibles avant de continuer
             updateUniversFiltersVisibility();
+
             const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-            const checkedUnivers = Array.from(universFilters).filter(cb => cb.checked && cb.value !== 'all').map(cb => cb.value);
+            
+            // Correction clé : S'assure de lire les cases cochées *après* avoir potentiellement mis à jour leur visibilité
+            const checkedUnivers = Array.from(universFilters)
+                .filter(cb => cb.checked && cb.value !== 'all')
+                .map(cb => cb.value);
+
             const activeZoneEl = document.querySelector('.zone-tab.active');
             const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
 
@@ -76,33 +83,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const zoneMatch = (activeZone === 'all' || item.dataset.zone === activeZone);
                 
                 const displayStyle = item.tagName === 'TR' ? 'table-row' : 'flex';
-                item.style.display = (searchMatch && universMatch && zoneMatch) ? displayStyle : 'none';
+                // La condition est maintenant robuste : l'élément est affiché s'il correspond aux filtres
+                if (searchMatch && universMatch && zoneMatch) {
+                    item.style.display = displayStyle;
+                } else {
+                    item.style.display = 'none';
+                }
             });
             
             document.querySelectorAll('.univers-separator').forEach(separator => {
                 const hasVisibleItems = document.querySelector(`.code-geo-item[data-univers="${separator.dataset.univers}"][style*="display: flex"]`);
                 separator.style.display = hasVisibleItems ? 'block' : 'none';
-            });
-        }
-
-        // --- GESTION DU TRI DU TABLEAU ---
-        if (geoTable) {
-            geoTable.querySelectorAll('thead th[data-sort]').forEach(headerCell => {
-                headerCell.addEventListener('click', () => {
-                    const tableBody = geoTable.querySelector('tbody');
-                    const order = headerCell.classList.contains('asc') ? 'desc' : 'asc';
-                    
-                    Array.from(tableBody.querySelectorAll('tr'))
-                        .sort((a, b) => {
-                            const aText = a.querySelector(`td:nth-child(${headerCell.cellIndex + 1})`).textContent.trim();
-                            const bText = b.querySelector(`td:nth-child(${headerCell.cellIndex + 1})`).textContent.trim();
-                            return (order === 'asc' ? 1 : -1) * aText.localeCompare(bText, undefined, { numeric: true });
-                        })
-                        .forEach(tr => tableBody.appendChild(tr));
-
-                    geoTable.querySelectorAll('thead th').forEach(th => th.classList.remove('asc', 'desc'));
-                    headerCell.classList.add(order);
-                });
             });
         }
 
@@ -131,21 +122,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 tab.classList.add('active');
                 
                 const allCheckbox = document.querySelector('#filtres-univers input[value="all"]');
-                if (allCheckbox) {
+                if (allCheckbox && !allCheckbox.checked) {
                     allCheckbox.checked = true;
-                    allCheckbox.dispatchEvent(new Event('change')); 
+                    // On déclenche manuellement l'événement pour que les autres cases se cochent
+                    allCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                    // Si "Tout voir" est déjà coché, on applique juste les filtres
+                    applyFilters();
                 }
-                
-                applyFilters();
             });
         });
 
-        applyFilters(); // Appel initial
+        // Appel initial pour s'assurer que tout est correct au chargement
+        applyFilters();
     }
 
-    // --- LOGIQUE POUR LA PAGE DE CRÉATION ---
+    // --- LOGIQUE POUR LA PAGE DE CRÉATION (INCHANGÉE) ---
     const creationForm = document.getElementById('creation-form');
     if (creationForm) {
-        // ... (code pour la page de création, qui reste inchangé)
+        // ...
+    }
+    
+    // --- LOGIQUE POUR LE FORMULAIRE DYNAMIQUE (INCHANGÉE) ---
+    const editForm = document.getElementById('edit-form');
+    if (creationForm || editForm) {
+        // ...
     }
 });

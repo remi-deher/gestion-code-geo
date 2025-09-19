@@ -31,8 +31,6 @@ switch ($action) {
     case 'delete':
         $controller->deleteAction();
         break;
-
-    // NOUVELLES ROUTES POUR L'AJOUT PAR LOT
     case 'showBatchCreate':
         $controller->showBatchCreateAction();
         break;
@@ -58,6 +56,9 @@ switch ($action) {
     case 'handleImport':
         $controller->handleImportAction();
         break;
+    case 'exportTemplate': // NOUVELLE ROUTE
+        $controller->exportTemplateAction();
+        break;
         
     // Actions pour l'impression
     case 'printLabels':
@@ -76,9 +77,6 @@ switch ($action) {
         break;
     case 'deleteUnivers':
         $controller->deleteUniversAction();
-        break;
-    case 'updateUniversZone': // Route pour la mise à jour de la zone
-        $controller->updateUniversZoneAction();
         break;
 
     // Action par défaut
