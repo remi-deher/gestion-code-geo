@@ -130,9 +130,9 @@ class GeoCodeController {
         header('Content-Disposition: attachment; filename="export_geocodes_'.date('Y-m-d').'.csv"');
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire']);
+        fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire'], ';'); // Utilise le point-virgule pour une meilleure compatibilité Excel
         foreach ($geoCodes as $code) {
-            fputcsv($output, [ $code['code_geo'], $code['libelle'], $code['univers'], $code['zone'], $code['commentaire'] ]);
+            fputcsv($output, [ $code['code_geo'], $code['libelle'], $code['univers'], $code['zone'], $code['commentaire'] ], ';');
         }
         fclose($output);
         exit();
@@ -146,17 +146,26 @@ class GeoCodeController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csvFile']) && $_FILES['csvFile']['error'] == UPLOAD_ERR_OK) {
             $file = $_FILES['csvFile']['tmp_name'];
             $handle = fopen($file, "r");
-            fgetcsv($handle, 1000, ",");
+            
+            // Ignore la ligne d'en-tête
+            fgetcsv($handle, 1000, ";"); 
+
             $codesToInsert = [];
-            while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+            // CORRECTION: Utilise le point-virgule comme délimiteur
+            while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
+                // S'assure que les colonnes essentielles existent
                 if (isset($data[0], $data[1], $data[2], $data[3])) {
                     $codesToInsert[] = [
-                        'code_geo'    => $data[0], 'libelle'     => $data[1], 'univers'     => $data[2],
-                        'zone'        => $data[3], 'commentaire' => $data[4] ?? null
+                        'code_geo'    => trim($data[0]),
+                        'libelle'     => trim($data[1]),
+                        'univers'     => trim($data[2]),
+                        'zone'        => trim($data[3]),
+                        'commentaire' => isset($data[4]) ? trim($data[4]) : null
                     ];
                 }
             }
             fclose($handle);
+
             if (!empty($codesToInsert)) {
                 $this->manager->createMultipleGeoCodes($codesToInsert);
             }
@@ -170,15 +179,19 @@ class GeoCodeController {
         if ($univers_id <= 0) die("ID d'univers invalide.");
         $univers = $this->manager->getUniversById($univers_id);
         if (!$univers) die("Univers non trouvé.");
+        
         $safe_name = preg_replace('/[^a-zA-Z0-9-_\.]/','_', $univers['nom']);
         $filename = "Modele-Import-{$safe_name}.csv";
+        
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
+        
         $output = fopen('php://output', 'w');
-        fwrite($output, "\xEF\xBB\xBF");
-        fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire']);
+        fwrite($output, "\xEF\xBB\xBF"); // Ajout du BOM pour l'UTF-8 dans Excel
+        
+        fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire'], ';');
         for ($i = 0; $i < 10; $i++) {
-            fputcsv($output, [ '', '', $univers['nom'], $univers['zone_assignee'], '' ]);
+            fputcsv($output, [ '', '', $univers['nom'], $univers['zone_assignee'], '' ], ';');
         }
         fclose($output);
         exit();

@@ -10,39 +10,153 @@ document.addEventListener('DOMContentLoaded', () => {
         const universFilterLabels = document.querySelectorAll('#filtres-univers label[data-univers-name]');
         const zoneTabs = document.querySelectorAll('.zone-tab');
         
-        const viewListBtn = document.getElementById('view-list-btn');
+        const viewCardBtn = document.getElementById('view-card-btn');
         const viewTableBtn = document.getElementById('view-table-btn');
-        const listView = document.getElementById('list-view');
+        const cardView = document.getElementById('card-view');
         const tableView = document.getElementById('table-view');
-        const geoTable = document.querySelector('.geo-table');
+        const sortBySelect = document.getElementById('sort-by');
+        const sortContainer = document.querySelector('.sort-container');
+        const tableHeaders = document.querySelectorAll('.geo-table th[data-sort]');
 
         // Génération des QR Codes
-        if (listView) {
-            document.querySelectorAll('.qr-code-container').forEach(container => {
+        if (cardView) {
+            cardView.querySelectorAll('.geo-card-qr').forEach(container => {
                 const codeText = container.dataset.code;
-                if (codeText) new QRCode(container, { text: codeText, width: 80, height: 80 });
+                if (codeText) {
+                    new QRCode(container, { text: codeText, width: 90, height: 90 });
+                }
             });
         }
         
         // --- GESTION DU CHANGEMENT DE VUE ---
-        if (viewListBtn && viewTableBtn && listView && tableView) {
-            viewListBtn.addEventListener('click', () => {
-                listView.style.display = 'block';
+        if (viewCardBtn && viewTableBtn && cardView && tableView) {
+            viewCardBtn.addEventListener('click', () => {
+                cardView.style.display = 'flex';
                 tableView.style.display = 'none';
-                viewListBtn.classList.add('active');
+                viewCardBtn.classList.add('active');
                 viewTableBtn.classList.remove('active');
+                sortContainer.style.display = 'flex'; // Affiche le tri pour les fiches
             });
             viewTableBtn.addEventListener('click', () => {
-                listView.style.display = 'none';
+                cardView.style.display = 'none';
                 tableView.style.display = 'block';
-                viewListBtn.classList.remove('active');
+                viewCardBtn.classList.remove('active');
                 viewTableBtn.classList.add('active');
+                sortContainer.style.display = 'none'; // Cache le tri (géré par les en-têtes)
             });
         }
 
-        // --- LOGIQUE DE FILTRAGE ---
+        // --- LOGIQUE DE FILTRAGE (ADAPTÉE POUR LES DEUX VUES) ---
+        function applyFilters() {
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            const checkedUnivers = Array.from(universFilters)
+                .filter(cb => cb.checked && cb.value !== 'all')
+                .map(cb => cb.value);
+            const activeZoneEl = document.querySelector('.zone-tab.active');
+            const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
+
+            document.querySelectorAll('.geo-card, .geo-table tbody tr').forEach(item => {
+                const searchMatch = (item.dataset.searchable || '').includes(searchTerm);
+                const universMatch = checkedUnivers.includes(item.dataset.univers);
+                const zoneMatch = (activeZone === 'all' || item.dataset.zone === activeZone);
+                
+                let displayStyle = item.tagName === 'TR' ? 'table-row' : 'grid';
+                
+                item.style.display = (searchMatch && universMatch && zoneMatch) ? displayStyle : 'none';
+            });
+            
+            // Masque les séparateurs d'univers si besoin (uniquement pour la vue fiche)
+            if (cardView.style.display !== 'none') {
+                 document.querySelectorAll('.univers-separator').forEach(separator => {
+                    let nextElement = separator.nextElementSibling;
+                    let hasVisibleItems = false;
+                    while(nextElement && nextElement.classList.contains('geo-card')) {
+                        if (nextElement.style.display !== 'none') {
+                            hasVisibleItems = true;
+                            break;
+                        }
+                        nextElement = nextElement.nextElementSibling;
+                    }
+                    separator.style.display = hasVisibleItems ? 'block' : 'none';
+                });
+            }
+        }
+        
+        // --- NOUVELLE LOGIQUE DE TRI ---
+
+        // 1. Tri pour la Vue Fiches via le menu déroulant
+        function sortCardView() {
+            const sortBy = sortBySelect.value;
+            const [key, direction] = sortBy.split('-'); // ex: "code-geo-asc"
+            const separators = cardView.querySelectorAll('.univers-separator');
+            const cards = Array.from(cardView.querySelectorAll('.geo-card'));
+            
+            if (key === 'univers') {
+                // Le tri par défaut est déjà par univers, on s'assure que les séparateurs sont visibles
+                separators.forEach(s => s.style.display = 'block');
+                // On regroupe les cartes sous leurs séparateurs respectifs
+                const universGroups = {};
+                cards.forEach(card => {
+                    const universName = card.dataset.univers;
+                    if (!universGroups[universName]) universGroups[universName] = [];
+                    universGroups[universName].push(card);
+                });
+                const sortedUniversNames = Object.keys(universGroups).sort((a, b) => a.localeCompare(b));
+                cardView.innerHTML = '';
+                sortedUniversNames.forEach(name => {
+                    const separator = Array.from(separators).find(s => s.dataset.univers === name);
+                    if(separator) cardView.appendChild(separator);
+                    universGroups[name].forEach(card => cardView.appendChild(card));
+                });
+            } else {
+                // Pour les autres tris, on cache les séparateurs et on trie les fiches
+                separators.forEach(s => s.style.display = 'none');
+                cards.sort((a, b) => {
+                    const valA = a.dataset[key].toLowerCase();
+                    const valB = b.dataset[key].toLowerCase();
+                    return valA.localeCompare(valB);
+                });
+                cards.forEach(card => cardView.appendChild(card)); // Ré-insère les fiches triées
+            }
+        }
+        if (sortBySelect) {
+            sortBySelect.addEventListener('change', sortCardView);
+        }
+
+        // 2. Tri pour la Vue Tableau via les en-têtes
+        let currentSort = { column: null, direction: 'asc' };
+        
+        function sortTable(columnIndex, th) {
+            const tableBody = tableView.querySelector('tbody');
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            let direction = 'asc';
+            if (currentSort.column === columnIndex && currentSort.direction === 'asc') {
+                direction = 'desc';
+            }
+
+            rows.sort((a, b) => {
+                const cellA = a.children[columnIndex].textContent.trim().toLowerCase();
+                const cellB = b.children[columnIndex].textContent.trim().toLowerCase();
+                if (cellA < cellB) return direction === 'asc' ? -1 : 1;
+                if (cellA > cellB) return direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+            rows.forEach(row => tableBody.appendChild(row));
+
+            tableHeaders.forEach(header => header.classList.remove('asc', 'desc'));
+            th.classList.add(direction);
+            
+            currentSort.column = columnIndex;
+            currentSort.direction = direction;
+        }
+
+        tableHeaders.forEach((th, index) => {
+            th.addEventListener('click', () => sortTable(index, th));
+        });
+
+        // --- GESTION DES FILTRES (UNCHANGÉ) ---
         const zoneUniversMap = {};
-        document.querySelectorAll('.code-geo-item, .geo-table tbody tr').forEach(item => {
+        document.querySelectorAll('.geo-card, .geo-table tbody tr').forEach(item => {
             const zone = item.dataset.zone;
             const univers = item.dataset.univers;
             if (!zoneUniversMap[zone]) zoneUniversMap[zone] = new Set();
@@ -62,42 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 label.style.display = allowedUnivers.has(label.dataset.universName) ? 'flex' : 'none';
             });
         }
-
-        function applyFilters() {
-            // S'assure que les filtres d'univers sont bien visibles avant de continuer
-            updateUniversFiltersVisibility();
-
-            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-            
-            // Correction clé : S'assure de lire les cases cochées *après* avoir potentiellement mis à jour leur visibilité
-            const checkedUnivers = Array.from(universFilters)
-                .filter(cb => cb.checked && cb.value !== 'all')
-                .map(cb => cb.value);
-
-            const activeZoneEl = document.querySelector('.zone-tab.active');
-            const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
-
-            document.querySelectorAll('.code-geo-item, .geo-table tbody tr').forEach(item => {
-                const searchMatch = (item.dataset.searchable || '').includes(searchTerm);
-                const universMatch = checkedUnivers.includes(item.dataset.univers);
-                const zoneMatch = (activeZone === 'all' || item.dataset.zone === activeZone);
-                
-                const displayStyle = item.tagName === 'TR' ? 'table-row' : 'flex';
-                // La condition est maintenant robuste : l'élément est affiché s'il correspond aux filtres
-                if (searchMatch && universMatch && zoneMatch) {
-                    item.style.display = displayStyle;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            
-            document.querySelectorAll('.univers-separator').forEach(separator => {
-                const hasVisibleItems = document.querySelector(`.code-geo-item[data-univers="${separator.dataset.univers}"][style*="display: flex"]`);
-                separator.style.display = hasVisibleItems ? 'block' : 'none';
-            });
-        }
-
-        // --- GESTION DES ÉVÉNEMENTS ---
+        
         function handleUniversCheckbox(event) {
             const allCheckbox = document.querySelector('#filtres-univers input[value="all"]');
             if (event.target.value === 'all') {
@@ -113,39 +192,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (searchInput) searchInput.addEventListener('input', applyFilters);
-        
         universFilters.forEach(checkbox => checkbox.addEventListener('change', handleUniversCheckbox));
-        
         zoneTabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 zoneTabs.forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
-                
+                updateUniversFiltersVisibility();
                 const allCheckbox = document.querySelector('#filtres-univers input[value="all"]');
                 if (allCheckbox && !allCheckbox.checked) {
                     allCheckbox.checked = true;
-                    // On déclenche manuellement l'événement pour que les autres cases se cochent
                     allCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
                 } else {
-                    // Si "Tout voir" est déjà coché, on applique juste les filtres
                     applyFilters();
                 }
             });
         });
-
-        // Appel initial pour s'assurer que tout est correct au chargement
-        applyFilters();
-    }
-
-    // --- LOGIQUE POUR LA PAGE DE CRÉATION (INCHANGÉE) ---
-    const creationForm = document.getElementById('creation-form');
-    if (creationForm) {
-        // ...
-    }
-    
-    // --- LOGIQUE POUR LE FORMULAIRE DYNAMIQUE (INCHANGÉE) ---
-    const editForm = document.getElementById('edit-form');
-    if (creationForm || editForm) {
-        // ...
+        
+        // --- LOGIQUE POUR LES PAGES DE CRÉATION (UNCHANGÉ) ---
+        const creationForm = document.getElementById('creation-form');
+        const batchCreationForm = document.getElementById('batch-creation-form');
+        if (creationForm || batchCreationForm) { /* ... (Logique existante) ... */ }
     }
 });

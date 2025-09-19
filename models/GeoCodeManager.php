@@ -18,10 +18,6 @@ class GeoCodeManager {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * CORRIGÉ : Utilise LEFT JOIN pour être plus robuste.
-     * Affiche tous les codes géo même si l'univers ou la position est manquant.
-     */
     public function getAllGeoCodesWithPositions() {
         $sql = "
             SELECT 
@@ -47,7 +43,7 @@ class GeoCodeManager {
         }
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $sql = "
-            SELECT gc.id, gc.code_geo, gc.libelle, u.nom as univers
+            SELECT gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.commentaire
             FROM geo_codes gc
             JOIN univers u ON gc.univers_id = u.id
             WHERE gc.univers_id IN ($placeholders)
@@ -87,16 +83,20 @@ class GeoCodeManager {
                     zone = VALUES(zone), 
                     commentaire = VALUES(commentaire)";
             $stmt = $this->db->prepare($sql);
+
             foreach ($codes as $code) {
-                $univers_id = $this->getOrCreateUniversId($code['univers']);
-                $zone = in_array($code['zone'], ['vente', 'reserve']) ? $code['zone'] : 'vente';
+                // CORRECTION: Assure que la zone est valide, puis la passe à la fonction
+                // qui crée l'univers si nécessaire.
+                $zone = in_array(strtolower($code['zone']), ['vente', 'reserve']) ? strtolower($code['zone']) : 'vente';
+                $univers_id = $this->getOrCreateUniversId($code['univers'], $zone);
+                
                 $stmt->execute([ $code['code_geo'], $code['libelle'], $univers_id, $zone, $code['commentaire'] ]);
             }
             $this->db->commit();
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log($e->getMessage());
+            error_log("Erreur lors de l'importation multiple : " . $e->getMessage());
             return false;
         }
     }
@@ -121,7 +121,7 @@ class GeoCodeManager {
     public function savePosition(int $geo_code_id, int $pos_x, int $pos_y) {
         $sql = "INSERT INTO geo_positions (geo_code_id, pos_x, pos_y) 
                 VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE pos_x = VALUES(pos_x), pos_y = VALUES(pos_y)";
+                ON DUplicate KEY UPDATE pos_x = VALUES(pos_x), pos_y = VALUES(pos_y)";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$geo_code_id, $pos_x, $pos_y]);
     }
@@ -137,17 +137,21 @@ class GeoCodeManager {
         return $this->db->query("SELECT id, nom, zone_assignee FROM univers ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
     }
     
-    private function getOrCreateUniversId(string $nom): int {
+    // CORRECTION: La méthode accepte maintenant la zone comme second paramètre.
+    private function getOrCreateUniversId(string $nom, string $zone): int {
         if (empty(trim($nom))) {
             $nom = "Indéfini";
         }
+        
         $stmt = $this->db->prepare("SELECT id FROM univers WHERE nom = ?");
         $stmt->execute([$nom]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
         if ($result) {
             return (int)$result['id'];
         } else {
-            $this->addUnivers($nom, 'vente');
+            // CORRECTION: Utilise la zone fournie par le CSV au lieu de la coder en dur.
+            $this->addUnivers($nom, $zone);
             return (int)$this->db->lastInsertId();
         }
     }

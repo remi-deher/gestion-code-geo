@@ -18,7 +18,6 @@
                     <strong>Filtrer par univers :</strong>
                     <label><input type="checkbox" value="all" checked> Tout voir</label>
                     
-                    <!-- CORRECTION : On vérifie que la variable $univers est bien un tableau avant la boucle -->
                     <?php if (!empty($univers) && is_array($univers)): ?>
                         <?php foreach ($univers as $u): ?>
                             <label data-univers-name="<?= htmlspecialchars($u['nom']) ?>">
@@ -34,49 +33,69 @@
                     <button class="zone-tab" data-zone="reserve">Réserve</button>
                 </div>
             </div>
-            
-            <div class="view-switcher">
-                <button id="view-list-btn" class="active">Vue Liste</button>
-                <button id="view-table-btn">Vue Tableau</button>
-            </div>
 
-            <!-- Vue Liste -->
-            <div id="list-view">
-                <div id="liste-geocodes">
-                    <!-- CORRECTION : On vérifie que $geoCodes est bien un tableau avant la boucle -->
-                    <?php if (!empty($geoCodes) && is_array($geoCodes)): ?>
-                        <?php 
-                        $currentUnivers = null;
-                        foreach ($geoCodes as $code): 
-                            if ($code['univers'] !== $currentUnivers):
-                                $currentUnivers = $code['univers'];
-                                echo "<h3 class='univers-separator' data-univers=\"".htmlspecialchars($currentUnivers)."\">" . htmlspecialchars($currentUnivers) . "</h3>";
-                            endif;
-                        ?>
-                            <div class="code-geo-item" 
-                                 data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'])) ?>"
-                                 data-univers="<?= htmlspecialchars($code['univers']) ?>"
-                                 data-zone="<?= htmlspecialchars($code['zone']) ?>">
-                                <div class="qr-code-container" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
-                                <div class="details">
-                                    <h4><?= htmlspecialchars($code['code_geo']) ?> <small> (<?= htmlspecialchars($code['zone']) ?>)</small></h4>
-                                    <p><?= htmlspecialchars($code['libelle']) ?></p>
-                                     <?php if (!empty($code['commentaire'])): ?>
-                                        <p class="comment">Note: <?= htmlspecialchars($code['commentaire']) ?></p>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="item-actions">
-                                    <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn-edit">✏️ Modifier</a>
-                                    <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn-delete" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce code géo ?');">❌ Supprimer</a>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <p>Aucun code géo n'a été trouvé. <a href="index.php?action=create">Commencez par en ajouter un !</a></p>
-                    <?php endif; ?>
+            <!-- NOUVEAUX CONTRÔLES : Switcher de vue et Tri -->
+            <div class="view-controls">
+                <div class="view-switcher">
+                    <button id="view-card-btn" class="active">Vue Fiches</button>
+                    <button id="view-table-btn">Vue Tableau</button>
+                </div>
+                <div class="sort-container">
+                    <label for="sort-by">Trier par :</label>
+                    <select id="sort-by">
+                        <option value="univers-asc">Univers (A-Z)</option>
+                        <option value="code-geo-asc">Code Géo (A-Z)</option>
+                        <option value="libelle-asc">Libellé (A-Z)</option>
+                    </select>
                 </div>
             </div>
-            
+
+            <!-- Vue Fiches -->
+            <div id="card-view">
+                <?php if (!empty($geoCodes) && is_array($geoCodes)): ?>
+                    <?php 
+                    $currentUnivers = null;
+                    // Tri initial par univers pour l'affichage par défaut
+                    usort($geoCodes, function($a, $b) {
+                        return strcmp($a['univers'], $b['univers']) ?: strcmp($a['code_geo'], $b['code_geo']);
+                    });
+                    foreach ($geoCodes as $code): 
+                        if ($code['univers'] !== $currentUnivers):
+                            $currentUnivers = $code['univers'];
+                            echo "<h3 class='univers-separator' data-univers=\"".htmlspecialchars($currentUnivers)."\">" . htmlspecialchars($currentUnivers) . "</h3>";
+                        endif;
+                    ?>
+                        <div class="geo-card" 
+                             data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'].' '.$code['commentaire'])) ?>"
+                             data-univers="<?= htmlspecialchars($code['univers']) ?>"
+                             data-zone="<?= htmlspecialchars($code['zone']) ?>"
+                             data-code_geo="<?= htmlspecialchars($code['code_geo']) ?>"
+                             data-libelle="<?= htmlspecialchars($code['libelle']) ?>">
+                            
+                            <div class="geo-card-qr" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
+                            
+                            <div class="geo-card-info">
+                                <div class="info-code">
+                                    <span class="code-badge"><?= htmlspecialchars($code['code_geo']) ?></span>
+                                    <span class="zone-badge zone-<?= htmlspecialchars($code['zone']) ?>"><?= htmlspecialchars($code['zone']) ?></span>
+                                </div>
+                                <div class="info-libelle"><?= htmlspecialchars($code['libelle']) ?></div>
+                                <?php if (!empty($code['commentaire'])): ?>
+                                    <div class="info-comment">💬 <?= htmlspecialchars($code['commentaire']) ?></div>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="geo-card-actions">
+                                <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn-edit">✏️ Modifier</a>
+                                <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn-delete" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce code géo ?');">❌ Supprimer</a>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p>Aucun code géo n'a été trouvé. <a href="index.php?action=create">Commencez par en ajouter un !</a></p>
+                <?php endif; ?>
+            </div>
+
             <!-- Vue Tableau -->
             <div id="table-view" style="display: none;">
                 <table class="geo-table">
@@ -86,11 +105,10 @@
                             <th data-sort="libelle">Libellé</th>
                             <th data-sort="univers">Univers</th>
                             <th data-sort="zone">Zone</th>
-                            <th class="no-sort">Actions</th>
+                            <th class="no-print no-sort">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- CORRECTION : On vérifie que $geoCodes est bien un tableau avant la boucle -->
                         <?php if (!empty($geoCodes) && is_array($geoCodes)): ?>
                             <?php foreach ($geoCodes as $code): ?>
                                 <tr data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'])) ?>"
@@ -100,9 +118,9 @@
                                     <td data-label="Libellé"><?= htmlspecialchars($code['libelle']) ?></td>
                                     <td data-label="Univers"><?= htmlspecialchars($code['univers']) ?></td>
                                     <td data-label="Zone"><?= htmlspecialchars($code['zone']) ?></td>
-                                    <td data-label="Actions" class="item-actions">
-                                        <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn-edit">✏️ Modifier</a>
-                                        <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn-delete" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce code géo ?');">❌ Supprimer</a>
+                                    <td data-label="Actions" class="item-actions no-print">
+                                        <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn-edit">✏️</a>
+                                        <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn-delete" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce code géo ?');">❌</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

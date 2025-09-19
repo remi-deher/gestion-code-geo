@@ -5,6 +5,7 @@
     --border-color: #dee2e6;
     --text-color: #333;
     --navbar-height: 60px;
+    --monospace-font: 'SF Mono', 'Consolas', 'Courier New', monospace;
 }
 
 body {
@@ -71,7 +72,7 @@ body {
 
 /* --- Conteneurs et Titres --- */
 .container {
-    max-width: 90%;
+    max-width: 1200px;
     margin: 2rem auto;
     background-color: #fff;
     padding: 2rem;
@@ -82,7 +83,12 @@ body {
 h1, h2, h3 { color: var(--primary-color); margin-top: 0; }
 h1 { display: none; }
 h2 { border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; }
-h3.univers-separator { margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem; }
+h3.univers-separator { 
+    margin-top: 2.5rem; 
+    border-top: 2px solid #eee; 
+    padding-top: 1.5rem; 
+    font-size: 1.5rem;
+}
 
 /* --- Barre d'outils avec Filtres --- */
 .toolbar { margin-bottom: 1.5rem; }
@@ -172,38 +178,141 @@ button {
 }
 button:hover { background-color: #0056b3; }
 
-/* --- Vue Liste --- */
-.code-geo-item {
+
+/* --- NOUVEAUX STYLES POUR LES CONTRÔLES DE VUE ET DE TRI --- */
+.view-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
     gap: 1.5rem;
-    padding: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
     border-bottom: 1px solid var(--border-color);
 }
-.code-geo-item .qr-code-container { flex-shrink: 0; }
-.code-geo-item .details h4 { margin: 0 0 0.25rem 0; font-size: 1.1rem; }
-.code-geo-item .details p { margin: 0.25rem 0; }
-.code-geo-item .details p.comment { font-size: 0.9em; color: #555; }
 
-/* --- Sélecteur de Vue --- */
 .view-switcher {
-    margin-bottom: 1.5rem;
     display: flex;
     gap: 0.5rem;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 1rem;
-}
-.view-switcher button {
     background-color: var(--light-gray);
+    border-radius: 8px;
+    padding: 5px;
+}
+
+.view-switcher button {
+    background-color: transparent;
     color: var(--text-color);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.view-switcher button.active {
+    background-color: #fff;
+    color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.sort-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sort-container label {
+    font-weight: 500;
+}
+
+.sort-container select {
+    padding: 0.5rem;
+    border-radius: 6px;
     border: 1px solid var(--border-color);
 }
-.view-switcher button.active {
-    background-color: var(--primary-color);
-    color: #fff;
-    border-color: var(--primary-color);
+
+
+/* --- Vue Fiches --- */
+#card-view {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
+
+.geo-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1.5rem;
+    align-items: center;
+    background-color: #fff;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+.geo-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+}
+
+.geo-card-qr {
+    flex-shrink: 0;
+    padding: 5px;
+    background-color: #fff;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.geo-card-qr img {
+    border-radius: 4px;
+}
+
+.geo-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.info-code {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.code-badge {
+    font-family: var(--monospace-font);
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+.zone-badge {
+    font-size: 0.8rem;
+    font-weight: bold;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    text-transform: capitalize;
+}
+.zone-vente { background-color: #e0f2fe; color: #0ea5e9; }
+.zone-reserve { background-color: #fef3c7; color: #f59e0b; }
+
+.info-libelle {
+    font-size: 1.1rem;
+    color: var(--text-color);
+}
+.info-comment {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.geo-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
 
 /* --- Vue Tableau --- */
 .geo-table {
@@ -216,35 +325,47 @@ button:hover { background-color: #0056b3; }
     padding: 0.75rem;
     text-align: left;
 }
-.geo-table thead { background-color: var(--light-gray); }
+.geo-table thead { 
+    background-color: var(--light-gray); 
+    position: sticky; 
+    top: var(--navbar-height); /* Make header sticky */
+}
 .geo-table th { font-weight: bold; }
 
+/* Styles pour les en-têtes de tableau triables */
 .geo-table th[data-sort] {
     cursor: pointer;
     position: relative;
+    user-select: none;
 }
 .geo-table th[data-sort]::after {
     content: ' ▲';
+    font-size: 0.8em;
     opacity: 0.2;
     position: absolute;
     right: 10px;
+    top: 50%;
+    transform: translateY(-50%) rotate(180deg); /* Initial down arrow */
 }
-.geo-table th[data-sort].asc::after { content: ' ▲'; opacity: 1; }
-.geo-table th[data-sort].desc::after { content: ' ▼'; opacity: 1; }
+.geo-table th[data-sort].asc::after { 
+    content: ' ▲'; 
+    opacity: 1; 
+    transform: translateY(-50%) rotate(0deg);
+}
+.geo-table th[data-sort].desc::after { 
+    content: ' ▲'; 
+    opacity: 1; 
+    transform: translateY(-50%) rotate(180deg);
+}
+
 
 .geo-table tbody tr:nth-child(even) { background-color: #f8f9fa; }
 .geo-table tbody tr:hover { background-color: #e9ecef; }
 .geo-table .item-actions { text-align: center; white-space: nowrap; }
 
+
 /* --- Boutons d'action --- */
-.item-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
-    justify-content: center;
-}
-.item-actions a {
+.item-actions a, .geo-card-actions a {
     text-decoration: none;
     color: #fff;
     padding: 0.5rem 1rem;
@@ -252,6 +373,7 @@ button:hover { background-color: #0056b3; }
     font-size: 0.9rem;
     font-weight: bold;
     transition: background-color 0.2s;
+    text-align: center;
 }
 .btn-edit { background-color: #ffc107; color: #333; }
 .btn-edit:hover { background-color: #e0a800; }
@@ -265,24 +387,11 @@ button:hover { background-color: #0056b3; }
     gap: 2rem;
 }
 @media (min-width: 768px) { .univers-container { grid-template-columns: 1fr 1fr; } }
-.univers-list ul { list-style: none; padding: 0; }
-.univers-list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--border-color);
-}
-.univers-list li:last-child { border-bottom: none; }
-.univers-list .btn-delete { background: none; border: none; cursor: pointer; }
-
-/* --- Page Plan --- */
-/* (Styles inchangés) */
 
 /* --- Styles d'Impression --- */
 @media print {
     body { padding-top: 0; background-color: #fff; }
-    .navbar, .toolbar, #print-btn, #recherche, .item-actions, .view-switcher {
+    .navbar, .toolbar, .item-actions, .view-controls, .geo-card-actions {
         display: none !important;
     }
     .container {
@@ -293,15 +402,17 @@ button:hover { background-color: #0056b3; }
         margin: 0;
         padding: 0;
     }
-    #list-view { display: none !important; }
+    a { text-decoration: none; color: inherit; }
+
+    /* Forcer l'affichage du tableau lors de l'impression */
+    #card-view { display: none !important; }
     #table-view { display: block !important; }
+
     .geo-table { font-size: 10pt; }
     .geo-table th, .geo-table td { padding: 5px; }
-    .geo-table .item-actions, .geo-table th.no-sort { display: none; }
-    a { text-decoration: none; color: inherit; }
+    .geo-table .no-print { display: none; }
+    .geo-table th::after { display: none !important; } /* Hide sort arrows on print */
 }
-
-/* ... (tout le CSS existant) ... */
 
 /* --- Styles pour la page d'Ajout par Lot --- */
 .form-group-selection {
@@ -319,7 +430,7 @@ button:hover { background-color: #0056b3; }
         grid-template-columns: 1fr 1fr;
     }
 }
-
+.batch-table { width: 100%; }
 .batch-table input.form-control {
     width: 100%;
     padding: 0.5rem;

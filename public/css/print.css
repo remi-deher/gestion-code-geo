@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Roboto+Mono:wght@700&display=swap');
 
 body {
     font-family: 'Roboto', sans-serif;
@@ -14,9 +14,7 @@ body {
 }
 
 /* --- Éléments d'impression --- */
-
 .univers-group {
-    /* Commence chaque univers sur une nouvelle page */
     page-break-before: always;
 }
 .univers-group:first-child {
@@ -30,44 +28,73 @@ body {
     border-bottom: 2px solid #000;
     padding-bottom: 10px;
     margin-bottom: 20px;
-    /* Évite que le titre soit seul en bas d'une page */
     page-break-after: avoid;
 }
 
 .print-list {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 20px;
 }
 
+/* NOUVELLE STRUCTURE D'ÉTIQUETTE */
 .print-item {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 140px 1fr; /* Colonne fixe pour QR/Code, colonne flexible pour détails */
     gap: 20px;
-    border: 1px solid #ccc;
-    padding: 10px;
+    align-items: center;
+    border: 2px solid #333;
+    padding: 15px;
     border-radius: 5px;
-    /* Évite qu'un item soit coupé entre deux pages */
     page-break-inside: avoid;
+    background-color: #fff;
+}
+
+.print-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
 }
 
 .print-qr-code {
     flex-shrink: 0;
+    background-color: #fff;
+    padding: 5px;
+    border: 1px solid #eee;
+}
+
+.print-code-box {
+    background-color: #f0f0f0;
+    padding: 5px 10px;
+    border-radius: 4px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.print-code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 16pt;
+    font-weight: 700;
+    color: #000;
 }
 
 .print-details {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-}
-
-.print-code {
-    font-size: 18pt;
-    font-weight: bold;
-}
-
-.print-libelle {
+    gap: 12px;
     font-size: 14pt;
+    padding-left: 15px;
+    border-left: 1px solid #ccc;
+}
+.print-details strong {
+    color: #555;
+}
+
+.print-comment {
+    font-style: italic;
+    font-size: 12pt;
 }
 
 
@@ -75,6 +102,7 @@ body {
 @media print {
     body {
         background-color: white;
+        font-family: 'Roboto', sans-serif;
     }
     .page-container {
         margin: 0;

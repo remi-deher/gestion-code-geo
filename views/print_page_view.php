@@ -18,11 +18,23 @@
                     <h2 class="univers-title"><?= htmlspecialchars($univers) ?></h2>
                     <div class="print-list">
                         <?php foreach ($codes as $code): ?>
+                            <!-- NOUVELLE STRUCTURE D'ÉTIQUETTE -->
                             <div class="print-item">
-                                <div class="print-qr-code" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
+                                <div class="print-main">
+                                    <div class="print-qr-code" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
+                                    <div class="print-code-box">
+                                        <span class="print-code"><?= htmlspecialchars($code['code_geo']) ?></span>
+                                    </div>
+                                </div>
                                 <div class="print-details">
-                                    <div class="print-code"><?= htmlspecialchars($code['code_geo']) ?></div>
-                                    <div class="print-libelle"><?= htmlspecialchars($code['libelle']) ?></div>
+                                    <div class="print-libelle">
+                                        <strong>Libellé :</strong> <?= htmlspecialchars($code['libelle']) ?>
+                                    </div>
+                                    <?php if (!empty($code['commentaire'])): ?>
+                                        <div class="print-comment">
+                                            <strong>Note :</strong> <?= htmlspecialchars($code['commentaire']) ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -42,12 +54,13 @@
                 if (codeText) {
                     new QRCode(container, { 
                         text: codeText, 
-                        width: 100, 
-                        height: 100,
+                        width: 120, // Taille augmentée pour meilleure lisibilité
+                        height: 120,
                         correctLevel : QRCode.CorrectLevel.H
                     });
                 }
             });
+            // Petit délai pour s'assurer que les QR codes sont générés
             setTimeout(() => { window.print(); }, 500);
         });
     </script>
