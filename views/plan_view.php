@@ -11,6 +11,10 @@
         #univers-legend h4 { margin: 0 0 0.5rem 0; }
         .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
         .legend-color-box { width: 15px; height: 15px; border: 1px solid #ccc; border-radius: 3px; }
+        .sidebar-filters { padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem; }
+        .sidebar-filters input[type="search"] { width: 100%; box-sizing: border-box; margin-bottom: 1rem; }
+        .sidebar-filters h4 { margin: 0 0 0.5rem 0; }
+        .filter-options label { display: block; font-weight: normal; }
     </style>
 </head>
 <body>
@@ -18,9 +22,26 @@
 
     <div class="plan-page-container">
         <div id="unplaced-codes-sidebar" class="no-print">
-            <h3>Codes à placer</h3>
-            <div id="unplaced-list">
+            
+            <div class="sidebar-filters">
+                <h3>Filtres</h3>
+                <input type="search" id="tag-search-input" placeholder="Rechercher un code...">
+                <div id="univers-filter-options">
+                    <h4>Univers</h4>
+                    <label><input type="checkbox" value="all" checked> Tout voir</label>
+                    <?php if (!empty($universList)): ?>
+                        <?php foreach ($universList as $univers): ?>
+                            <label>
+                                <input type="checkbox" value="<?= htmlspecialchars($univers['nom']) ?>" checked>
+                                <?= htmlspecialchars($univers['nom']) ?>
+                            </label>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
+            </div>
+
+            <h3>Codes à placer</h3>
+            <div id="unplaced-list"></div>
             
             <div id="univers-legend">
                 <h4>Légende</h4>
@@ -54,18 +75,27 @@
             </div>
 
             <div id="plan-container">
+                 <div id="zoom-wrapper">
+                    <img src="" alt="Plan du magasin" id="map-image" style="display: none;">
+                    </div>
                 <div id="plan-placeholder">
                     <p>Veuillez sélectionner un plan pour commencer.</p>
                 </div>
-                <img src="" alt="Plan du magasin" id="map-image" style="display: none;">
+            </div>
+
+            <div id="zoom-controls" class="no-print">
+                <button id="zoom-in-btn">+</button>
+                <button id="zoom-out-btn">-</button>
+                <button id="zoom-reset-btn">⟲</button>
             </div>
         </div>
     </div>
 
+    <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+
     <script>
         const geoCodesData = <?= json_encode($geoCodes ?? []); ?>;
         const plansData = <?= json_encode($plans ?? []); ?>;
-        // NOUVEAU : On passe la table des couleurs au JS
         const universColors = <?= json_encode($universColors ?? []); ?>;
     </script>
     <script src="js/plan.js"></script> 
