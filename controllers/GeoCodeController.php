@@ -109,6 +109,35 @@ class GeoCodeController {
         exit();
     }
 
+    /**
+     * NOUVELLE ACTION : Affiche la page des options d'impression.
+     */
+    public function showPrintOptionsAction() {
+        $universList = $this->manager->getAllUnivers();
+        require '../views/print_options_view.php';
+    }
+    
+    /**
+     * NOUVELLE ACTION : Génère la page d'impression finale à partir des univers sélectionnés.
+     */
+    public function generatePrintPageAction() {
+        $universIds = $_POST['univers_ids'] ?? [];
+        $groupedCodes = [];
+
+        if (!empty($universIds)) {
+            // S'assure que tous les IDs sont des entiers pour la sécurité
+            $universIds = array_map('intval', $universIds);
+            $geoCodes = $this->manager->getGeoCodesByUniversIds($universIds);
+            
+            // On groupe les codes par univers pour l'affichage
+            foreach ($geoCodes as $code) {
+                $groupedCodes[$code['univers']][] = $code;
+            }
+        }
+        
+        require '../views/print_page_view.php';
+    }
+
     public function showImportAction() {
         require '../views/import_view.php';
     }

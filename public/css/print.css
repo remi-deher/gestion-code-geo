@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f0f0f0;
+    margin: 0;
+}
+
+.page-container {
+    margin: 1rem auto;
+    padding: 1rem;
+    background-color: white;
+    max-width: 210mm; /* Largeur d'une page A4 */
+}
+
+/* --- Éléments d'impression --- */
+
+.univers-group {
+    /* Commence chaque univers sur une nouvelle page */
+    page-break-before: always;
+}
+.univers-group:first-child {
+    page-break-before: auto;
+}
+
+.univers-title {
+    font-size: 24pt;
+    font-weight: bold;
+    text-align: center;
+    border-bottom: 2px solid #000;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    /* Évite que le titre soit seul en bas d'une page */
+    page-break-after: avoid;
+}
+
+.print-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.print-item {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 5px;
+    /* Évite qu'un item soit coupé entre deux pages */
+    page-break-inside: avoid;
+}
+
+.print-qr-code {
+    flex-shrink: 0;
+}
+
+.print-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.print-code {
+    font-size: 18pt;
+    font-weight: bold;
+}
+
+.print-libelle {
+    font-size: 14pt;
+}
+
+
+/* --- Styles pour l'affichage à l'écran et l'impression --- */
+@media print {
+    body {
+        background-color: white;
+    }
+    .page-container {
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        max-width: 100%;
+    }
+    .no-print {
+        display: none;
+    }
+}

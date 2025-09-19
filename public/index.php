@@ -49,9 +49,12 @@ switch ($action) {
         $controller->handleImportAction();
         break;
         
-    // Action pour l'impression
+    // Action pour l'impression (MODIFIÉE)
     case 'printLabels':
-        $controller->printLabelsAction();
+        $controller->showPrintOptionsAction(); // Mène à la page de sélection
+        break;
+    case 'generatePrint': // NOUVELLE ROUTE
+        $controller->generatePrintPageAction(); // Génère la page à imprimer
         break;
 
     // Actions pour les Univers

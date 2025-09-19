@@ -53,6 +53,36 @@ class GeoCodeManager {
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$id]);
     }
+
+    /**
+     * NOUVELLE METHODE : Récupère tous les codes géo pour une liste d'IDs d'univers.
+     * @param array $ids
+     * @return array
+     */
+    public function getGeoCodesByUniversIds(array $ids): array {
+        if (empty($ids)) {
+            return [];
+        }
+        // Crée une chaîne de '?' pour la clause IN de la requête préparée
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        
+        $sql = "
+            SELECT 
+                gc.id, gc.code_geo, gc.libelle, u.nom as univers
+            FROM 
+                geo_codes gc
+            JOIN 
+                univers u ON gc.univers_id = u.id
+            WHERE 
+                gc.univers_id IN ($placeholders)
+            ORDER BY 
+                u.nom, gc.code_geo
+        ";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($ids);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
     
     public function createMultipleGeoCodes(array $codes) {
         $this->db->beginTransaction();
