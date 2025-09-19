@@ -1,6 +1,4 @@
 <?php
-session_start(); // AJOUT : Démarrer les sessions pour les notifications
-
 $dbConfig = require_once '../config/database.php';
 $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset={$dbConfig['charset']}";
 try {
@@ -15,7 +13,7 @@ $controller = new GeoCodeController($db);
 $action = $_GET['action'] ?? 'list';
 
 switch ($action) {
-    // ... (le reste du fichier est inchangé)
+    // Actions pour les Codes Géo
     case 'create':
         $controller->createAction();
         break;
@@ -27,6 +25,9 @@ switch ($action) {
         break;
     case 'update':
         $controller->updateAction();
+        break;
+    case 'delete': // Route pour la suppression
+        $controller->deleteAction();
         break;
 
     // Actions pour le Plan

@@ -7,11 +7,6 @@ class GeoCodeManager {
         $this->db = $db;
     }
 
-    /**
-     * Récupère un code géo par son ID.
-     * @param int $id
-     * @return array|false
-     */
     public function getGeoCodeById(int $id) {
         $sql = "SELECT * FROM geo_codes WHERE id = ?";
         $stmt = $this->db->prepare($sql);
@@ -19,13 +14,7 @@ class GeoCodeManager {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Récupère tous les codes géo, avec leurs positions et le nom de l'univers.
-     * @return array
-     */
     public function getAllGeoCodesWithPositions() {
-        // CORRECTION : Remplacement de "JOIN univers" par "LEFT JOIN univers"
-        // Cela assure que les codes géo sont affichés même si leur univers a été supprimé.
         $sql = "
             SELECT 
                 gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire,
@@ -34,7 +23,7 @@ class GeoCodeManager {
                 geo_codes gc
             LEFT JOIN 
                 geo_positions gp ON gc.id = gp.geo_code_id
-            LEFT JOIN 
+            JOIN 
                 univers u ON gc.univers_id = u.id
             ORDER BY 
                 u.nom, gc.code_geo
@@ -44,18 +33,12 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Crée un nouveau code géo.
-     */
     public function createGeoCode(string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
         $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire]);
     }
 
-    /**
-     * Met à jour un code géo existant.
-     */
     public function updateGeoCode(int $id, string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
         $sql = "UPDATE geo_codes SET code_geo = ?, libelle = ?, univers_id = ?, zone = ?, commentaire = ? WHERE id = ?";
         $stmt = $this->db->prepare($sql);
@@ -63,8 +46,14 @@ class GeoCodeManager {
     }
     
     /**
-     * Insère plusieurs codes géo (utilisé pour l'import).
+     * Supprime un code géo par son ID.
      */
+    public function deleteGeoCode(int $id): bool {
+        $sql = "DELETE FROM geo_codes WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([$id]);
+    }
+    
     public function createMultipleGeoCodes(array $codes) {
         $this->db->beginTransaction();
         try {
@@ -80,26 +69,17 @@ class GeoCodeManager {
                         commentaire = VALUES(commentaire)";
                 $stmt = $this->db->prepare($sql);
                 $stmt->execute([
-                    $code['code_geo'],
-                    $code['libelle'],
-                    $univers_id,
-                    $code['zone'],
-                    $code['commentaire']
+                    $code['code_geo'], $code['libelle'], $univers_id, $code['zone'], $code['commentaire']
                 ]);
             }
             $this->db->commit();
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
-            // Log l'erreur peut être une bonne idée ici
             return false;
         }
     }
 
-
-    /**
-     * Sauvegarde la position d'un code géo.
-     */
     public function savePosition(int $geo_code_id, int $pos_x, int $pos_y) {
         $sql = "
             INSERT INTO geo_positions (geo_code_id, pos_x, pos_y) 
@@ -112,21 +92,14 @@ class GeoCodeManager {
 
     // --- GESTION DES UNIVERS ---
 
-    /**
-     * Récupère tous les univers.
-     */
     public function getAllUnivers() {
         return $this->db->query("SELECT * FROM univers ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
     }
     
-    /**
-     * Récupère l'ID d'un univers par son nom, ou le crée s'il n'existe pas.
-     */
     private function getOrCreateUniversId(string $nom): int {
         $stmt = $this->db->prepare("SELECT id FROM univers WHERE nom = ?");
         $stmt->execute([$nom]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
         if ($result) {
             return $result['id'];
         } else {
@@ -135,26 +108,19 @@ class GeoCodeManager {
         }
     }
 
-    /**
-     * Ajoute un nouvel univers.
-     */
     public function addUnivers(string $nom) {
-        $sql = "INSERT INTO univers (nom) VALUES (?) ON DUPLICATE KEY UPDATE nom=nom"; // Évite les erreurs si l'univers existe déjà
+        $sql = "INSERT INTO univers (nom) VALUES (?)";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$nom]);
     }
 
-    /**
-     * Supprime un univers.
-     */
     public function deleteUnivers(int $id) {
         $checkSql = "SELECT COUNT(*) FROM geo_codes WHERE univers_id = ?";
         $checkStmt = $this->db->prepare($checkSql);
         $checkStmt->execute([$id]);
         if ($checkStmt->fetchColumn() > 0) {
-            return false; // Empêche la suppression si utilisé
+            return false;
         }
-
         $sql = "DELETE FROM univers WHERE id = ?";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$id]);
