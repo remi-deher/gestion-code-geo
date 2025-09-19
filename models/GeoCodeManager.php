@@ -22,7 +22,7 @@ class GeoCodeManager {
         $sql = "
             SELECT 
                 gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire,
-                gp.pos_x, gp.pos_y
+                gp.pos_x, gp.pos_y, gp.plan_id
             FROM 
                 geo_codes gc
             LEFT JOIN 
@@ -85,8 +85,6 @@ class GeoCodeManager {
             $stmt = $this->db->prepare($sql);
 
             foreach ($codes as $code) {
-                // CORRECTION: Assure que la zone est valide, puis la passe à la fonction
-                // qui crée l'univers si nécessaire.
                 $zone = in_array(strtolower($code['zone']), ['vente', 'reserve']) ? strtolower($code['zone']) : 'vente';
                 $univers_id = $this->getOrCreateUniversId($code['univers'], $zone);
                 
@@ -118,12 +116,12 @@ class GeoCodeManager {
         }
     }
 
-    public function savePosition(int $geo_code_id, int $pos_x, int $pos_y) {
-        $sql = "INSERT INTO geo_positions (geo_code_id, pos_x, pos_y) 
-                VALUES (?, ?, ?)
-                ON DUplicate KEY UPDATE pos_x = VALUES(pos_x), pos_y = VALUES(pos_y)";
+    public function savePosition(int $geo_code_id, int $plan_id, int $pos_x, int $pos_y) {
+        $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y) 
+                VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE plan_id = VALUES(plan_id), pos_x = VALUES(pos_x), pos_y = VALUES(pos_y)";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$geo_code_id, $pos_x, $pos_y]);
+        return $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y]);
     }
 
     // --- GESTION DES UNIVERS ---
@@ -137,7 +135,6 @@ class GeoCodeManager {
         return $this->db->query("SELECT id, nom, zone_assignee FROM univers ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
     }
     
-    // CORRECTION: La méthode accepte maintenant la zone comme second paramètre.
     private function getOrCreateUniversId(string $nom, string $zone): int {
         if (empty(trim($nom))) {
             $nom = "Indéfini";
@@ -150,7 +147,6 @@ class GeoCodeManager {
         if ($result) {
             return (int)$result['id'];
         } else {
-            // CORRECTION: Utilise la zone fournie par le CSV au lieu de la coder en dur.
             $this->addUnivers($nom, $zone);
             return (int)$this->db->lastInsertId();
         }
@@ -181,5 +177,29 @@ class GeoCodeManager {
         $sql = "UPDATE univers SET zone_assignee = ? WHERE id = ?";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$zone, $id]);
+    }
+
+    // --- NOUVELLES MÉTHODES POUR LA GESTION DES PLANS ---
+    
+    public function getAllPlans() {
+        return $this->db->query("SELECT * FROM plans ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function addPlan(string $nom, string $nom_fichier): bool {
+        $sql = "INSERT INTO plans (nom, nom_fichier) VALUES (?, ?)";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([$nom, $nom_fichier]);
+    }
+
+    public function getPlanById(int $id) {
+        $stmt = $this->db->prepare("SELECT * FROM plans WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function deletePlan(int $id): bool {
+        $sql = "DELETE FROM plans WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([$id]);
     }
 }

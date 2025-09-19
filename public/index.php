@@ -16,68 +16,37 @@ $action = $_GET['action'] ?? 'list';
 
 switch ($action) {
     // Actions pour les Codes Géo
-    case 'create':
-        $controller->createAction();
-        break;
-    case 'add':
-        $controller->addAction();
-        break;
-    case 'edit':
-        $controller->editAction();
-        break;
-    case 'update':
-        $controller->updateAction();
-        break;
-    case 'delete':
-        $controller->deleteAction();
-        break;
-    case 'showBatchCreate':
-        $controller->showBatchCreateAction();
-        break;
-    case 'handleBatchCreate':
-        $controller->handleBatchCreateAction();
-        break;
+    case 'create': $controller->createAction(); break;
+    case 'add': $controller->addAction(); break;
+    case 'edit': $controller->editAction(); break;
+    case 'update': $controller->updateAction(); break;
+    case 'delete': $controller->deleteAction(); break;
+    case 'showBatchCreate': $controller->showBatchCreateAction(); break;
+    case 'handleBatchCreate': $controller->handleBatchCreateAction(); break;
 
-    // Actions pour le Plan
-    case 'plan':
-        $controller->planAction();
-        break;
-    case 'savePosition':
-        $controller->savePositionAction();
-        break;
+    // Actions pour le Plan interactif
+    case 'plan': $controller->planAction(); break;
+    case 'savePosition': $controller->savePositionAction(); break;
 
     // Actions pour l'Import/Export
-    case 'export':
-        $controller->exportAction();
-        break;
-    case 'showImport':
-        $controller->showImportAction();
-        break;
-    case 'handleImport':
-        $controller->handleImportAction();
-        break;
-    case 'exportTemplate': // NOUVELLE ROUTE
-        $controller->exportTemplateAction();
-        break;
+    case 'export': $controller->exportAction(); break;
+    case 'showImport': $controller->showImportAction(); break;
+    case 'handleImport': $controller->handleImportAction(); break;
+    case 'exportTemplate': $controller->exportTemplateAction(); break;
         
     // Actions pour l'impression
-    case 'printLabels':
-        $controller->showPrintOptionsAction();
-        break;
-    case 'generatePrint':
-        $controller->generatePrintPageAction();
-        break;
+    case 'printLabels': $controller->showPrintOptionsAction(); break;
+    case 'generatePrint': $controller->generatePrintPageAction(); break;
 
     // Actions pour les Univers
-    case 'listUnivers':
-        $controller->listUniversAction();
-        break;
-    case 'addUnivers':
-        $controller->addUniversAction();
-        break;
-    case 'deleteUnivers':
-        $controller->deleteUniversAction();
-        break;
+    case 'listUnivers': $controller->listUniversAction(); break;
+    case 'addUnivers': $controller->addUniversAction(); break;
+    case 'deleteUnivers': $controller->deleteUniversAction(); break;
+
+    // NOUVELLES Actions pour la GESTION DES PLANS
+    case 'listPlans': $controller->listPlansAction(); break;
+    case 'addPlan': $controller->addPlanAction(); break;
+    case 'deletePlan': $controller->deletePlanAction(); break;
 
     // Action par défaut
     case 'list':

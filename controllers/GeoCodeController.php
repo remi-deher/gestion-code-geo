@@ -109,14 +109,15 @@ class GeoCodeController {
     // --- Actions pour le Plan ---
     public function planAction() {
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();
+        $plans = $this->manager->getAllPlans(); // On charge les plans pour le sélecteur
         require __DIR__ . '/../views/plan_view.php';
     }
 
     public function savePositionAction() {
         header('Content-Type: application/json');
         $input = json_decode(file_get_contents('php://input'), true);
-        if (isset($input['id'], $input['x'], $input['y'])) {
-            $success = $this->manager->savePosition((int)$input['id'], (int)$input['x'], (int)$input['y']);
+        if (isset($input['id'], $input['plan_id'], $input['x'], $input['y'])) {
+            $success = $this->manager->savePosition((int)$input['id'], (int)$input['plan_id'], (int)$input['x'], (int)$input['y']);
             echo json_encode(['status' => $success ? 'success' : 'error']);
         } else {
             echo json_encode(['status' => 'error', 'message' => 'Invalid data']);
@@ -130,7 +131,7 @@ class GeoCodeController {
         header('Content-Disposition: attachment; filename="export_geocodes_'.date('Y-m-d').'.csv"');
         $geoCodes = $this->manager->getAllGeoCodesWithPositions();
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire'], ';'); // Utilise le point-virgule pour une meilleure compatibilité Excel
+        fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire'], ';');
         foreach ($geoCodes as $code) {
             fputcsv($output, [ $code['code_geo'], $code['libelle'], $code['univers'], $code['zone'], $code['commentaire'] ], ';');
         }
@@ -146,26 +147,17 @@ class GeoCodeController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csvFile']) && $_FILES['csvFile']['error'] == UPLOAD_ERR_OK) {
             $file = $_FILES['csvFile']['tmp_name'];
             $handle = fopen($file, "r");
-            
-            // Ignore la ligne d'en-tête
             fgetcsv($handle, 1000, ";"); 
-
             $codesToInsert = [];
-            // CORRECTION: Utilise le point-virgule comme délimiteur
             while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
-                // S'assure que les colonnes essentielles existent
                 if (isset($data[0], $data[1], $data[2], $data[3])) {
                     $codesToInsert[] = [
-                        'code_geo'    => trim($data[0]),
-                        'libelle'     => trim($data[1]),
-                        'univers'     => trim($data[2]),
-                        'zone'        => trim($data[3]),
-                        'commentaire' => isset($data[4]) ? trim($data[4]) : null
+                        'code_geo'    => trim($data[0]), 'libelle'     => trim($data[1]), 'univers'     => trim($data[2]),
+                        'zone'        => trim($data[3]), 'commentaire' => isset($data[4]) ? trim($data[4]) : null
                     ];
                 }
             }
             fclose($handle);
-
             if (!empty($codesToInsert)) {
                 $this->manager->createMultipleGeoCodes($codesToInsert);
             }
@@ -179,16 +171,12 @@ class GeoCodeController {
         if ($univers_id <= 0) die("ID d'univers invalide.");
         $univers = $this->manager->getUniversById($univers_id);
         if (!$univers) die("Univers non trouvé.");
-        
         $safe_name = preg_replace('/[^a-zA-Z0-9-_\.]/','_', $univers['nom']);
         $filename = "Modele-Import-{$safe_name}.csv";
-        
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
-        
         $output = fopen('php://output', 'w');
-        fwrite($output, "\xEF\xBB\xBF"); // Ajout du BOM pour l'UTF-8 dans Excel
-        
+        fwrite($output, "\xEF\xBB\xBF");
         fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire'], ';');
         for ($i = 0; $i < 10; $i++) {
             fputcsv($output, [ '', '', $univers['nom'], $univers['zone_assignee'], '' ], ';');
@@ -250,6 +238,74 @@ class GeoCodeController {
         } else {
             echo json_encode(['status' => 'error', 'message' => 'Données invalides']);
         }
+        exit();
+    }
+
+    // --- NOUVELLES ACTIONS POUR LA GESTION DES PLANS ---
+
+    public function listPlansAction() {
+        $plans = $this->manager->getAllPlans();
+        require __DIR__ . '/../views/plans_list_view.php';
+    }
+
+    public function addPlanAction() {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['planFile'])) {
+            $nom = trim($_POST['nom'] ?? 'Nouveau plan');
+            $file = $_FILES['planFile'];
+
+            if ($file['error'] === UPLOAD_ERR_OK && !empty($nom)) {
+                $uploadDir = __DIR__ . '/../public/uploads/plans/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0777, true);
+                }
+
+                $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                $safeFilename = preg_replace('/[^a-zA-Z0-9-_\.]/','_', basename($file['name'], "." . $extension));
+                $newFilenameBase = time() . '_' . $safeFilename;
+                
+                $finalFilename = $newFilenameBase . '.png'; // On convertit tout en PNG
+                $destination = $uploadDir . $finalFilename;
+
+                // Conversion du PDF en PNG si nécessaire
+                if ($extension === 'pdf' && class_exists('Imagick')) {
+                    try {
+                        $imagick = new Imagick();
+                        $imagick->readImage($file['tmp_name'] . '[0]'); // Prend la première page
+                        $imagick->setImageFormat('png');
+                        $imagick->writeImage($destination);
+                        $imagick->clear();
+                        $imagick->destroy();
+                    } catch (Exception $e) {
+                        // Gérer l'erreur si Imagick échoue
+                        header('Location: index.php?action=listPlans&error=pdf');
+                        exit();
+                    }
+                } else if (in_array($extension, ['png', 'jpg', 'jpeg'])) {
+                    move_uploaded_file($file['tmp_name'], $destination);
+                } else {
+                    // Type de fichier non supporté
+                    header('Location: index.php?action=listPlans&error=type');
+                    exit();
+                }
+
+                $this->manager->addPlan($nom, $finalFilename);
+            }
+        }
+        header('Location: index.php?action=listPlans');
+        exit();
+    }
+
+    public function deletePlanAction() {
+        $id = (int)($_GET['id'] ?? 0);
+        $plan = $this->manager->getPlanById($id);
+        if ($plan) {
+            $filePath = __DIR__ . '/../public/uploads/plans/' . $plan['nom_fichier'];
+            if (file_exists($filePath)) {
+                unlink($filePath);
+            }
+            $this->manager->deletePlan($id);
+        }
+        header('Location: index.php?action=listPlans');
         exit();
     }
 }

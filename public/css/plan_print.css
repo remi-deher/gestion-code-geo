@@ -1,0 +1,60 @@
+/* public/css/plan_print.css */
+
+@media print {
+    /* Cache tous les éléments inutiles */
+    body > *:not(.plan-page-container) {
+        display: none;
+    }
+
+    .plan-page-container > *:not(.plan-main-content) {
+        display: none;
+    }
+
+    .plan-main-content > *:not(#plan-container) {
+        display: none;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    /* Ajuste le conteneur principal pour qu'il prenne toute la page */
+    .plan-page-container,
+    .plan-main-content {
+        display: block;
+        height: auto;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    #plan-container {
+        width: 100%;
+        height: 100%;
+        box-shadow: none;
+        border: none;
+        overflow: visible; /* Affiche tout le contenu */
+        page-break-inside: avoid; /* Tente d'éviter les coupures de page */
+    }
+
+    #map-image {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    /* Style des étiquettes pour l'impression */
+    .geo-tag {
+        background-color: white !important;
+        color: black !important;
+        border: 1px solid black;
+        box-shadow: none;
+        padding: 2px 4px;
+        font-size: 8pt; /* Taille plus petite pour l'impression */
+    }
+
+    /* Masque les infobulles à l'impression */
+    .tag-tooltip {
+        display: none;
+    }
+}

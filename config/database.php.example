@@ -1,0 +1,10 @@
+<?php
+
+// Ce fichier retourne un tableau contenant les paramètres de connexion à la BDD.
+return [
+    'host' => 'MY_IP_OR_FQDN',
+    'dbname' => 'DATABSE_NAME', // Le nom de votre base de données
+    'user' => 'USERENAME',     // Votre nom d'utilisateur
+    'password' => 'PASSWORD', // Votre mot de passe
+    'charset' => 'utf8mb4'
+];

@@ -457,3 +457,128 @@ button:hover { background-color: #0056b3; }
 .btn-delete-row:hover {
     opacity: 1;
 }
+
+/* --- NOUVEAUX STYLES POUR LA PAGE DU PLAN --- */
+.plan-page-container {
+    display: flex;
+    height: calc(100vh - var(--navbar-height)); /* Pleine hauteur moins la navbar */
+    width: 100%;
+    margin: 0;
+    max-width: 100%;
+    padding: 0;
+}
+
+#unplaced-codes-sidebar {
+    width: 250px;
+    background-color: #fff;
+    padding: 1rem;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+#unplaced-codes-sidebar h3 {
+    margin-top: 0;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+#unplaced-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Style des étiquettes dans la barre latérale */
+#unplaced-list .geo-tag {
+    cursor: grab;
+    background-color: var(--light-gray);
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    text-align: center;
+    font-weight: bold;
+}
+#unplaced-list .geo-tag:hover {
+    background-color: #e9ecef;
+}
+
+.plan-main-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+}
+
+.plan-toolbar {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    align-items: center;
+}
+
+#plan-container {
+    flex-grow: 1;
+    position: relative; /* Contexte de positionnement pour les étiquettes */
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden; /* Cache le débordement */
+}
+
+#plan-placeholder {
+    color: #6c757d;
+    font-size: 1.2rem;
+}
+
+#map-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* L'image s'adapte sans être déformée */
+}
+
+/* Style des étiquettes sur le plan */
+.geo-tag {
+    position: absolute;
+    background-color: rgba(0, 123, 255, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: grab;
+    user-select: none; /* Empêche la sélection de texte */
+    transform: translate(-50%, -50%); /* Centre l'étiquette sur le curseur */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    white-space: nowrap;
+}
+
+.geo-tag:active {
+    cursor: grabbing;
+}
+
+/* Style de l'infobulle */
+.tag-tooltip {
+    visibility: hidden;
+    width: max-content;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 10px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%; /* Position au-dessus de l'étiquette */
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.geo-tag:hover .tag-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
