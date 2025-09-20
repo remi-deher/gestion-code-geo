@@ -45,7 +45,7 @@ switch ($action) {
     case 'showBatchCreate': $geoCodeController->showBatchCreateAction(); break;
     case 'handleBatchCreate': $geoCodeController->handleBatchCreateAction(); break;
     
-    // Import/Export et Impression (liés aux codes géo)
+    // Import/Export et Impression
     case 'export': $geoCodeController->exportAction(); break;
     case 'showImport': $geoCodeController->showImportAction(); break;
     case 'handleImport': $geoCodeController->handleImportAction(); break;
@@ -56,6 +56,7 @@ switch ($action) {
     case 'plan': $planController->planAction(); break;
     case 'savePosition': $planController->savePositionAction(); break;
     case 'removePosition': $planController->removePositionAction(); break;
+    case 'saveMultiplePositions': $planController->saveMultiplePositionsAction(); break; // NOUVELLE ROUTE
     case 'listPlans': $planController->listPlansAction(); break;
     case 'addPlan': $planController->addPlanAction(); break;
     case 'deletePlan': $planController->deletePlanAction(); break;
@@ -66,7 +67,7 @@ switch ($action) {
     case 'deleteUnivers': $universController->deleteAction(); break;
     case 'updateUniversZone': $universController->updateZoneAction(); break;
 
-    // Action par défaut (si l'action n'est pas reconnue, retourne au dashboard)
+    // Action par défaut
     default:
         $dashboardController->indexAction();
         break;

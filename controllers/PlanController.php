@@ -63,19 +63,69 @@ class PlanController extends BaseController {
         exit();
     }
 
+    /**
+     * NOUVELLE ACTION pour la sauvegarde multiple
+     */
+    public function saveMultiplePositionsAction() {
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (isset($input['positions']) && is_array($input['positions']) && isset($input['plan_id'])) {
+            $success = $this->planManager->saveMultiplePositions($input['positions'], (int)$input['plan_id']);
+            echo json_encode(['status' => $success ? 'success' : 'error']);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid data for multi-save']);
+        }
+        exit();
+    }
+
     public function listPlansAction() {
         $plans = $this->planManager->getAllPlans();
         $this->render('plans_list_view', ['plans' => $plans]);
     }
 
     public function addPlanAction() {
-        // ... (logique de addPlanAction de l'ancien GeoCodeController)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['planFile'])) {
+            $nom = trim($_POST['nom'] ?? 'Nouveau plan');
+            $file = $_FILES['planFile'];
+
+            if ($file['error'] === UPLOAD_ERR_OK && !empty($nom)) {
+                $uploadDir = __DIR__ . '/../public/uploads/plans/';
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+
+                $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                $safeFilename = preg_replace('/[^a-zA-Z0-9-_\.]/','_', basename($file['name'], "." . $extension));
+                $newFilenameBase = time() . '_' . $safeFilename;
+                
+                $finalFilename = $newFilenameBase . '.png';
+                $destination = $uploadDir . $finalFilename;
+
+                if ($extension === 'pdf' && class_exists('Imagick')) {
+                    try {
+                        $imagick = new Imagick();
+                        $imagick->readImage($file['tmp_name'] . '[0]');
+                        $imagick->setImageFormat('png');
+                        $imagick->writeImage($destination);
+                        $imagick->clear();
+                        $imagick->destroy();
+                    } catch (Exception $e) { /* Gérer l'erreur */ }
+                } else if (in_array($extension, ['png', 'jpg', 'jpeg'])) {
+                    move_uploaded_file($file['tmp_name'], $destination);
+                }
+                $this->planManager->addPlan($nom, $finalFilename);
+            }
+        }
         header('Location: index.php?action=listPlans');
         exit();
     }
 
     public function deletePlanAction() {
-        // ... (logique de deletePlanAction de l'ancien GeoCodeController)
+        $id = (int)($_GET['id'] ?? 0);
+        $plan = $this->planManager->getPlanById($id);
+        if ($plan) {
+            $filePath = __DIR__ . '/../public/uploads/plans/' . $plan['nom_fichier'];
+            if (file_exists($filePath)) unlink($filePath);
+            $this->planManager->deletePlan($id);
+        }
         header('Location: index.php?action=listPlans');
         exit();
     }

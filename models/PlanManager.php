@@ -45,8 +45,38 @@ class PlanManager {
         return $stmt->execute([$geo_code_id]);
     }
 
-    // --- NOUVELLE MÉTHODE POUR LE DASHBOARD ---
     public function countTotalPlans(): int {
         return (int)$this->db->query("SELECT COUNT(*) FROM plans")->fetchColumn();
+    }
+
+    /**
+     * NOUVELLE FONCTION pour sauvegarder plusieurs positions en une seule transaction.
+     */
+    public function saveMultiplePositions(array $positions, int $plan_id): bool {
+        if (empty($positions)) {
+            return true;
+        }
+        $this->db->beginTransaction();
+        try {
+            $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y) 
+                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y)
+                    ON DUPLICATE KEY UPDATE pos_x = VALUES(pos_x), pos_y = VALUES(pos_y)";
+            $stmt = $this->db->prepare($sql);
+
+            foreach ($positions as $pos) {
+                $stmt->execute([
+                    ':geo_code_id' => $pos['id'],
+                    ':plan_id'     => $plan_id,
+                    ':pos_x'       => round($pos['x']),
+                    ':pos_y'       => round($pos['y'])
+                ]);
+            }
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Erreur lors de la sauvegarde multiple : " . $e->getMessage());
+            return false;
+        }
     }
 }

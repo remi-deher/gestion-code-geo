@@ -1,181 +1,160 @@
 document.addEventListener('DOMContentLoaded', () => {
     
     const classeurSection = document.getElementById('classeur');
-    if (classeurSection) {
-
-        // --- Récupération des éléments du DOM ---
-        const searchInput = document.getElementById('recherche');
-        const zoneTabs = document.querySelectorAll('.zone-tab');
-        const viewCardBtn = document.getElementById('view-card-btn');
-        const viewTableBtn = document.getElementById('view-table-btn');
-        const cardView = document.getElementById('card-view');
-        const tableView = document.getElementById('table-view');
-        const sortBySelect = document.getElementById('sort-by');
-        const tableHeaders = document.querySelectorAll('.geo-table th[data-sort]');
-
-        // Génération des QR Codes
-        if (cardView) {
-            cardView.querySelectorAll('.geo-card-qr').forEach(container => {
-                const codeText = container.dataset.code;
-                if (codeText) {
-                    new QRCode(container, { text: codeText, width: 90, height: 90 });
-                }
-            });
-        }
-        
-        // --- GESTION DU CHANGEMENT DE VUE ---
-        if (viewCardBtn && viewTableBtn && cardView && tableView) {
-            viewCardBtn.addEventListener('click', () => {
-                cardView.style.display = 'flex';
-                tableView.style.display = 'none';
-                viewCardBtn.classList.add('active');
-                viewTableBtn.classList.remove('active');
-                sortBySelect.parentElement.style.display = 'flex';
-            });
-            viewTableBtn.addEventListener('click', () => {
-                cardView.style.display = 'none';
-                tableView.style.display = 'block';
-                viewCardBtn.classList.remove('active');
-                viewTableBtn.classList.add('active');
-                sortBySelect.parentElement.style.display = 'none';
-            });
-        }
-
-        // --- NOUVELLE LOGIQUE DE FILTRAGE (PILULES) ---
-        const filterPills = document.querySelectorAll('#filtres-univers .filter-pill');
-        let activeUniversFilters = new Set();
-
-        // Initialisation : tous les univers sont actifs au début
-        filterPills.forEach(pill => {
-            if (pill.dataset.filter !== 'all') {
-                activeUniversFilters.add(pill.dataset.filter);
-            }
-        });
-
-        filterPills.forEach(pill => {
-            pill.addEventListener('click', () => {
-                const filterValue = pill.dataset.filter;
-                const allPill = document.querySelector('.filter-pill[data-filter="all"]');
-                
-                if (filterValue === 'all') {
-                    // Si on clique sur "Tout voir", on active ou désactive tout
-                    const shouldActivate = !allPill.classList.contains('active');
-                    activeUniversFilters.clear();
-                    filterPills.forEach(p => {
-                        p.classList.toggle('active', shouldActivate);
-                        if (shouldActivate && p.dataset.filter !== 'all') {
-                            activeUniversFilters.add(p.dataset.filter);
-                        }
-                    });
-                } else {
-                    // Si on clique sur un autre filtre
-                    pill.classList.toggle('active');
-                    if (activeUniversFilters.has(filterValue)) {
-                        activeUniversFilters.delete(filterValue);
-                    } else {
-                        activeUniversFilters.add(filterValue);
-                    }
-                    // Mettre à jour l'état de "Tout voir"
-                    allPill.classList.toggle('active', activeUniversFilters.size === filterPills.length - 1);
-                }
-                applyFilters();
-            });
-        });
-
-        // --- FONCTION DE FILTRAGE PRINCIPALE ---
-        function applyFilters() {
-            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-            const activeZoneEl = document.querySelector('.zone-tab.active');
-            const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
-
-            document.querySelectorAll('.geo-card, .geo-table tbody tr').forEach(item => {
-                const searchMatch = (item.dataset.searchable || '').includes(searchTerm);
-                const universMatch = activeUniversFilters.has(item.dataset.univers);
-                const zoneMatch = (activeZone === 'all' || item.dataset.zone === activeZone);
-                
-                let displayStyle = item.tagName === 'TR' ? '' : 'grid';
-                
-                item.style.display = (searchMatch && universMatch && zoneMatch) ? displayStyle : 'none';
-            });
-            
-            if (cardView.style.display !== 'none') {
-                 document.querySelectorAll('.univers-separator').forEach(separator => {
-                    let nextElement = separator.nextElementSibling;
-                    let hasVisibleItems = false;
-                    while(nextElement && (nextElement.classList.contains('geo-card') || nextElement.classList.contains('univers-separator'))) {
-                        if (nextElement.classList.contains('geo-card') && nextElement.style.display !== 'none') {
-                            hasVisibleItems = true;
-                            break;
-                        }
-                        if (nextElement.classList.contains('univers-separator')) {
-                           break;
-                        }
-                        nextElement = nextElement.nextElementSibling;
-                    }
-                    separator.style.display = hasVisibleItems ? 'block' : 'none';
-                });
-            }
-        }
-
-        // Tri pour la Vue Fiches
-        function sortCardView() {
-            const sortBy = sortBySelect.value;
-            const cards = Array.from(cardView.querySelectorAll('.geo-card'));
-            const separators = Array.from(cardView.querySelectorAll('.univers-separator'));
-
-            cards.sort((a, b) => {
-                let valA, valB;
-                if (sortBy === 'univers-asc') {
-                    valA = a.dataset.univers.toLowerCase();
-                    valB = b.dataset.univers.toLowerCase();
-                } else if (sortBy === 'code-geo-asc') {
-                    valA = a.dataset.code_geo.toLowerCase();
-                    valB = b.dataset.code_geo.toLowerCase();
-                } else { // libelle-asc
-                    valA = a.dataset.libelle.toLowerCase();
-                    valB = b.dataset.libelle.toLowerCase();
-                }
-                return valA.localeCompare(valB);
-            });
-            
-            // On vide et on ré-insère tout dans le bon ordre
-            cardView.innerHTML = '';
-            let lastUnivers = null;
-            cards.forEach(card => {
-                const currentUnivers = card.dataset.univers;
-                if (sortBy === 'univers-asc' && currentUnivers !== lastUnivers) {
-                    const separator = separators.find(s => s.dataset.univers === currentUnivers);
-                    if (separator) cardView.appendChild(separator);
-                    lastUnivers = currentUnivers;
-                }
-                cardView.appendChild(card);
-            });
-            applyFilters(); // Ré-appliquer les filtres pour cacher les séparateurs vides
-        }
-        if (sortBySelect) {
-            sortBySelect.addEventListener('change', sortCardView);
-        }
-
-        // Tri pour la Vue Tableau
-        function sortTable(columnIndex, th) {
-            // ... (logique de tri du tableau existante)
-        }
-        tableHeaders.forEach((th, index) => {
-            th.addEventListener('click', () => sortTable(index, th));
-        });
-
-        // --- ÉVÉNEMENTS ---
-        if (searchInput) searchInput.addEventListener('input', applyFilters);
-        
-        zoneTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                zoneTabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                applyFilters();
-            });
-        });
-
-        // Initialisation
-        applyFilters();
+    if (!classeurSection) {
+        return; // Stoppe le script si on n'est pas sur la bonne page
     }
+
+    // --- Récupération des éléments du DOM ---
+    const searchInput = document.getElementById('recherche');
+    const viewCardBtn = document.getElementById('view-card-btn');
+    const viewTableBtn = document.getElementById('view-table-btn');
+    const cardView = document.getElementById('card-view');
+    const tableView = document.getElementById('table-view');
+    const sortBySelect = document.getElementById('sort-by');
+    
+    // Filtres (Desktop + Mobile Off-canvas)
+    const allFilterPills = document.querySelectorAll('.filter-pill');
+    const allZoneTabs = document.querySelectorAll('.zone-tab, .zone-tabs-mobile > button');
+    
+    // Stockage des éléments de la liste pour ne pas avoir à les relire du DOM
+    const allGeoCards = Array.from(cardView.querySelectorAll('.geo-card'));
+    const allTableRows = Array.from(tableView.querySelectorAll('tbody tr'));
+    
+    // --- GESTION DES ÉVÉNEMENTS ---
+
+    if (viewCardBtn && viewTableBtn) {
+        viewCardBtn.addEventListener('click', () => switchView('card'));
+        viewTableBtn.addEventListener('click', () => switchView('table'));
+    }
+
+    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSort);
+    if (sortBySelect) sortBySelect.addEventListener('change', applyFiltersAndSort);
+    
+    allFilterPills.forEach(pill => pill.addEventListener('click', handlePillClick));
+    allZoneTabs.forEach(tab => tab.addEventListener('click', handleZoneClick));
+
+    // --- LOGIQUE DES ÉVÉNEMENTS ---
+
+    function switchView(view) {
+        if (view === 'card') {
+            cardView.style.display = 'flex';
+            tableView.style.display = 'none';
+            viewCardBtn.classList.add('active');
+            viewTableBtn.classList.remove('active');
+        } else {
+            cardView.style.display = 'none';
+            tableView.style.display = 'block';
+            viewCardBtn.classList.remove('active');
+            viewTableBtn.classList.add('active');
+        }
+    }
+
+    function handlePillClick(e) {
+        const clickedPill = e.currentTarget;
+        const filterValue = clickedPill.dataset.filter;
+        const isActivating = !clickedPill.classList.contains('active');
+
+        // Gère la logique de la pilule "Tout voir"
+        if (filterValue === 'all') {
+            allFilterPills.forEach(p => p.classList.toggle('active', isActivating));
+        } else {
+            // Synchronise la pilule cliquée sur les deux vues (desktop et mobile)
+            document.querySelectorAll(`.filter-pill[data-filter="${filterValue}"]`).forEach(p => p.classList.toggle('active'));
+            
+            // Met à jour l'état de la pilule "Tout voir"
+            const activePillsCount = document.querySelectorAll('#filtres-univers .filter-pill.active:not([data-filter="all"])').length;
+            const allPillCount = document.querySelectorAll('#filtres-univers .filter-pill:not([data-filter="all"])').length;
+            document.querySelectorAll('.filter-pill[data-filter="all"]').forEach(p => p.classList.toggle('active', activePillsCount === allPillCount));
+        }
+        applyFiltersAndSort();
+    }
+
+    function handleZoneClick(e) {
+        const zoneValue = e.currentTarget.dataset.zone;
+        allZoneTabs.forEach(t => t.classList.remove('active'));
+        document.querySelectorAll(`[data-zone="${zoneValue}"]`).forEach(t => t.classList.add('active'));
+        applyFiltersAndSort();
+    }
+
+    // --- FONCTION PRINCIPALE DE FILTRAGE, TRI ET AFFICHAGE ---
+
+    function applyFiltersAndSort() {
+        // 1. Lire les filtres actifs
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+        const activeZoneEl = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active');
+        const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
+        const activeUniversFilters = new Set(
+            Array.from(document.querySelectorAll('#filtres-univers .filter-pill.active:not([data-filter="all"])'))
+                 .map(p => p.dataset.filter)
+        );
+        // Si "Tout voir" est actif, on ajoute tous les univers
+        if (document.querySelector('.filter-pill[data-filter="all"].active')) {
+            allGeoCards.forEach(card => activeUniversFilters.add(card.dataset.univers));
+        }
+
+        // 2. Filtrer les éléments
+        allGeoCards.forEach(card => {
+            const searchMatch = (card.dataset.searchable || '').includes(searchTerm);
+            const universMatch = activeUniversFilters.has(card.dataset.univers);
+            const zoneMatch = (activeZone === 'all' || card.dataset.zone === activeZone);
+            card.style.display = (searchMatch && universMatch && zoneMatch) ? 'grid' : 'none';
+        });
+
+        allTableRows.forEach(row => {
+            const searchMatch = (row.dataset.searchable || '').includes(searchTerm);
+            const universMatch = activeUniversFilters.has(row.dataset.univers);
+            const zoneMatch = (activeZone === 'all' || row.dataset.zone === activeZone);
+            row.style.display = (searchMatch && universMatch && zoneMatch) ? '' : 'none';
+        });
+
+        // 3. Trier les éléments qui sont actuellement visibles
+        sortVisibleElements();
+    }
+
+    function sortVisibleElements() {
+        const sortBy = sortBySelect.value;
+        const [key] = sortBy.split('-');
+
+        // Trier les fiches
+        const visibleCards = allGeoCards.filter(card => card.style.display !== 'none');
+        visibleCards.sort((a, b) => (a.dataset[key] || '').localeCompare(b.dataset[key] || ''));
+        
+        // Vider et reconstruire la vue fiches avec les séparateurs
+        cardView.innerHTML = '';
+        let lastUnivers = null;
+        visibleCards.forEach(card => {
+            const currentUnivers = card.dataset.univers;
+            if (sortBy === 'univers-asc' && currentUnivers !== lastUnivers) {
+                const separator = document.createElement('h3');
+                separator.className = 'univers-separator';
+                separator.textContent = currentUnivers;
+                cardView.appendChild(separator);
+                lastUnivers = currentUnivers;
+            }
+            cardView.appendChild(card);
+        });
+
+        // Trier le tableau
+        const tableBody = tableView.querySelector('tbody');
+        if (tableBody) {
+            const visibleRows = allTableRows.filter(row => row.style.display !== 'none');
+            visibleRows.sort((a, b) => (a.dataset[key] || '').localeCompare(b.dataset[key] || ''));
+            visibleRows.forEach(row => tableBody.appendChild(row));
+        }
+    }
+    
+    // --- DÉMARRAGE ---
+    
+    // Génère les QR Codes au chargement
+    allGeoCards.forEach(card => {
+        const qrContainer = card.querySelector('.geo-card-qr');
+        if(qrContainer) {
+            const codeText = qrContainer.dataset.code;
+            if (codeText) new QRCode(qrContainer, { text: codeText, width: 90, height: 90 });
+        }
+    });
+
+    // Applique les filtres une première fois au chargement pour s'assurer que tout est correct
+    applyFiltersAndSort();
 });

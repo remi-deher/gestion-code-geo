@@ -1,13 +1,19 @@
 /* public/css/components/_filters.css */
 
-/* --- Barre d'outils (utilisée sur la page de liste) --- */
-.toolbar {
+/* --- NOUVEAU : Panneau de contrôle des filtres (remplace .toolbar) --- */
+.filter-control-panel {
+    background-color: #fff;
+    padding: 1rem;
+    border-radius: 8px;
     margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
 }
 
-/* --- Style pour les nouvelles pilules de filtre --- */
-#filtres-univers {
+/* --- Style pour les pilules de filtre --- */
+.filter-pills {
     padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0.5rem;
 }
 
 .filter-pill {
@@ -19,7 +25,7 @@
     background-color: var(--light-gray);
     color: var(--text-color);
     border: 1px solid var(--border-color);
-    user-select: none; /* Empêche la sélection de texte */
+    user-select: none;
 }
 
 .filter-pill.active {
@@ -30,7 +36,7 @@
 }
 
 .filter-pill:not(.active):hover {
-    background-color: #e2e6ea; /* Gris un peu plus foncé au survol */
+    background-color: #e2e6ea;
 }
 
 /* --- Onglets de zone (page de liste) --- */
@@ -38,28 +44,25 @@
     margin-top: 1rem;
     display: flex;
     gap: 0.5rem;
-    border-bottom: 2px solid var(--border-color);
+    border-bottom: none; /* La bordure est maintenant sur .filter-pills */
 }
 
 .zone-tab {
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    font-weight: bold;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 500;
     cursor: pointer;
     border: none;
     background-color: transparent;
-    border-bottom: 3px solid transparent;
+    border-radius: 6px;
     color: #6c757d;
     transition: all 0.2s;
 }
 
 .zone-tab.active,
 .zone-tab:hover {
+    background-color: var(--light-gray);
     color: var(--primary-color);
-}
-
-.zone-tab.active {
-    border-bottom-color: var(--primary-color);
 }
 
 /* --- Contrôles de vue et de tri (page de liste) --- */
@@ -105,4 +108,19 @@
 
 .sort-container label {
     font-weight: 500;
+}
+
+/* --- Responsive pour les filtres (Off-Canvas) --- */
+/* Sur grand écran, on cache le bouton mobile et on affiche les filtres du panneau */
+@media (min-width: 992px) {
+    .filters-offcanvas-trigger {
+        display: none !important;
+    }
+}
+
+/* Sur petit écran, on affiche le bouton et on cache les filtres du panneau */
+@media (max-width: 991.98px) {
+    .filter-control-panel .desktop-filters {
+        display: none;
+    }
 }
