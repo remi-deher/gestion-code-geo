@@ -52,10 +52,9 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Récupère les codes NON PLACÉS qui sont pertinents pour un plan donné (bonne zone, bons univers).
-     */
     public function getAvailableCodesForPlan(int $planId): array {
+        error_log("--- GeoCodeManager : Début de getAvailableCodesForPlan pour planId = $planId ---");
+        
         $sql = "
             SELECT gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone
             FROM geo_codes gc
@@ -66,9 +65,17 @@ class GeoCodeManager {
             WHERE p.id = :plan_id AND gp.geo_code_id IS NULL
             ORDER BY gc.code_geo
         ";
+        
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':plan_id' => $planId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        error_log("--- GeoCodeManager : Requête exécutée. Nombre de codes trouvés : " . count($result) . " ---");
+        if (count($result) > 0) {
+            error_log("--- GeoCodeManager : Premier code trouvé : " . print_r($result[0], true));
+        }
+        
+        return $result;
     }
 
     public function createGeoCode(string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
@@ -132,8 +139,6 @@ class GeoCodeManager {
             return false;
         }
     }
-
-    // --- MÉTHODES POUR LE DASHBOARD ---
 
     public function countTotalCodes(): int {
         return (int)$this->db->query("SELECT COUNT(*) FROM geo_codes")->fetchColumn();

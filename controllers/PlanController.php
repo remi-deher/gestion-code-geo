@@ -19,10 +19,9 @@ class PlanController extends BaseController {
     }
 
     public function planAction() {
-        // Cette méthode charge la page, mais les codes seront chargés par AJAX.
         $plans = $this->planManager->getAllPlans();
         $universList = $this->universManager->getAllUnivers();
-        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions(); // On charge les positions existantes
+        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
 
         $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
         $universColors = [];
@@ -33,11 +32,31 @@ class PlanController extends BaseController {
         }
 
         $this->render('plan_view', [
-            'placedGeoCodes' => $geoCodes, // On passe seulement les codes déjà placés
+            'placedGeoCodes' => $geoCodes,
             'plans' => $plans,
             'universList' => $universList,
             'universColors' => $universColors
         ]);
+    }
+
+    public function getAvailableCodesForPlanAction() {
+        header('Content-Type: application/json');
+        $planId = (int)($_GET['id'] ?? 0);
+        
+        error_log("--- PlanController : Action getAvailableCodesForPlanAction appelée pour planId = $planId ---");
+
+        if ($planId <= 0) {
+            error_log("--- PlanController : ERREUR, ID de plan invalide. ---");
+            echo json_encode(['error' => 'ID de plan invalide']);
+            exit();
+        }
+
+        $availableCodes = $this->geoCodeManager->getAvailableCodesForPlan($planId);
+        
+        error_log("--- PlanController : Données reçues du Manager. Nombre de codes : " . count($availableCodes) . ". Envoi en JSON. ---");
+
+        echo json_encode($availableCodes);
+        exit();
     }
 
     public function savePositionAction() {
@@ -87,19 +106,13 @@ class PlanController extends BaseController {
             header('Location: index.php?action=listPlans');
             exit();
         }
-
         $plan = $this->planManager->getPlanWithUnivers($planId);
         $allUnivers = $this->universManager->getAllUnivers();
-
         if (empty($plan)) {
             header('Location: index.php?action=listPlans');
             exit();
         }
-
-        $this->render('plan_edit_view', [
-            'plan' => $plan,
-            'allUnivers' => $allUnivers
-        ]);
+        $this->render('plan_edit_view', ['plan' => $plan, 'allUnivers' => $allUnivers]);
     }
 
     public function updatePlanAction() {
@@ -107,20 +120,10 @@ class PlanController extends BaseController {
             $planId = (int)($_POST['plan_id'] ?? 0);
             $nom = trim($_POST['nom'] ?? '');
             $zone = $_POST['zone'] ?? null;
-            
-            // Gère le cas où "Aucune" est sélectionné, ce qui envoie une chaîne vide.
-            if ($zone === '') {
-                $zone = null;
-            }
-            
+            if ($zone === '') { $zone = null; }
             $universIds = $_POST['univers_ids'] ?? [];
-
             if ($planId > 0 && !empty($nom)) {
-                if ($this->planManager->updatePlanAssociations($planId, $nom, $zone, $universIds)) {
-                    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Le plan a été mis à jour avec succès.'];
-                } else {
-                    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la mise à jour du plan.'];
-                }
+                $this->planManager->updatePlanAssociations($planId, $nom, $zone, $universIds);
             }
         }
         header('Location: index.php?action=listPlans');
@@ -131,20 +134,14 @@ class PlanController extends BaseController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['planFile'])) {
             $nom = trim($_POST['nom'] ?? 'Nouveau plan');
             $file = $_FILES['planFile'];
-
             if ($file['error'] === UPLOAD_ERR_OK && !empty($nom)) {
                 $uploadDir = __DIR__ . '/../public/uploads/plans/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0777, true);
-                }
-
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
                 $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
                 $safeFilename = preg_replace('/[^a-zA-Z0-9-_\.]/','_', basename($file['name'], "." . $extension));
                 $newFilenameBase = time() . '_' . $safeFilename;
-                
                 $finalFilename = $newFilenameBase . '.png';
                 $destination = $uploadDir . $finalFilename;
-
                 if ($extension === 'pdf' && class_exists('Imagick')) {
                     try {
                         $imagick = new Imagick();
@@ -153,21 +150,11 @@ class PlanController extends BaseController {
                         $imagick->writeImage($destination);
                         $imagick->clear();
                         $imagick->destroy();
-                    } catch (Exception $e) {
-                        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la conversion du PDF.'];
-                        header('Location: index.php?action=listPlans');
-                        exit();
-                    }
+                    } catch (Exception $e) { /* Gérer l'erreur */ }
                 } else if (in_array($extension, ['png', 'jpg', 'jpeg'])) {
                     move_uploaded_file($file['tmp_name'], $destination);
-                } else {
-                    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Type de fichier non supporté.'];
-                    header('Location: index.php?action=listPlans');
-                    exit();
                 }
-
                 $this->planManager->addPlan($nom, $finalFilename);
-                $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Le plan a été ajouté avec succès.'];
             }
         }
         header('Location: index.php?action=listPlans');
@@ -179,27 +166,10 @@ class PlanController extends BaseController {
         $plan = $this->planManager->getPlanById($id);
         if ($plan) {
             $filePath = __DIR__ . '/../public/uploads/plans/' . $plan['nom_fichier'];
-            if (file_exists($filePath)) {
-                unlink($filePath);
-            }
+            if (file_exists($filePath)) unlink($filePath);
             $this->planManager->deletePlan($id);
-            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Le plan a été supprimé.'];
         }
         header('Location: index.php?action=listPlans');
-        exit();
-    }
-    
-    public function getAvailableCodesForPlanAction() {
-        header('Content-Type: application/json');
-        $planId = (int)($_GET['id'] ?? 0);
-        
-        if ($planId <= 0) {
-            echo json_encode(['error' => 'ID de plan invalide']);
-            exit();
-        }
-
-        $availableCodes = $this->geoCodeManager->getAvailableCodesForPlan($planId);
-        echo json_encode($availableCodes);
         exit();
     }
 }
