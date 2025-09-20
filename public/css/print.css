@@ -1,6 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Roboto+Mono:wght@700&display=swap');
 @import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
 
+:root {
+    --page-width: 210mm;
+    --page-height: 297mm;
+    --page-margin: 10mm;
+    --content-width: calc(var(--page-width) - 2 * var(--page-margin));
+    --content-height: calc(var(--page-height) - 2 * var(--page-margin));
+}
+
 body {
     font-family: 'Roboto', sans-serif;
     background-color: #f0f0f0;
@@ -9,160 +17,99 @@ body {
 
 .page-container {
     margin: 1rem auto;
-    padding: 2rem;
+    padding: var(--page-margin);
     background-color: white;
-    max-width: 210mm; /* A4 width */
-    min-height: 297mm; /* A4 height */
+    width: var(--page-width);
+    min-height: var(--page-height);
     box-sizing: border-box;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
 /* --- En-tête de la page --- */
 .print-header {
     text-align: center;
     margin-bottom: 2rem;
-    border-bottom: 2px solid #ccc;
+    border-bottom: 1px solid #ccc;
     padding-bottom: 1rem;
     page-break-after: avoid;
 }
 
-.page-title {
-    font-size: 22pt;
-    font-weight: bold;
-    margin: 0;
-}
-
-.print-meta {
-    margin-top: 0.5rem;
-    color: #666;
-    font-size: 10pt;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.print-meta button {
-    padding: 8px 12px;
-    border: 1px solid #ccc;
-    background-color: #f0f0f0;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.print-meta button:hover {
-    background-color: #e0e0e0;
-}
+.page-title { font-size: 18pt; font-weight: bold; margin: 0; }
+.print-meta { margin-top: 0.5rem; color: #666; font-size: 9pt; display: flex; justify-content: space-between; align-items: center; }
+.print-meta button { padding: 8px 12px; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; }
+.print-meta button:hover { background-color: #e0e0e0; }
 
 /* --- Groupes par univers --- */
-.univers-group {
-    page-break-before: always;
-}
-.univers-group:first-child {
-    page-break-before: auto;
-}
+.univers-group { page-break-before: always; }
+.univers-group:first-child { page-break-before: auto; }
+.univers-title { font-size: 14pt; font-weight: bold; border-bottom: 1px solid #999; padding-bottom: 8px; margin-bottom: 1rem; page-break-after: avoid; }
 
-.univers-title {
-    font-size: 16pt;
-    font-weight: bold;
-    border-bottom: 1px solid #999;
-    padding-bottom: 8px;
-    margin-bottom: 1.5rem;
-    page-break-after: avoid;
-}
-
-/* --- Grille des étiquettes (Base) --- */
+/* --- GRILLE D'ÉTIQUETTES CORRIGÉE --- */
 .print-grid {
     display: grid;
-    gap: 15px 10px; /* Espace vertical et horizontal */
+    gap: 4mm 4mm; /* Espace entre les étiquettes */
+    height: var(--content-height); /* Force la grille à utiliser l'espace disponible */
 }
 
 .print-item {
     display: grid;
-    gap: 10px;
     align-items: center;
     border: 1px solid #333;
-    padding: 10px;
-    border-radius: 4px;
+    padding: 2mm;
     page-break-inside: avoid;
     background-color: #fff;
-    overflow: hidden; 
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
-/* --- MODIFICATEURS DE LAYOUT --- */
+/* --- MODIFICATEURS DE LAYOUT CORRIGÉS --- */
 
-/* Format Moyen (8 par page) */
-body.medium_2x4 .print-grid { grid-template-columns: repeat(2, 1fr); }
+/* Format Moyen (8 par page = 2 colonnes x 4 rangées) */
+body.medium_2x4 .print-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(4, 1fr); /* Force 4 rangées */
+}
 body.medium_2x4 .print-item { grid-template-columns: 80px 1fr; }
 body.medium_2x4 .print-code { font-size: 14pt; }
 body.medium_2x4 .print-libelle { font-size: 11pt; }
 
-/* Format Large (4 par page) */
-body.large_2x2 .print-grid { grid-template-columns: repeat(2, 1fr); }
-body.large_2x2 .print-item { grid-template-columns: 100px 1fr; padding: 15px; }
-body.large_2x2 .print-qr-code canvas { width: 100px !important; height: 100px !important; }
-body.large_2x2 .print-code { font-size: 20pt; }
+/* Format Large (4 par page = 2 colonnes x 2 rangées) */
+body.large_2x2 .print-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr); /* Force 2 rangées */
+}
+body.large_2x2 .print-item { grid-template-columns: 100px 1fr; }
+body.large_2x2 .print-code { font-size: 18pt; }
 body.large_2x2 .print-libelle { font-size: 14pt; }
 body.large_2x2 .print-details { gap: 6px; }
 
-/* Format Petit (21 par page) */
-body.small_3x7 .print-grid { grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }
-body.small_3x7 .print-item { grid-template-columns: 50px 1fr; padding: 5px; gap: 5px; }
-body.small_3x7 .print-qr-code { padding: 2px; }
-body.small_3x7 .print-qr-code canvas { width: 50px !important; height: 50px !important; }
+/* Format Petit (21 par page = 3 colonnes x 7 rangées) */
+body.small_3x7 .print-grid {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(7, 1fr); /* Force 7 rangées */
+}
+body.small_3x7 .print-item { grid-template-columns: 50px 1fr; padding: 1.5mm; gap: 1.5mm; }
 body.small_3x7 .print-code { font-size: 10pt; }
 body.small_3x7 .print-libelle { font-size: 8pt; }
 body.small_3x7 .print-univers, body.small_3x7 .print-comment { font-size: 7pt; }
 body.small_3x7 .print-details { gap: 2px; }
 
-
 /* --- Styles communs aux étiquettes --- */
 .print-qr-code {
     flex-shrink: 0;
-    background-color: #fff;
-    padding: 4px;
-    border: 1px solid #eee;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-
-.print-details {
-    font-size: 10pt;
-    display: flex;
-    flex-direction: column;
-    word-break: break-word; 
-}
-
-.print-code {
-    font-family: 'Roboto Mono', monospace;
-    font-weight: 700;
-    color: #000;
-}
-
-.print-libelle {
-    font-weight: bold;
-}
-
-.print-univers, .print-comment {
-    font-size: 9pt;
-    color: #444;
-}
-.print-comment {
-    font-style: italic;
-}
-
+.print-details { font-size: 10pt; display: flex; flex-direction: column; word-break: break-word; }
+.print-code { font-family: 'Roboto Mono', monospace; font-weight: 700; color: #000; }
+.print-libelle { font-weight: bold; }
+.print-univers, .print-comment { font-size: 9pt; color: #444; }
+.print-comment { font-style: italic; }
 
 /* --- Styles pour l'impression finale --- */
 @media print {
-    body {
-        background-color: white;
-    }
-    .page-container {
-        margin: 0;
-        padding: 0.5cm;
-        box-shadow: none;
-        max-width: 100%;
-        border: none;
-    }
-    .no-print {
-        display: none !important;
-    }
+    body { background-color: white; }
+    .page-container { margin: 0; padding: var(--page-margin); box-shadow: none; max-width: 100%; border: none; }
+    .no-print { display: none !important; }
 }

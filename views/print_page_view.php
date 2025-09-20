@@ -46,7 +46,8 @@
                                             <div class="print-univers"><strong>Univers :</strong> <?= htmlspecialchars($code['univers']) ?></div>
                                         <?php endif; ?>
 
-                                        <?php if (!empty($code['commentaire']) && in_array('commentaire', $options['fields'])): ?>
+                                        <?php // --- LIGNE CORRIGÉE ICI ---
+                                        if (!empty($code['commentaire']) && in_array('commentaire', $options['fields'])): ?>
                                             <div class="print-comment"><strong>Note :</strong> <?= htmlspecialchars($code['commentaire']) ?></div>
                                         <?php endif; ?>
                                     </div>
@@ -64,17 +65,37 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // 1. Déterminer la taille du QR code en fonction de la classe du body
+            const layout = document.body.className;
+            let qrSize;
+
+            switch(layout) {
+                case 'large_2x2':
+                    qrSize = 100;
+                    break;
+                case 'small_3x7':
+                    qrSize = 50;
+                    break;
+                case 'medium_2x4':
+                default:
+                    qrSize = 80;
+                    break;
+            }
+
+            // 2. Générer chaque QR code avec la taille calculée
             document.querySelectorAll('.print-qr-code').forEach(container => {
                 const codeText = container.dataset.code;
                 if (codeText) {
                     new QRCode(container, { 
                         text: codeText, 
-                        width: 80,
-                        height: 80,
+                        width: qrSize,
+                        height: qrSize,
                         correctLevel : QRCode.CorrectLevel.H
                     });
                 }
             });
+
+            // 3. Lancer l'impression
             setTimeout(() => { window.print(); }, 500);
         });
     </script>

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Éléments de l'aperçu ---
     const previewContainer = form.querySelector('#label-preview-container');
     const previewQrCode = form.querySelector('#preview-qrcode');
+    const previewDetails = form.querySelector('#preview-details');
     const previewElements = {
         qrcode: previewQrCode,
         code_geo: form.querySelector('#preview-code-geo'),
@@ -16,8 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
         univers: form.querySelector('#preview-univers'),
         commentaire: form.querySelector('#preview-commentaire')
     };
-
-    let qrCodeInstance = null; // Pour garder une référence au QR Code
 
     // --- Fonction principale de mise à jour ---
     function updatePreview() {
@@ -28,30 +27,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const fieldName = checkbox.value;
             const element = previewElements[fieldName];
             if (element) {
-                element.style.display = checkbox.checked ? '' : 'none';
+                const parent = element.closest('.print-qr-code, .print-details > div');
+                if(parent) {
+                    parent.style.display = checkbox.checked ? '' : 'none';
+                } else {
+                    element.style.display = checkbox.checked ? '' : 'none';
+                }
             }
         });
 
-        // 2. Mettre à jour le QR Code
-        const isQrCodeVisible = form.querySelector('#field_qrcode').checked;
-        if (isQrCodeVisible) {
-            previewQrCode.innerHTML = ''; // Vider l'ancien QR Code
-            qrCodeInstance = new QRCode(previewQrCode, {
-                text: 'CODE-EXEMPLE',
-                width: 80,
-                height: 80,
-                correctLevel: QRCode.CorrectLevel.H
-            });
+        // 2. Mettre à jour le format/layout et le QR Code
+        const selectedLayout = layoutSelect.value;
+        let qrSize = 80;
+        
+        // Appliquer les styles directement pour un aperçu fidèle
+        previewContainer.style.gridTemplateColumns = '80px 1fr'; // Medium
+        if (selectedLayout === 'large_2x2') {
+            qrSize = 100;
+            previewContainer.style.gridTemplateColumns = '100px 1fr';
+        } else if (selectedLayout === 'small_3x7') {
+            qrSize = 50;
+            previewContainer.style.gridTemplateColumns = '50px 1fr';
         }
 
-        // 3. Mettre à jour le format/layout de l'étiquette
-        const selectedLayout = layoutSelect.value;
-        // On simule l'effet du CSS en ajoutant la classe au body de l'aperçu
-        // Pour cela, nous utilisons un conteneur parent.
-        const previewBox = document.getElementById('preview-box');
-        if(previewBox){
-            previewBox.className = ''; // Réinitialiser les classes
-            previewBox.classList.add(selectedLayout);
+        const isQrCodeVisible = form.querySelector('#field_qrcode').checked;
+        if (isQrCodeVisible) {
+            previewQrCode.innerHTML = '';
+            new QRCode(previewQrCode, {
+                text: 'CODE-EXEMPLE',
+                width: qrSize,
+                height: qrSize,
+                correctLevel: QRCode.CorrectLevel.H
+            });
         }
     }
 
