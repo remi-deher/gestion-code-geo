@@ -2,6 +2,55 @@
 
 <?php ob_start(); ?>
 <style>
+    .print-options-form .card {
+        margin-bottom: 1.5rem;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .print-options-form .card-header {
+        font-size: 1.1rem;
+        font-weight: 500;
+        background-color: transparent;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .print-options-form .step-number {
+        background-color: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+    .print-options-form .univers-selection,
+    .print-options-form .field-selection {
+        max-height: 250px;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        padding: 1rem;
+        border-radius: 0.375rem;
+        background-color: #f8f9fa;
+    }
+    .print-options-form .form-actions {
+        position: sticky;
+        bottom: 0;
+        background: white;
+        padding: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+        display: flex;
+        justify-content: flex-end;
+        margin: 2rem -2rem -2rem -2rem;
+        border-radius: 0 0 8px 8px;
+    }
+    .print-options-form .btn-generate {
+        font-size: 1.1rem;
+        padding: 0.75rem 1.5rem;
+    }
     .template-choices { display: flex; flex-wrap: wrap; gap: 1rem; }
     .template-option input[type="radio"] { display: none; }
     .template-option label {
