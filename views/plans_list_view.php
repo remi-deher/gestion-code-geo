@@ -47,7 +47,8 @@
                                                 <h5 class="card-title"><?= htmlspecialchars($plan['nom']) ?></h5>
                                                 <p class="card-text mb-2">
                                                     <strong>Zone :</strong>
-                                                    <?php if ($plan['zone']): ?>
+                                                    <?php // CORRECTION ICI : On vérifie si la clé 'zone' existe et n'est pas nulle ?>
+                                                    <?php if (!empty($plan['zone'])): ?>
                                                         <span class="badge bg-secondary"><?= htmlspecialchars(ucfirst($plan['zone'])) ?></span>
                                                     <?php else: ?>
                                                         <span class="badge bg-light text-dark">Non définie</span>

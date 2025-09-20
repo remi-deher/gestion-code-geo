@@ -23,8 +23,8 @@
 <?php ob_start(); ?>
 <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
 <script>
-    const geoCodesData = <?= json_encode($geoCodes ?? []); ?>;
-    const plansData = <?= json_encode($plansData ?? []); ?>;
+    // On ne passe plus que les codes déjà placés et les couleurs
+    const placedGeoCodes = <?= json_encode($placedGeoCodes ?? []); ?>;
     const universColors = <?= json_encode($universColors ?? []); ?>;
 </script>
 <script src="js/plan.js"></script> 
@@ -41,13 +41,7 @@
                 </div>
                 <div class="accordion-content">
                     <input type="search" id="tag-search-input" placeholder="Rechercher un code..." class="form-control mb-3">
-                    <h5>Univers</h5>
-                    <div id="univers-filter-pills" class="filter-pills d-flex flex-wrap align-items-center gap-2">
-                        <span class="badge filter-pill active" data-filter="all">Tout voir</span>
-                        <?php if (!empty($universList)): foreach ($universList as $univers): ?>
-                            <span class="badge filter-pill active" data-filter="<?= htmlspecialchars($univers['nom']) ?>"><?= htmlspecialchars($univers['nom']) ?></span>
-                        <?php endforeach; endif; ?>
-                    </div>
+                    <p class="small text-muted">Les filtres s'appliquent sur la liste des codes à placer et sur les étiquettes du plan.</p>
                 </div>
             </div>
             <div class="accordion-item open">
@@ -56,7 +50,9 @@
                     <span class="accordion-arrow">▶</span>
                 </div>
                 <div class="accordion-content" id="unplaced-list-container">
-                    <div id="unplaced-list"></div>
+                    <div id="unplaced-list">
+                        <p class="text-muted small">Veuillez sélectionner un plan pour voir les codes disponibles.</p>
+                    </div>
                 </div>
             </div>
             <div class="accordion-item">

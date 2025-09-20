@@ -52,6 +52,25 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Récupère les codes NON PLACÉS qui sont pertinents pour un plan donné (bonne zone, bons univers).
+     */
+    public function getAvailableCodesForPlan(int $planId): array {
+        $sql = "
+            SELECT gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone
+            FROM geo_codes gc
+            JOIN univers u ON gc.univers_id = u.id
+            JOIN plans p ON gc.zone = p.zone
+            JOIN plan_univers pu ON p.id = pu.plan_id AND u.id = pu.univers_id
+            LEFT JOIN geo_positions gp ON gc.id = gp.geo_code_id
+            WHERE p.id = :plan_id AND gp.geo_code_id IS NULL
+            ORDER BY gc.code_geo
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':plan_id' => $planId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function createGeoCode(string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
         $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
@@ -114,7 +133,7 @@ class GeoCodeManager {
         }
     }
 
-    // --- NOUVELLES MÉTHODES POUR LE DASHBOARD ---
+    // --- MÉTHODES POUR LE DASHBOARD ---
 
     public function countTotalCodes(): int {
         return (int)$this->db->query("SELECT COUNT(*) FROM geo_codes")->fetchColumn();
@@ -164,15 +183,12 @@ class GeoCodeManager {
         return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // --- NOUVELLE MÉTHODE POUR LE DASHBOARD ---
     public function countCodesByZone(): array {
         $sql = "
             SELECT zone, COUNT(id) as count
             FROM geo_codes
             GROUP BY zone
         ";
-        // On retourne le résultat sous forme de tableau associatif [zone => count]
         return $this->db->query($sql)->fetchAll(PDO::FETCH_KEY_PAIR);
     }
-
 }

@@ -7,7 +7,7 @@
         overflow-y: auto;
         border: 1px solid var(--border-color);
         padding: 1rem;
-        border-radius: 0.375rem;
+        border-radius: 0.375rem; /* Bootstrap 5 radius */
     }
     .univers-checkbox-list .form-check {
         margin-bottom: 0.5rem;
@@ -36,6 +36,7 @@
                             <option value="vente" <?= (isset($plan['zone']) && $plan['zone'] == 'vente') ? 'selected' : '' ?>>Zone de Vente</option>
                             <option value="reserve" <?= (isset($plan['zone']) && $plan['zone'] == 'reserve') ? 'selected' : '' ?>>Réserve</option>
                         </select>
+                        <div class="form-text">Le choix d'une zone filtrera la liste des univers ci-dessous.</div>
                     </div>
 
                     <div class="mb-3">
@@ -45,11 +46,11 @@
                                 <p>Aucun univers n'a été créé. <a href="index.php?action=listUnivers">En créer un</a>.</p>
                             <?php else: ?>
                                 <?php foreach ($allUnivers as $univers): ?>
-                                    <div class="form-check">
+                                    <div class="form-check" data-zone="<?= htmlspecialchars($univers['zone_assignee']) ?>">
                                         <input class="form-check-input" type="checkbox" name="univers_ids[]" value="<?= $univers['id'] ?>" id="univers-<?= $univers['id'] ?>"
                                             <?= in_array($univers['id'], $plan['univers_ids']) ? 'checked' : '' ?>>
                                         <label class="form-check-label" for="univers-<?= $univers['id'] ?>">
-                                            <?= htmlspecialchars($univers['nom']) ?> (Zone: <?= htmlspecialchars($univers['zone_assignee']) ?>)
+                                            <?= htmlspecialchars($univers['nom']) ?>
                                         </label>
                                     </div>
                                 <?php endforeach; ?>
@@ -66,3 +67,32 @@
         </div>
     </section>
 </div>
+
+<?php ob_start(); ?>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const zoneSelect = document.getElementById('zone');
+    const universCheckboxes = document.querySelectorAll('.univers-checkbox-list .form-check');
+
+    function filterUnivers() {
+        const selectedZone = zoneSelect.value;
+        
+        universCheckboxes.forEach(checkboxContainer => {
+            // Si aucune zone n'est sélectionnée, on affiche tout.
+            // Sinon, on n'affiche que les univers correspondant à la zone sélectionnée.
+            if (selectedZone === "" || checkboxContainer.dataset.zone === selectedZone) {
+                checkboxContainer.style.display = 'block';
+            } else {
+                checkboxContainer.style.display = 'none';
+            }
+        });
+    }
+
+    // Appelle la fonction une première fois au chargement de la page
+    filterUnivers();
+
+    // Ajoute un écouteur d'événement pour réagir aux changements
+    zoneSelect.addEventListener('change', filterUnivers);
+});
+</script>
+<?php $body_scripts = ob_get_clean(); ?>

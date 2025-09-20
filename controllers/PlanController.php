@@ -19,7 +19,7 @@ class PlanController extends BaseController {
     }
 
     public function planAction() {
-        // Cette méthode charge maintenant la page, mais les codes seront chargés par AJAX.
+        // Cette méthode charge la page, mais les codes seront chargés par AJAX.
         $plans = $this->planManager->getAllPlans();
         $universList = $this->universManager->getAllUnivers();
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions(); // On charge les positions existantes
@@ -107,10 +107,20 @@ class PlanController extends BaseController {
             $planId = (int)($_POST['plan_id'] ?? 0);
             $nom = trim($_POST['nom'] ?? '');
             $zone = $_POST['zone'] ?? null;
+            
+            // Gère le cas où "Aucune" est sélectionné, ce qui envoie une chaîne vide.
+            if ($zone === '') {
+                $zone = null;
+            }
+            
             $universIds = $_POST['univers_ids'] ?? [];
 
             if ($planId > 0 && !empty($nom)) {
-                $this->planManager->updatePlanAssociations($planId, $nom, $zone, $universIds);
+                if ($this->planManager->updatePlanAssociations($planId, $nom, $zone, $universIds)) {
+                    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Le plan a été mis à jour avec succès.'];
+                } else {
+                    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la mise à jour du plan.'];
+                }
             }
         }
         header('Location: index.php?action=listPlans');
@@ -144,7 +154,6 @@ class PlanController extends BaseController {
                         $imagick->clear();
                         $imagick->destroy();
                     } catch (Exception $e) {
-                        // Gérer l'erreur si Imagick échoue
                         $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la conversion du PDF.'];
                         header('Location: index.php?action=listPlans');
                         exit();
