@@ -1,0 +1,26 @@
+/* public/css/components/_tables.css */
+.geo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.geo-table th, .geo-table td {
+    border: 1px solid var(--border-color);
+    padding: 0.75rem;
+    text-align: left;
+}
+
+.geo-table thead { 
+    background-color: var(--light-gray); 
+    position: sticky; 
+    top: var(--navbar-height);
+}
+
+.geo-table tbody tr:nth-child(even) { 
+    background-color: #f8f9fa; 
+}
+
+.geo-table tbody tr:hover { 
+    background-color: #e9ecef; 
+}

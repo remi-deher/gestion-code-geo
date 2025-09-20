@@ -1,0 +1,19 @@
+/* public/css/main.css */
+
+/* 1. Variables et styles de base */
+@import url('base/_variables.css');
+@import url('base/_base.css');
+
+/* 2. Layout (Mise en page générale) */
+@import url('layout/_container.css');
+@import url('layout/_navigation.css');
+
+/* 3. Components (Éléments réutilisables) */
+@import url('components/_buttons.css');
+@import url('components/_forms.css');
+@import url('components/_cards.css');
+@import url('components/_tables.css');
+@import url('components/_filters.css'); /* <--- AJOUTEZ CETTE LIGNE */
+
+/* 4. Pages (Styles spécifiques à une page) */
+@import url('pages/_plan.css');

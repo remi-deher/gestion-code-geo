@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $title ?? 'Gestion Code Géo' ?></title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/main.css"> 
     <?= $head_styles ?? '' ?>
 </head>
 <body>
@@ -15,7 +15,6 @@
     </main>
     
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    
     <?= $body_scripts ?? '' ?>
 </body>
 </html>

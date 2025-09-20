@@ -1,0 +1,20 @@
+/* public/css/base/_variables.css */
+:root {
+    --primary-color: #007bff;
+    --light-gray: #f8f9fa;
+    --border-color: #dee2e6;
+    --text-color: #333;
+    --navbar-height: 60px;
+    --monospace-font: 'SF Mono', 'Consolas', 'Courier New', monospace;
+
+    /* Couleurs pour les badges de zone */
+    --zone-vente-bg: #e0f2fe;
+    --zone-vente-color: #0ea5e9;
+    --zone-reserve-bg: #fef3c7;
+    --zone-reserve-color: #f59e0b;
+    
+    /* Couleurs pour les boutons d'action */
+    --edit-bg: #ffc107;
+    --edit-color: #333;
+    --delete-bg: #dc3545;
+}

@@ -1,0 +1,73 @@
+/* public/css/layout/_navigation.css */
+.navbar {
+    height: var(--navbar-height);
+    width: 100%;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 2rem;
+    box-sizing: border-box;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+}
+
+.navbar-brand { 
+    font-size: 1.5rem; 
+    font-weight: bold; 
+    color: var(--primary-color); 
+}
+
+.navbar-links { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 1rem; 
+}
+
+.navbar-links a { 
+    text-decoration: none; 
+    color: #555; 
+    font-weight: 500; 
+    transition: color 0.2s; 
+}
+
+.navbar-links a:hover { 
+    color: var(--primary-color); 
+}
+
+.navbar-controls { 
+    display: flex; 
+    align-items: center; 
+    gap: 1rem; 
+}
+
+/* Styles pour le menu d'impression */
+.print-menu { 
+    position: relative; 
+}
+
+.print-menu .print-options {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: white;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-radius: 4px;
+    padding: 0.5rem 0;
+    z-index: 1001;
+    min-width: 180px;
+}
+
+.print-menu:hover .print-options { 
+    display: block; 
+}
+
+.print-menu .print-options a {
+    display: block;
+    padding: 0.5rem 1rem;
+    white-space: nowrap;
+}

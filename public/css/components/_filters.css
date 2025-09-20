@@ -1,0 +1,97 @@
+/* public/css/components/_filters.css */
+
+/* --- Barre d'outils (utilisée sur la page de liste) --- */
+.toolbar {
+    margin-bottom: 1.5rem;
+}
+
+#filtres-univers {
+    background-color: var(--light-gray);
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+}
+
+#filtres-univers label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+}
+
+/* --- Onglets de zone (page de liste) --- */
+.zone-tabs {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.zone-tab {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    transition: all 0.2s;
+}
+
+.zone-tab.active,
+.zone-tab:hover {
+    color: var(--primary-color);
+}
+
+.zone-tab.active {
+    border-bottom-color: var(--primary-color);
+}
+
+/* --- Contrôles de vue et de tri (page de liste) --- */
+.view-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.view-switcher {
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--light-gray);
+    border-radius: 8px;
+    padding: 5px;
+}
+
+.view-switcher button {
+    background-color: transparent;
+    color: var(--text-color);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.view-switcher button.active {
+    background-color: #fff;
+    color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.sort-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sort-container label {
+    font-weight: 500;
+}

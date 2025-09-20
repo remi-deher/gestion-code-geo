@@ -1,0 +1,45 @@
+/* public/css/components/_forms.css */
+.form-group { 
+    display: flex; 
+    flex-direction: column; 
+}
+
+.form-group label { 
+    margin-bottom: 0.5rem; 
+    font-weight: bold; 
+}
+
+input, select, textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+textarea { 
+    min-height: 80px; 
+    resize: vertical; 
+}
+
+#recherche {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+}
+
+/* Conteneur de formulaire en grille */
+form.grid-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    form.grid-form { 
+        grid-template-columns: 1fr 1fr; 
+    }
+    .form-group-full { 
+        grid-column: 1 / -1; 
+    }
+}

@@ -1,0 +1,82 @@
+/* public/css/pages/_plan.css */
+.plan-page-container {
+    display: flex;
+    height: calc(100vh - var(--navbar-height));
+    width: 100%;
+    margin: 0;
+    max-width: 100%;
+    padding: 0;
+}
+
+#unplaced-codes-sidebar {
+    width: 300px; /* Un peu plus large pour le confort */
+    background-color: #fff;
+    padding: 1rem;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    overflow-y: auto;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.plan-main-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative; /* Contexte pour les contrôles de zoom */
+}
+
+.plan-toolbar {
+    display: flex;
+    gap: 1.5rem;
+    margin: 1rem;
+    align-items: center;
+}
+
+#plan-container {
+    flex-grow: 1;
+    background-color: var(--light-gray);
+    overflow: hidden; /* Important pour Panzoom */
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#zoom-wrapper {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+#zoom-wrapper:active {
+    cursor: grabbing;
+}
+
+#map-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.geo-tag {
+    position: absolute;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: grab;
+    user-select: none;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#zoom-controls {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+}
