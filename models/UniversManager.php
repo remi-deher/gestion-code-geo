@@ -62,4 +62,18 @@ class UniversManager {
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$zone, $id]);
     }
+
+    // --- MÉTHODES POUR LE DASHBOARD ---
+    public function countTotalUnivers(): int {
+        return (int)$this->db->query("SELECT COUNT(*) FROM univers")->fetchColumn();
+    }
+
+    public function countUniversByZone(): array {
+        $sql = "
+            SELECT zone_assignee, COUNT(id) as count
+            FROM univers
+            GROUP BY zone_assignee
+        ";
+        return $this->db->query($sql)->fetchAll(PDO::FETCH_KEY_PAIR);
+    }
 }

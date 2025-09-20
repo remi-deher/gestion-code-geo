@@ -44,4 +44,9 @@ class PlanManager {
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$geo_code_id]);
     }
+
+    // --- NOUVELLE MÉTHODE POUR LE DASHBOARD ---
+    public function countTotalPlans(): int {
+        return (int)$this->db->query("SELECT COUNT(*) FROM plans")->fetchColumn();
+    }
 }

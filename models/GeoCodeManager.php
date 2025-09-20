@@ -84,7 +84,6 @@ class GeoCodeManager {
 
             foreach ($codes as $code) {
                 $zone = in_array(strtolower($code['zone']), ['vente', 'reserve']) ? strtolower($code['zone']) : 'vente';
-                // On utilise le UniversManager injecté pour obtenir l'ID de l'univers
                 $univers_id = $universManager->getOrCreateUniversId($code['univers'], $zone);
                 
                 $stmt->execute([ $code['code_geo'], $code['libelle'], $univers_id, $zone, $code['commentaire'] ]);
@@ -114,4 +113,66 @@ class GeoCodeManager {
             return false;
         }
     }
+
+    // --- NOUVELLES MÉTHODES POUR LE DASHBOARD ---
+
+    public function countTotalCodes(): int {
+        return (int)$this->db->query("SELECT COUNT(*) FROM geo_codes")->fetchColumn();
+    }
+
+    public function countPlacedCodes(): int {
+        return (int)$this->db->query("SELECT COUNT(DISTINCT geo_code_id) FROM geo_positions")->fetchColumn();
+    }
+
+    public function getLatestCodes(int $limit = 5): array {
+        $sql = "
+            SELECT gc.code_geo, gc.libelle, u.nom as univers
+            FROM geo_codes gc
+            JOIN univers u ON gc.univers_id = u.id
+            ORDER BY gc.id DESC
+            LIMIT :limit
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getUnplacedCodes(int $limit = 10): array {
+        $sql = "
+            SELECT gc.id, gc.code_geo, gc.libelle
+            FROM geo_codes gc
+            LEFT JOIN geo_positions gp ON gc.id = gp.geo_code_id
+            WHERE gp.geo_code_id IS NULL
+            ORDER BY gc.id ASC
+            LIMIT :limit
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getCodesCountByUnivers(): array {
+        $sql = "
+            SELECT u.nom, COUNT(gc.id) as count
+            FROM univers u
+            JOIN geo_codes gc ON u.id = gc.univers_id
+            GROUP BY u.nom
+            ORDER BY count DESC
+        ";
+        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // --- NOUVELLE MÉTHODE POUR LE DASHBOARD ---
+    public function countCodesByZone(): array {
+        $sql = "
+            SELECT zone, COUNT(id) as count
+            FROM geo_codes
+            GROUP BY zone
+        ";
+        // On retourne le résultat sous forme de tableau associatif [zone => count]
+        return $this->db->query($sql)->fetchAll(PDO::FETCH_KEY_PAIR);
+    }
+
 }

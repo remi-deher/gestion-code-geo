@@ -16,20 +16,27 @@ try {
 }
 
 // Chargement des contrôleurs
+require_once '../controllers/DashboardController.php';
 require_once '../controllers/GeoCodeController.php';
 require_once '../controllers/PlanController.php';
 require_once '../controllers/UniversController.php';
 
 // Initialisation des contrôleurs
+$dashboardController = new DashboardController($db);
 $geoCodeController = new GeoCodeController($db);
 $planController = new PlanController($db);
 $universController = new UniversController($db);
 
-$action = $_GET['action'] ?? 'list';
+// La page par défaut est maintenant 'dashboard'
+$action = $_GET['action'] ?? 'dashboard';
 
 // Routage
 switch ($action) {
+    // Dashboard
+    case 'dashboard': $dashboardController->indexAction(); break;
+
     // Codes Géo
+    case 'list': $geoCodeController->listAction(); break;
     case 'create': $geoCodeController->createAction(); break;
     case 'add': $geoCodeController->addAction(); break;
     case 'edit': $geoCodeController->editAction(); break;
@@ -59,9 +66,8 @@ switch ($action) {
     case 'deleteUnivers': $universController->deleteAction(); break;
     case 'updateUniversZone': $universController->updateZoneAction(); break;
 
-    // Action par défaut
-    case 'list':
+    // Action par défaut (si l'action n'est pas reconnue, retourne au dashboard)
     default:
-        $geoCodeController->listAction();
+        $dashboardController->indexAction();
         break;
 }
