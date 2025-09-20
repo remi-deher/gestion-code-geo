@@ -1,33 +1,30 @@
 /* public/css/components/_buttons.css */
-button {
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    font-weight: bold;
-    color: #fff;
-    background-color: var(--primary-color);
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s;
+
+/* Style de base pour les boutons de l'application utilisant la classe .btn de Bootstrap */
+.btn {
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    /* Aligne l'icône et le texte verticalement */
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem; /* Espace entre l'icône et le texte */
 }
 
-button:hover { 
-    background-color: #0056b3; 
+.btn:hover {
+    transform: translateY(-2px); /* Effet de "soulèvement" au survol */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
-.btn-edit { 
-    background-color: var(--edit-bg); 
-    color: var(--edit-color);
+/* Style spécifique pour les petits boutons d'action dans les tableaux */
+.item-actions .btn {
+    padding: 0.375rem 0.75rem;
 }
 
-.btn-edit:hover { 
-    background-color: #e0a800; 
-}
+/* --- Responsive pour les boutons --- */
 
-.btn-delete { 
-    background-color: var(--delete-bg); 
-}
-
-.btn-delete:hover { 
-    background-color: #c82333; 
+/* Pour les fiches, sur mobile, on ne garde que l'icône */
+@media (max-width: 768px) {
+    .geo-card-actions .btn .btn-text {
+        display: none; /* Cache le texte sur mobile */
+    }
 }

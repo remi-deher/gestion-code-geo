@@ -5,17 +5,19 @@
     <section id="classeur">
         <div class="toolbar">
             <h2>📚 Classeur des emplacements</h2>
-            <div id="filtres-univers">
-                <strong>Filtrer par univers :</strong>
-                <label><input type="checkbox" value="all" checked> Tout voir</label>
+            
+            <div id="filtres-univers" class="d-flex flex-wrap align-items-center gap-2">
+                <strong>Filtrer :</strong>
+                <span class="badge filter-pill active" data-filter="all">Tout voir</span>
                 <?php if (!empty($univers) && is_array($univers)): ?>
                     <?php foreach ($univers as $u): ?>
-                        <label data-univers-name="<?= htmlspecialchars($u['nom']) ?>">
-                            <input type="checkbox" value="<?= htmlspecialchars($u['nom']) ?>" checked> <?= htmlspecialchars($u['nom']) ?>
-                        </label>
+                        <span class="badge filter-pill active" data-filter="<?= htmlspecialchars($u['nom']) ?>">
+                            <?= htmlspecialchars($u['nom']) ?>
+                        </span>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
+
             <div class="zone-tabs">
                 <button class="zone-tab active" data-zone="all">Toutes les zones</button>
                 <button class="zone-tab" data-zone="vente">Zone de Vente</button>
@@ -69,9 +71,13 @@
                                 <div class="info-comment">💬 <?= htmlspecialchars($code['commentaire']) ?></div>
                             <?php endif; ?>
                         </div>
-                        <div class="geo-card-actions">
-                            <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn-edit">✏️ Modifier</a>
-                            <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn-delete" onclick="return confirm('Êtes-vous sûr ?');">❌ Supprimer</a>
+                        <div class="geo-card-actions d-grid gap-2">
+                            <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-sm btn-warning">
+                                <i class="bi bi-pencil-fill"></i><span class="btn-text"> Modifier</span>
+                            </a>
+                            <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Êtes-vous sûr ?');">
+                                <i class="bi bi-trash-fill"></i><span class="btn-text"> Supprimer</span>
+                            </a>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -101,9 +107,13 @@
                                 <td><?= htmlspecialchars($code['libelle']) ?></td>
                                 <td><?= htmlspecialchars($code['univers']) ?></td>
                                 <td><?= htmlspecialchars($code['zone']) ?></td>
-                                <td class="item-actions no-print">
-                                    <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn-edit">✏️</a>
-                                    <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn-delete" onclick="return confirm('Êtes-vous sûr ?');">❌</a>
+                                <td class="item-actions no-print text-center">
+                                    <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-warning" title="Modifier">
+                                        <i class="bi bi-pencil-fill"></i>
+                                    </a>
+                                    <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn btn-danger" title="Supprimer" onclick="return confirm('Êtes-vous sûr ?');">
+                                        <i class="bi bi-trash-fill"></i>
+                                    </a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

@@ -1,0 +1,38 @@
+/* public/css/layout/_footer.css */
+
+.app-footer {
+    padding: 1.5rem 0;
+    background-color: #f8f9fa; /* Même gris clair que le fond */
+    border-top: 1px solid var(--border-color);
+    color: #6c757d; /* Texte gris discret */
+    font-size: 0.9rem;
+    margin-top: 2rem; /* Espace entre le contenu principal et le footer */
+}
+
+.app-footer .footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* Permet de passer à la ligne sur mobile */
+    gap: 1rem;
+}
+
+.app-footer .footer-links {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.app-footer a {
+    color: #6c757d;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.app-footer a:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.app-footer .bi {
+    vertical-align: middle;
+}
