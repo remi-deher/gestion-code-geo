@@ -1,13 +1,11 @@
 <?php
 // Fichier : public/index.php
 
-// --- DÉBUT DES AJOUTS POUR LE DÉBOGAGE ---
-ini_set('display_errors', 1); // Affiche les erreurs à l'écran (à désactiver en production)
-ini_set('log_errors', 1); // S'assure que les erreurs sont bien enregistrées dans les logs
-error_reporting(E_ALL); // Affiche tous les types d'erreurs
-session_start(); // Démarre la session pour les messages flash
-// --- FIN DES AJOUTS ---
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+session_start();
 
+// Connexion à la base de données
 $dbConfig = require_once '../config/database.php';
 $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset={$dbConfig['charset']}";
 try {
@@ -17,47 +15,53 @@ try {
     die('Erreur de connexion : ' . $e->getMessage());
 }
 
+// Chargement des contrôleurs
 require_once '../controllers/GeoCodeController.php';
-$controller = new GeoCodeController($db);
+require_once '../controllers/PlanController.php';
+require_once '../controllers/UniversController.php';
+
+// Initialisation des contrôleurs
+$geoCodeController = new GeoCodeController($db);
+$planController = new PlanController($db);
+$universController = new UniversController($db);
+
 $action = $_GET['action'] ?? 'list';
 
+// Routage
 switch ($action) {
-    // Actions pour les Codes Géo
-    case 'create': $controller->createAction(); break;
-    case 'add': $controller->addAction(); break;
-    case 'edit': $controller->editAction(); break;
-    case 'update': $controller->updateAction(); break;
-    case 'delete': $controller->deleteAction(); break;
-    case 'showBatchCreate': $controller->showBatchCreateAction(); break;
-    case 'handleBatchCreate': $controller->handleBatchCreateAction(); break;
+    // Codes Géo
+    case 'create': $geoCodeController->createAction(); break;
+    case 'add': $geoCodeController->addAction(); break;
+    case 'edit': $geoCodeController->editAction(); break;
+    case 'update': $geoCodeController->updateAction(); break;
+    case 'delete': $geoCodeController->deleteAction(); break;
+    case 'showBatchCreate': $geoCodeController->showBatchCreateAction(); break;
+    case 'handleBatchCreate': $geoCodeController->handleBatchCreateAction(); break;
+    
+    // Import/Export et Impression (liés aux codes géo)
+    case 'export': $geoCodeController->exportAction(); break;
+    case 'showImport': $geoCodeController->showImportAction(); break;
+    case 'handleImport': $geoCodeController->handleImportAction(); break;
+    case 'printLabels': $geoCodeController->showPrintOptionsAction(); break;
+    case 'generatePrint': $geoCodeController->generatePrintPageAction(); break;
 
-    // Actions pour le Plan interactif
-    case 'plan': $controller->planAction(); break;
-    case 'savePosition': $controller->savePositionAction(); break;
+    // Plans
+    case 'plan': $planController->planAction(); break;
+    case 'savePosition': $planController->savePositionAction(); break;
+    case 'removePosition': $planController->removePositionAction(); break;
+    case 'listPlans': $planController->listPlansAction(); break;
+    case 'addPlan': $planController->addPlanAction(); break;
+    case 'deletePlan': $planController->deletePlanAction(); break;
 
-    // Actions pour l'Import/Export
-    case 'export': $controller->exportAction(); break;
-    case 'showImport': $controller->showImportAction(); break;
-    case 'handleImport': $controller->handleImportAction(); break;
-    case 'exportTemplate': $controller->exportTemplateAction(); break;
-        
-    // Actions pour l'impression
-    case 'printLabels': $controller->showPrintOptionsAction(); break;
-    case 'generatePrint': $controller->generatePrintPageAction(); break;
-
-    // Actions pour les Univers
-    case 'listUnivers': $controller->listUniversAction(); break;
-    case 'addUnivers': $controller->addUniversAction(); break;
-    case 'deleteUnivers': $controller->deleteUniversAction(); break;
-
-    // NOUVELLES Actions pour la GESTION DES PLANS
-    case 'listPlans': $controller->listPlansAction(); break;
-    case 'addPlan': $controller->addPlanAction(); break;
-    case 'deletePlan': $controller->deletePlanAction(); break;
+    // Univers
+    case 'listUnivers': $universController->listAction(); break;
+    case 'addUnivers': $universController->addAction(); break;
+    case 'deleteUnivers': $universController->deleteAction(); break;
+    case 'updateUniversZone': $universController->updateZoneAction(); break;
 
     // Action par défaut
     case 'list':
     default:
-        $controller->listAction();
+        $geoCodeController->listAction();
         break;
 }
