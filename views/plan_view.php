@@ -76,7 +76,6 @@
     </style>
 </head>
 <body>
-    <?php include 'partials/navbar.php'; ?>
 
     <div class="plan-page-container">
         <div id="unplaced-codes-sidebar" class="no-print">

@@ -1,7 +1,7 @@
 /* public/css/base/_base.css */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    margin: 0;
+    margin: 0; 
     padding-top: var(--navbar-height); 
     background-color: var(--light-gray);
     color: var(--text-color);
@@ -17,10 +17,14 @@ h2 {
     padding-bottom: 0.5rem; 
 }
 
-/* Style pour les séparateurs d'univers dans la liste */
 h3.univers-separator { 
     margin-top: 2.5rem; 
     border-top: 2px solid #eee; 
     padding-top: 1.5rem; 
     font-size: 1.5rem;
+}
+
+/* CORRECTION DÉFINITIVE : Supprime la marge du premier élément de la page */
+main > *:first-child {
+    margin-top: 0;
 }
