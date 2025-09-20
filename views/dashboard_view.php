@@ -19,18 +19,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         '#3498db', '#e74c3c', '#2ecc71', '#f1c40f', 
                         '#9b59b6', '#1abc9c', '#e67e22', '#34495e'
                     ],
-                    hoverOffset: 4
+                    hoverOffset: 4,
+                    borderColor: '#fff',
+                    borderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
+                cutout: '70%',
                 plugins: {
                     legend: {
-                        position: 'top',
+                        position: 'bottom',
                     },
                     title: {
                         display: true,
-                        text: 'Répartition des codes par univers'
+                        text: 'Répartition des codes par univers',
+                        padding: { top: 10, bottom: 20 }
                     }
                 }
             }
@@ -41,62 +45,65 @@ document.addEventListener('DOMContentLoaded', () => {
 <?php $body_scripts = ob_get_clean(); ?>
 
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center dashboard-header">
         <h1>Tableau de bord</h1>
         <div class="d-flex gap-2">
-            <a href="index.php?action=list" class="btn btn-outline-secondary">Voir la liste</a>
-            <a href="index.php?action=create" class="btn btn-primary">Ajouter un code</a>
-            <a href="index.php?action=plan" class="btn btn-secondary">Voir le plan</a>
+            <a href="index.php?action=list" class="btn btn-outline-secondary"><i class="bi bi-list-ul"></i> Voir la liste</a>
+            <a href="index.php?action=create" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter un code</a>
+            <a href="index.php?action=plan" class="btn btn-secondary"><i class="bi bi-map-fill"></i> Voir le plan</a>
         </div>
     </div>
 
     <div class="row g-4 mb-4">
-        <div class="col-md-6 col-lg-3">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <h5 class="card-title">Codes Géo Total</h5>
-                    <p class="card-text fs-1 fw-bold"><?= $stats['totalCodes'] ?></p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 col-lg-3">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <h5 class="card-title">Codes Placés</h5>
-                    <p class="card-text fs-1 fw-bold text-success"><?= $stats['placedCodes'] ?></p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 col-lg-3">
-            <div class="card h-100">
-                <div class="card-body text-center">
-                    <h5 class="card-title">Codes Non Placés</h5>
-                    <p class="card-text fs-1 fw-bold text-danger"><?= $stats['unplacedCodes'] ?></p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 col-lg-3">
-            <div class="card h-100">
+        <div class="col-md-6 col-lg-4">
+            <div class="card dashboard-card stat-card h-100">
                 <div class="card-body">
-                    <h5 class="card-title text-center mb-3">Répartition par Zone</h5>
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <strong>Zone de Vente</strong>
-                            <span class="badge bg-primary rounded-pill"><?= $stats['codesByZone']['vente'] ?? 0 ?> codes</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <strong>Réserve</strong>
-                            <span class="badge bg-secondary rounded-pill"><?= $stats['codesByZone']['reserve'] ?? 0 ?> codes</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Univers Vente
-                            <span class="badge bg-light text-dark rounded-pill"><?= $stats['universByZone']['vente'] ?? 0 ?></span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Univers Réserve
-                            <span class="badge bg-light text-dark rounded-pill"><?= $stats['universByZone']['reserve'] ?? 0 ?></span>
-                        </li>
-                    </ul>
+                    <div class="stat-icon icon-total"><i class="bi bi-box-seam"></i></div>
+                    <div>
+                        <h5>Codes Géo Total</h5>
+                        <span class="stat-number"><?= $stats['totalCodes'] ?></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <?php 
+            // Calcul sécurisé du pourcentage
+            $percentage = ($stats['totalCodes'] > 0) ? ($stats['placedCodes'] / $stats['totalCodes']) * 100 : 0;
+        ?>
+        <div class="col-md-6 col-lg-4">
+            <div class="card dashboard-card progress-card h-100">
+                 <div class="card-body d-flex flex-column justify-content-center">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Progression des Emplacements</h5>
+                        <span class="fw-bold fs-5"><?= round($percentage) ?>%</span>
+                    </div>
+                    <p class="text-muted small mb-2"><?= $stats['placedCodes'] ?> sur <?= $stats['totalCodes'] ?> codes placés</p>
+                    <div class="progress" title="<?= round($percentage) ?>% Placé">
+                        <div class="progress-bar" role="progressbar" style="width: <?= $percentage ?>%;" aria-valuenow="<?= $percentage ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                 </div>
+            </div>
+        </div>
+        
+        <div class="col-md-12 col-lg-4">
+            <div class="card dashboard-card h-100">
+                <div class="card-header"><i class="bi bi-geo-alt-fill"></i> Répartition par Zone</div>
+                <div class="card-body d-flex flex-column justify-content-center gap-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-bold">Zone de Vente</span>
+                            <small class="text-muted d-block"><?= $stats['universByZone']['vente'] ?? 0 ?> univers</small>
+                        </div>
+                        <span class="badge bg-primary rounded-pill fs-6"><?= $stats['codesByZone']['vente'] ?? 0 ?> codes</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-bold">Réserve</span>
+                            <small class="text-muted d-block"><?= $stats['universByZone']['reserve'] ?? 0 ?> univers</small>
+                        </div>
+                        <span class="badge bg-secondary rounded-pill fs-6"><?= $stats['codesByZone']['reserve'] ?? 0 ?> codes</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -104,34 +111,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <div class="row g-4">
         <div class="col-lg-5">
-            <div class="card h-100">
+            <div class="card dashboard-card h-100">
                 <div class="card-body">
                     <canvas id="universChart"></canvas>
                 </div>
             </div>
         </div>
         <div class="col-lg-7">
-            <div class="card mb-4">
-                <div class="card-header">Codes à placer en priorité</div>
+            <div class="card dashboard-card dashboard-list mb-4">
+                <div class="card-header"><i class="bi bi-exclamation-triangle-fill"></i> Codes à placer en priorité</div>
                 <ul class="list-group list-group-flush">
                     <?php if (empty($unplacedCodesList)): ?>
-                        <li class="list-group-item">🎉 Tous les codes sont placés !</li>
+                        <li class="list-group-item text-center text-muted p-4">🎉<br/>Tous les codes sont placés !</li>
                     <?php else: ?>
-                        <?php foreach ($unplacedCodesList as $code): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><strong><?= htmlspecialchars($code['code_geo']) ?></strong> - <?= htmlspecialchars($code['libelle']) ?></span>
+                        <?php foreach (array_slice($unplacedCodesList, 0, 5) as $code): ?>
+                            <li class="list-group-item px-3">
+                                <div class="item-info">
+                                    <span class="code-geo"><?= htmlspecialchars($code['code_geo']) ?></span>
+                                    <span class="libelle"><?= htmlspecialchars($code['libelle']) ?></span>
+                                </div>
                                 <a href="index.php?action=plan" class="btn btn-sm btn-outline-primary">Placer</a>
                             </li>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </ul>
             </div>
-            <div class="card">
-                <div class="card-header">Derniers codes ajoutés</div>
+            <div class="card dashboard-card dashboard-list">
+                <div class="card-header"><i class="bi bi-clock-history"></i> Derniers codes ajoutés</div>
                 <ul class="list-group list-group-flush">
                      <?php foreach ($latestCodes as $code): ?>
-                        <li class="list-group-item">
-                            <strong><?= htmlspecialchars($code['code_geo']) ?></strong> (<?= htmlspecialchars($code['univers']) ?>) - <?= htmlspecialchars($code['libelle']) ?>
+                        <li class="list-group-item px-3">
+                            <div class="item-info">
+                                <span class="code-geo"><?= htmlspecialchars($code['code_geo']) ?></span>
+                                <div>
+                                    <span class="libelle"><?= htmlspecialchars($code['libelle']) ?></span>
+                                    <span class="badge bg-light text-dark"><?= htmlspecialchars($code['univers']) ?></span>
+                                </div>
+                            </div>
                         </li>
                     <?php endforeach; ?>
                 </ul>

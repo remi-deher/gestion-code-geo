@@ -134,15 +134,26 @@ class GeoCodeController extends BaseController {
     }
     
     public function generatePrintPageAction() {
+        // --- Récupération des données ---
         $universIds = $_POST['univers_ids'] ?? [];
         $geoCodes = $this->geoCodeManager->getGeoCodesByUniversIds(array_map('intval', $universIds));
         
+        // --- Récupération des options d'impression ---
+        $options = [
+            'title' => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
+            'show_date' => isset($_POST['show_date']),
+            'copies' => (int)($_POST['copies'] ?? 1),
+            'fields' => $_POST['fields'] ?? ['qrcode', 'code_geo', 'libelle'],
+            'layout' => $_POST['layout_format'] ?? 'medium_2x4' // <-- AJOUT DE CETTE LIGNE
+        ];
+
+        // --- Groupement des codes par univers pour l'affichage ---
         $groupedCodes = [];
         foreach ($geoCodes as $code) {
             $groupedCodes[$code['univers']][] = $code;
         }
 
-        // Note: Les pages d'impression n'utilisent pas le layout principal
+        // --- Rendu de la vue d'impression (sans layout) ---
         require __DIR__ . '/../views/print_page_view.php';
     }
 }

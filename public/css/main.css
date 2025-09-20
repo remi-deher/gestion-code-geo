@@ -19,3 +19,5 @@
 /* 4. Pages (Styles spécifiques à une page) */
 @import url('pages/_plan.css');
 @import url('pages/_plans-list.css'); /* <--- AJOUTEZ CETTE LIGNE */
+@import url('pages/_dashboard.css');
+@import url('pages/_print-options.css');

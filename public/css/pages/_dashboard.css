@@ -1,0 +1,94 @@
+/* public/css/pages/_dashboard.css */
+
+.dashboard-header {
+    margin-bottom: 2rem;
+}
+
+/* --- Style général des cartes --- */
+.dashboard-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+
+.dashboard-card .card-header {
+    background-color: transparent;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 500;
+}
+
+.dashboard-card .card-header i {
+    color: var(--primary-color);
+    margin-right: 0.5rem;
+}
+
+/* --- Cartes de statistiques (Stat Cards) --- */
+.stat-card .card-body {
+    display: flex;
+    align-items: center;
+}
+
+.stat-icon {
+    font-size: 2.5rem;
+    padding: 1rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+}
+
+.stat-icon.icon-total { background-color: #e0f2fe; color: #0ea5e9; } /* Bleu clair */
+.stat-icon.icon-univers { background-color: #fef3c7; color: #f59e0b; } /* Jaune clair */
+
+.stat-card h5 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.stat-card .stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+/* --- Carte de progression --- */
+.progress-card .progress {
+    height: 25px;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+.progress-card .progress-bar {
+    background-color: #2ecc71; /* Vert succès */
+}
+
+/* --- Listes améliorées (codes à placer / derniers ajouts) --- */
+.dashboard-list .list-group-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.dashboard-list .list-group-item:hover {
+    background-color: var(--light-gray);
+}
+
+.dashboard-list .item-info .code-geo {
+    font-family: var(--monospace-font);
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.dashboard-list .item-info .libelle {
+    font-size: 0.9rem;
+    color: #6c757d;
+}

@@ -1,0 +1,118 @@
+/* public/css/pages/_print-options.css */
+
+.print-options-form .card {
+    margin-bottom: 1.5rem;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.print-options-form .card-header {
+    font-size: 1.1rem;
+    font-weight: 500;
+    background-color: transparent;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.print-options-form .step-number {
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.print-options-form .univers-selection,
+.print-options-form .field-selection {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    background-color: #f8f9fa;
+}
+
+.print-options-form .field-selection label,
+.print-options-form .univers-selection label {
+    display: block;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+}
+
+.print-options-form .form-actions {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+    display: flex;
+    justify-content: flex-end;
+    margin: 2rem -2rem -2rem -2rem; /* S'étend pour toucher les bords du container */
+    border-radius: 0 0 8px 8px;
+}
+
+.print-options-form .btn-generate {
+    font-size: 1.1rem;
+    padding: 0.75rem 1.5rem;
+}
+
+/* ... (contenu existant au début du fichier) ... */
+
+/* --- Styles pour la boîte de prévisualisation --- */
+#preview-box {
+    /* Utilise les styles du fichier print.css pour la cohérence */
+    font-family: 'Roboto', sans-serif;
+    padding: 1rem;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    min-height: 150px;
+
+    /* Centre l'étiquette d'aperçu */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#preview-box .print-item {
+    transform: scale(0.9); /* Légère réduction pour que ça rentre bien */
+    transition: all 0.3s ease;
+}
+
+/* Applique les styles de format à la boîte d'aperçu */
+#preview-box.medium_2x4 .print-item {
+    grid-template-columns: 80px 1fr;
+    width: 300px;
+}
+#preview-box.large_2x2 .print-item {
+    grid-template-columns: 100px 1fr;
+    padding: 15px;
+    width: 350px;
+}
+#preview-box.large_2x2 .print-qr-code canvas { width: 100px !important; height: 100px !important; }
+
+#preview-box.small_3x7 .print-item {
+    grid-template-columns: 50px 1fr;
+    padding: 5px;
+    gap: 5px;
+    width: 250px;
+}
+#preview-box.small_3x7 .print-qr-code canvas { width: 50px !important; height: 50px !important; }
+
+/* Styles des textes (copiés de print.css pour la cohérence) */
+#preview-box .print-code { font-family: 'Roboto Mono', monospace; font-weight: 700; color: #000; }
+#preview-box .print-libelle { font-weight: bold; }
+#preview-box .print-univers, #preview-box .print-comment { font-size: 9pt; color: #444; }
+#preview-box .print-comment { font-style: italic; }
+
+#preview-box.medium_2x4 .print-code { font-size: 14pt; }
+#preview-box.medium_2x4 .print-libelle { font-size: 11pt; }
+#preview-box.large_2x2 .print-code { font-size: 20pt; }
+#preview-box.large_2x2 .print-libelle { font-size: 14pt; }
+#preview-box.small_3x7 .print-code { font-size: 10pt; }
+#preview-box.small_3x7 .print-libelle { font-size: 8pt; }

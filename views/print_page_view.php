@@ -2,41 +2,56 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Impression des Étiquettes</title>
+    <title><?= htmlspecialchars($options['title']) ?></title>
     <link rel="stylesheet" href="css/print.css">
 </head>
-<body>
+<body class="<?= htmlspecialchars($options['layout']) ?>">
     <div class="page-container">
-        <div class="controls no-print">
-            <p class="print-info">Page générée le <?= date('d/m/Y H:i') ?>.</p>
-            <button onclick="window.print()">Ré-imprimer</button>
-        </div>
+        <header class="print-header">
+            <?php if (!empty($options['title'])): ?>
+                <h1 class="page-title"><?= htmlspecialchars($options['title']) ?></h1>
+            <?php endif; ?>
+            <div class="print-meta no-print">
+                <?php if ($options['show_date']): ?>
+                    <span>Page générée le <?= date('d/m/Y H:i') ?>.</span>
+                <?php endif; ?>
+                <button onclick="window.print()">
+                    <i class="bi bi-printer-fill"></i> Ré-imprimer
+                </button>
+            </div>
+        </header>
 
         <?php if (!empty($groupedCodes)): ?>
             <?php foreach ($groupedCodes as $univers => $codes): ?>
                 <section class="univers-group">
                     <h2 class="univers-title"><?= htmlspecialchars($univers) ?></h2>
-                    <div class="print-list">
+                    <div class="print-grid">
                         <?php foreach ($codes as $code): ?>
-                            <!-- NOUVELLE STRUCTURE D'ÉTIQUETTE -->
-                            <div class="print-item">
-                                <div class="print-main">
-                                    <div class="print-qr-code" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
-                                    <div class="print-code-box">
-                                        <span class="print-code"><?= htmlspecialchars($code['code_geo']) ?></span>
-                                    </div>
-                                </div>
-                                <div class="print-details">
-                                    <div class="print-libelle">
-                                        <strong>Libellé :</strong> <?= htmlspecialchars($code['libelle']) ?>
-                                    </div>
-                                    <?php if (!empty($code['commentaire'])): ?>
-                                        <div class="print-comment">
-                                            <strong>Note :</strong> <?= htmlspecialchars($code['commentaire']) ?>
-                                        </div>
+                            <?php for ($i = 0; $i < $options['copies']; $i++): ?>
+                                <div class="print-item">
+                                    <?php if (in_array('qrcode', $options['fields'])): ?>
+                                        <div class="print-qr-code" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
                                     <?php endif; ?>
+                                    
+                                    <div class="print-details">
+                                        <?php if (in_array('code_geo', $options['fields'])): ?>
+                                            <div class="print-code"><?= htmlspecialchars($code['code_geo']) ?></div>
+                                        <?php endif; ?>
+
+                                        <?php if (in_array('libelle', $options['fields'])): ?>
+                                            <div class="print-libelle"><?= htmlspecialchars($code['libelle']) ?></div>
+                                        <?php endif; ?>
+                                        
+                                        <?php if (in_array('univers', $options['fields'])): ?>
+                                            <div class="print-univers"><strong>Univers :</strong> <?= htmlspecialchars($code['univers']) ?></div>
+                                        <?php endif; ?>
+
+                                        <?php if (!empty($code['commentaire']) && in_array('commentaire', $options['fields'])): ?>
+                                            <div class="print-comment"><strong>Note :</strong> <?= htmlspecialchars($code['commentaire']) ?></div>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                            </div>
+                            <?php endfor; ?>
                         <?php endforeach; ?>
                     </div>
                 </section>
@@ -54,13 +69,12 @@
                 if (codeText) {
                     new QRCode(container, { 
                         text: codeText, 
-                        width: 120, // Taille augmentée pour meilleure lisibilité
-                        height: 120,
+                        width: 80,
+                        height: 80,
                         correctLevel : QRCode.CorrectLevel.H
                     });
                 }
             });
-            // Petit délai pour s'assurer que les QR codes sont générés
             setTimeout(() => { window.print(); }, 500);
         });
     </script>
