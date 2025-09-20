@@ -1,16 +1,20 @@
 /* public/css/plan_print.css */
 
 @media print {
-    /* Cache tous les éléments inutiles de la page */
-    body > *:not(.plan-page-container) {
-        display: none;
-    }
-
+    /* Cache les éléments de navigation, le pied de page et les éléments avec la classe .no-print */
+    .navbar-custom,
+    .app-footer,
     .no-print {
         display: none !important;
     }
+
+    /* Réinitialise les marges du body et de la balise main pour l'impression */
+    body, main {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
     
-    /* Force le conteneur principal à prendre toute la page */
+    /* Force le conteneur principal du plan à prendre toute la page */
     .plan-page-container,
     .plan-main-content,
     #plan-container,
@@ -18,16 +22,16 @@
         display: block !important;
         width: 100% !important;
         height: 100% !important;
-        position: relative !important; /* Contexte de positionnement pour les étiquettes */
+        position: relative !important; /* Important pour le positionnement des étiquettes */
         overflow: visible !important;
         margin: 0 !important;
         padding: 0 !important;
         box-shadow: none !important;
         border: none !important;
-        page-break-inside: avoid; /* Essaye d'éviter les coupures au milieu du plan */
+        page-break-inside: avoid; /* Tente d'éviter que le plan soit coupé sur deux pages */
     }
     
-    /* S'assure que l'image du plan est bien visible */
+    /* S'assure que l'image du plan est bien visible et correctement dimensionnée */
     #map-image {
         display: block !important;
         max-width: 100%;
@@ -35,7 +39,7 @@
         object-fit: contain;
     }
 
-    /* Style des étiquettes pour l'impression */
+    /* Style des étiquettes pour une meilleure lisibilité à l'impression */
     .geo-tag {
         background-color: white !important;
         color: black !important;
@@ -45,7 +49,7 @@
         font-size: 8pt !important;
     }
 
-    /* Masque les infobulles et autres éléments interactifs */
+    /* Masque les infobulles et les contrôles de zoom */
     .tag-tooltip, #zoom-controls {
         display: none !important;
     }
