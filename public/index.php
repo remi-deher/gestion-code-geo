@@ -56,10 +56,13 @@ switch ($action) {
     case 'plan': $planController->planAction(); break;
     case 'savePosition': $planController->savePositionAction(); break;
     case 'removePosition': $planController->removePositionAction(); break;
-    case 'saveMultiplePositions': $planController->saveMultiplePositionsAction(); break; // NOUVELLE ROUTE
+    case 'saveMultiplePositions': $planController->saveMultiplePositionsAction(); break;
     case 'listPlans': $planController->listPlansAction(); break;
     case 'addPlan': $planController->addPlanAction(); break;
     case 'deletePlan': $planController->deletePlanAction(); break;
+    case 'editPlan': $planController->editPlanAction(); break; // ROUTE CORRIGÉE
+    case 'updatePlan': $planController->updatePlanAction(); break; // ROUTE CORRIGÉE
+    case 'getAvailableCodesForPlan': $planController->getAvailableCodesForPlanAction(); break;
 
     // Univers
     case 'listUnivers': $universController->listAction(); break;
@@ -67,7 +70,7 @@ switch ($action) {
     case 'deleteUnivers': $universController->deleteAction(); break;
     case 'updateUniversZone': $universController->updateZoneAction(); break;
 
-    // Action par défaut
+    // Action par défaut (si l'action n'est pas reconnue, retourne au dashboard)
     default:
         $dashboardController->indexAction();
         break;

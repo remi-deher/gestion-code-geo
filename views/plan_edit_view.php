@@ -7,7 +7,7 @@
         overflow-y: auto;
         border: 1px solid var(--border-color);
         padding: 1rem;
-        border-radius: 0.375rem; /* Bootstrap 5 radius */
+        border-radius: 0.375rem;
     }
     .univers-checkbox-list .form-check {
         margin-bottom: 0.5rem;
@@ -33,8 +33,8 @@
                         <label for="zone" class="form-label">Zone de stockage associée</label>
                         <select id="zone" name="zone" class="form-select">
                             <option value="">-- Aucune --</option>
-                            <option value="vente" <?= ($plan['zone'] == 'vente') ? 'selected' : '' ?>>Zone de Vente</option>
-                            <option value="reserve" <?= ($plan['zone'] == 'reserve') ? 'selected' : '' ?>>Réserve</option>
+                            <option value="vente" <?= (isset($plan['zone']) && $plan['zone'] == 'vente') ? 'selected' : '' ?>>Zone de Vente</option>
+                            <option value="reserve" <?= (isset($plan['zone']) && $plan['zone'] == 'reserve') ? 'selected' : '' ?>>Réserve</option>
                         </select>
                     </div>
 
