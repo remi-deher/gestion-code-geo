@@ -15,9 +15,18 @@
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
-/* Style spécifique pour les petits boutons d'action dans les tableaux */
-.item-actions .btn {
+/*
+CORRECTION : Ajout des styles manquants pour les liens d'action.
+Ceci garantit que les boutons dans les colonnes d'action sont toujours visibles et bien stylés.
+*/
+.item-actions a {
+    text-decoration: none;
+    color: white; /* Assure que l'icône est visible sur un fond coloré */
     padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.9rem;
+    font-weight: bold;
+    text-align: center;
 }
 
 /* --- Responsive pour les boutons --- */

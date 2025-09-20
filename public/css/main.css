@@ -18,3 +18,4 @@
 
 /* 4. Pages (Styles spécifiques à une page) */
 @import url('pages/_plan.css');
+@import url('pages/_plans-list.css'); /* <--- AJOUTEZ CETTE LIGNE */

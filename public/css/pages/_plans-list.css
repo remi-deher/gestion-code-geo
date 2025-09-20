@@ -1,0 +1,21 @@
+/* public/css/pages/_plans-list.css */
+
+.plan-card {
+    transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.plan-card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+.plan-card img {
+    width: 100%;
+    height: 180px; /* Hauteur fixe pour l'image */
+    object-fit: cover; /* Assure que l'image remplit l'espace sans se déformer */
+}
+
+/* Assure que le footer de la carte est toujours en bas */
+.plan-card .d-flex.flex-column {
+    justify-content: space-between;
+}

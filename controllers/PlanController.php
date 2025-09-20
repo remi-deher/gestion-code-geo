@@ -19,9 +19,10 @@ class PlanController extends BaseController {
     }
 
     public function planAction() {
-        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
+        // Cette méthode charge maintenant la page, mais les codes seront chargés par AJAX.
         $plans = $this->planManager->getAllPlans();
         $universList = $this->universManager->getAllUnivers();
+        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions(); // On charge les positions existantes
 
         $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
         $universColors = [];
@@ -32,7 +33,7 @@ class PlanController extends BaseController {
         }
 
         $this->render('plan_view', [
-            'geoCodes' => $geoCodes,
+            'placedGeoCodes' => $geoCodes, // On passe seulement les codes déjà placés
             'plans' => $plans,
             'universList' => $universList,
             'universColors' => $universColors
@@ -62,10 +63,7 @@ class PlanController extends BaseController {
         }
         exit();
     }
-
-    /**
-     * NOUVELLE ACTION pour la sauvegarde multiple
-     */
+    
     public function saveMultiplePositionsAction() {
         header('Content-Type: application/json');
         $input = json_decode(file_get_contents('php://input'), true);
@@ -82,6 +80,42 @@ class PlanController extends BaseController {
         $plans = $this->planManager->getAllPlans();
         $this->render('plans_list_view', ['plans' => $plans]);
     }
+    
+    public function editPlanAction() {
+        $planId = (int)($_GET['id'] ?? 0);
+        if ($planId <= 0) {
+            header('Location: index.php?action=listPlans');
+            exit();
+        }
+
+        $plan = $this->planManager->getPlanWithUnivers($planId);
+        $allUnivers = $this->universManager->getAllUnivers();
+
+        if (empty($plan)) {
+            header('Location: index.php?action=listPlans');
+            exit();
+        }
+
+        $this->render('plan_edit_view', [
+            'plan' => $plan,
+            'allUnivers' => $allUnivers
+        ]);
+    }
+
+    public function updatePlanAction() {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $planId = (int)($_POST['plan_id'] ?? 0);
+            $nom = trim($_POST['nom'] ?? '');
+            $zone = $_POST['zone'] ?? null;
+            $universIds = $_POST['univers_ids'] ?? [];
+
+            if ($planId > 0 && !empty($nom)) {
+                $this->planManager->updatePlanAssociations($planId, $nom, $zone, $universIds);
+            }
+        }
+        header('Location: index.php?action=listPlans');
+        exit();
+    }
 
     public function addPlanAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['planFile'])) {
@@ -90,7 +124,9 @@ class PlanController extends BaseController {
 
             if ($file['error'] === UPLOAD_ERR_OK && !empty($nom)) {
                 $uploadDir = __DIR__ . '/../public/uploads/plans/';
-                if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0777, true);
+                }
 
                 $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
                 $safeFilename = preg_replace('/[^a-zA-Z0-9-_\.]/','_', basename($file['name'], "." . $extension));
@@ -107,11 +143,22 @@ class PlanController extends BaseController {
                         $imagick->writeImage($destination);
                         $imagick->clear();
                         $imagick->destroy();
-                    } catch (Exception $e) { /* Gérer l'erreur */ }
+                    } catch (Exception $e) {
+                        // Gérer l'erreur si Imagick échoue
+                        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la conversion du PDF.'];
+                        header('Location: index.php?action=listPlans');
+                        exit();
+                    }
                 } else if (in_array($extension, ['png', 'jpg', 'jpeg'])) {
                     move_uploaded_file($file['tmp_name'], $destination);
+                } else {
+                    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Type de fichier non supporté.'];
+                    header('Location: index.php?action=listPlans');
+                    exit();
                 }
+
                 $this->planManager->addPlan($nom, $finalFilename);
+                $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Le plan a été ajouté avec succès.'];
             }
         }
         header('Location: index.php?action=listPlans');
@@ -123,10 +170,27 @@ class PlanController extends BaseController {
         $plan = $this->planManager->getPlanById($id);
         if ($plan) {
             $filePath = __DIR__ . '/../public/uploads/plans/' . $plan['nom_fichier'];
-            if (file_exists($filePath)) unlink($filePath);
+            if (file_exists($filePath)) {
+                unlink($filePath);
+            }
             $this->planManager->deletePlan($id);
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Le plan a été supprimé.'];
         }
         header('Location: index.php?action=listPlans');
+        exit();
+    }
+    
+    public function getAvailableCodesForPlanAction() {
+        header('Content-Type: application/json');
+        $planId = (int)($_GET['id'] ?? 0);
+        
+        if ($planId <= 0) {
+            echo json_encode(['error' => 'ID de plan invalide']);
+            exit();
+        }
+
+        $availableCodes = $this->geoCodeManager->getAvailableCodesForPlan($planId);
+        echo json_encode($availableCodes);
         exit();
     }
 }
