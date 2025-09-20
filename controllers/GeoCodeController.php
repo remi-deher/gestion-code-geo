@@ -85,13 +85,15 @@ class GeoCodeController extends BaseController {
             $libelles = $_POST['libelles'] ?? [];
             $codesToInsert = [];
             for ($i = 0; $i < count($codes_geo); $i++) {
-                $codesToInsert[] = [
-                    'code_geo'   => trim($codes_geo[$i]), 
-                    'libelle'    => trim($libelles[$i]), 
-                    'univers_id' => (int)$_POST['univers_id'],
-                    'zone'       => $_POST['zone'], 
-                    'commentaire'=> null
-                ];
+                if (!empty(trim($codes_geo[$i])) && !empty(trim($libelles[$i]))) {
+                    $codesToInsert[] = [
+                        'code_geo'   => trim($codes_geo[$i]), 
+                        'libelle'    => trim($libelles[$i]), 
+                        'univers_id' => (int)$_POST['univers_id'],
+                        'zone'       => $_POST['zone'], 
+                        'commentaire'=> null
+                    ];
+                }
             }
             if (!empty($codesToInsert)) {
                 $this->geoCodeManager->createBatchGeoCodes($codesToInsert);
@@ -121,8 +123,26 @@ class GeoCodeController extends BaseController {
 
     public function handleImportAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csvFile']) && $_FILES['csvFile']['error'] == UPLOAD_ERR_OK) {
-            // ... (la logique reste la même, mais on injecte le UniversManager)
-            $this->geoCodeManager->createMultipleGeoCodes($codesToInsert, $this->universManager);
+            $csvFile = $_FILES['csvFile']['tmp_name'];
+            $fileHandle = fopen($csvFile, 'r');
+            $header = fgetcsv($fileHandle, 0, ';');
+            $codesToInsert = [];
+
+            while (($row = fgetcsv($fileHandle, 0, ';')) !== false) {
+                $data = array_combine($header, $row);
+                $codesToInsert[] = [
+                    'code_geo' => $data['code_geo'] ?? '',
+                    'libelle' => $data['libelle'] ?? '',
+                    'univers' => $data['univers'] ?? 'Indéfini',
+                    'zone' => $data['zone'] ?? 'vente',
+                    'commentaire' => $data['commentaire'] ?? null
+                ];
+            }
+            fclose($fileHandle);
+            
+            if (!empty($codesToInsert)) {
+                $this->geoCodeManager->createMultipleGeoCodes($codesToInsert, $this->universManager);
+            }
         }
         header('Location: index.php?action=list');
         exit();
@@ -136,15 +156,17 @@ class GeoCodeController extends BaseController {
     public function generatePrintPageAction() {
         // --- Récupération des données ---
         $universIds = $_POST['univers_ids'] ?? [];
-        $geoCodes = $this->geoCodeManager->getGeoCodesByUniversIds(array_map('intval', $universIds));
+        $geoCodes = [];
+        if (!empty($universIds)) {
+            $geoCodes = $this->geoCodeManager->getGeoCodesByUniversIds(array_map('intval', $universIds));
+        }
         
         // --- Récupération des options d'impression ---
         $options = [
-            'title' => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
-            'show_date' => isset($_POST['show_date']),
-            'copies' => (int)($_POST['copies'] ?? 1),
-            'fields' => $_POST['fields'] ?? ['qrcode', 'code_geo', 'libelle'],
-            'layout' => $_POST['layout_format'] ?? 'medium_2x4' // <-- AJOUT DE CETTE LIGNE
+            'title'    => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
+            'copies'   => (int)($_POST['copies'] ?? 1),
+            'fields'   => $_POST['fields'] ?? ['qrcode', 'code_geo', 'libelle'],
+            'template' => $_POST['template'] ?? 'qr-left'
         ];
 
         // --- Groupement des codes par univers pour l'affichage ---

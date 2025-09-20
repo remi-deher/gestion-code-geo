@@ -1,18 +1,53 @@
 <?php $title = 'Options d\'Impression des Étiquettes'; ?>
 
+<?php ob_start(); ?>
+<style>
+    .template-choices { display: flex; flex-wrap: wrap; gap: 1rem; }
+    .template-option input[type="radio"] { display: none; }
+    .template-option label {
+        display: block;
+        padding: 0.5rem;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s ease-in-out;
+    }
+    .template-option input[type="radio"]:checked + label {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+        background-color: #e9f4ff;
+    }
+    .template-preview {
+        height: 80px;
+        width: 140px;
+        background-color: #f8f9fa;
+        border: 1px dashed #ccc;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px;
+    }
+    .template-preview .qr { width: 40px; height: 40px; background-color: #adb5bd; flex-shrink: 0; }
+    .template-preview .text { flex-grow: 1; height: 80%; background-color: #ced4da; }
+    .template-preview.layout-qr-top { flex-direction: column; }
+    .template-preview.layout-compact .text { height: 40%; }
+    .template-option span { font-weight: 500; font-size: 0.9rem; }
+</style>
+<?php $head_styles = ob_get_clean(); ?>
+
 <div class="container">
     <section>
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Options d'Impression</h1>
         </div>
-
         <form action="index.php?action=generatePrint" method="POST" target="_blank" class="print-options-form">
-            <div class="row">
-                <div class="col-lg-8">
+            <div class="row g-4">
+                <div class="col-lg-7">
                     <div class="card">
-                        <div class="card-header">
-                            <span class="step-number">1</span> Sélectionner les univers
-                        </div>
+                        <div class="card-header"><span class="step-number">1</span> Sélectionner les univers</div>
                         <div class="card-body">
                             <div class="d-flex gap-2 mb-3">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="select-all">Tout sélectionner</button>
@@ -36,9 +71,7 @@
                     </div>
 
                     <div class="card">
-                        <div class="card-header">
-                             <span class="step-number">2</span> Choisir les informations à inclure
-                        </div>
+                        <div class="card-header"><span class="step-number">2</span> Choisir les informations à inclure</div>
                         <div class="card-body field-selection">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="fields[]" value="qrcode" id="field_qrcode" checked>
@@ -64,54 +97,45 @@
                     </div>
                 </div>
 
-                <div class="col-lg-4">
+                <div class="col-lg-5">
                     <div class="card">
-                        <div class="card-header">
-                            <span class="step-number">3</span> Mise en page
-                        </div>
+                        <div class="card-header"><span class="step-number">3</span> Choisir la disposition</div>
                         <div class="card-body">
-                             <div class="mb-3">
-                                <label for="print_title" class="form-label">Titre de la page (optionnel)</label>
-                                <input type="text" id="print_title" name="print_title" class="form-control" placeholder="Ex: Inventaire Septembre 2025">
-                            </div>
-                             <div class="mb-3">
-                                <label for="copies" class="form-label">Copies par étiquette</label>
-                                <input type="number" id="copies" name="copies" class="form-control" value="1" min="1" max="100">
-                            </div>
-                            <div class="mb-3">
-                                <label for="layout_format" class="form-label">Format des étiquettes</label>
-                                <select name="layout_format" id="layout_format" class="form-select">
-                                    <option value="medium_2x4">Format moyen (8 par page)</option>
-                                    <option value="large_2x2">Grand format (4 par page)</option>
-                                    <option value="small_3x7">Petit format (21 par page)</option>
-                                </select>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="show_date" value="1" id="show_date" checked>
-                                <label class="form-check-label" for="show_date">
-                                    Afficher la date de génération
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="card sticky-top" style="top: calc(var(--navbar-height) + 1rem);">
-                        <div class="card-header"><i class="bi bi-eye-fill"></i> Aperçu en direct</div>
-                        <div class="card-body">
-                            <div id="preview-box">
-                                <div id="label-preview-container" class="print-item">
-                                    <div class="print-qr-code" id="preview-qrcode"></div>
-                                    <div class="print-details">
-                                        <div class="print-code" id="preview-code-geo">ZV-A01-R2-N3</div>
-                                        <div class="print-libelle" id="preview-libelle">Exemple de Libellé</div>
-                                        <div class="print-univers" id="preview-univers"><strong>Univers :</strong> High-Tech</div>
-                                        <div class="print-comment" id="preview-commentaire"><strong>Note :</strong> Fragile</div>
-                                    </div>
+                            <div class="template-choices">
+                                <div class="template-option">
+                                    <input type="radio" name="template" value="qr-left" id="template-qr-left" checked>
+                                    <label for="template-qr-left">
+                                        <div class="template-preview layout-qr-left"><div class="qr"></div><div class="text"></div></div>
+                                        <span>Classique</span>
+                                    </label>
+                                </div>
+                                <div class="template-option">
+                                    <input type="radio" name="template" value="qr-top" id="template-qr-top">
+                                    <label for="template-qr-top">
+                                        <div class="template-preview layout-qr-top"><div class="qr"></div><div class="text"></div></div>
+                                        <span>Vertical</span>
+                                    </label>
+                                </div>
+                                <div class="template-option">
+                                    <input type="radio" name="template" value="compact" id="template-compact">
+                                    <label for="template-compact">
+                                        <div class="template-preview layout-compact"><div class="qr"></div><div class="text"></div></div>
+                                        <span>Compact</span>
+                                    </label>
                                 </div>
                             </div>
+                            <hr>
+                            <div class="mb-3">
+                                <label for="print_title" class="form-label">Titre de la page (optionnel)</label>
+                                <input type="text" id="print_title" name="print_title" class="form-control" placeholder="Ex: Inventaire 2025">
+                            </div>
+                            <div class="mb-3">
+                                <label for="copies" class="form-label">Copies par étiquette</label>
+                                <input type="number" id="copies" name="copies" class="form-control" value="1" min="1">
+                            </div>
                         </div>
                     </div>
-                    </div>
+                </div>
             </div>
             
             <div class="form-actions">
@@ -125,24 +149,22 @@
 
 <?php ob_start(); ?>
 <script>
-    // Script pour "Tout sélectionner" / "Tout désélectionner"
     document.addEventListener('DOMContentLoaded', () => {
         const selectAllBtn = document.getElementById('select-all');
         const deselectAllBtn = document.getElementById('deselect-all');
         const universCheckboxes = document.querySelectorAll('.univers-selection input[type="checkbox"]');
 
-        if (selectAllBtn) {
+        if(selectAllBtn) {
             selectAllBtn.addEventListener('click', () => {
                 universCheckboxes.forEach(cb => cb.checked = true);
             });
         }
         
-        if (deselectAllBtn) {
+        if(deselectAllBtn) {
             deselectAllBtn.addEventListener('click', () => {
                 universCheckboxes.forEach(cb => cb.checked = false);
             });
         }
     });
 </script>
-<script src="js/print-options.js"></script>
 <?php $body_scripts = ob_get_clean(); ?>
