@@ -5,6 +5,11 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 session_start();
 
+// --- MODIFICATION IMPORTANTE ---
+// On inclut l'autoloader de Composer qui charge toutes les bibliothèques.
+require_once __DIR__ . '/../vendor/autoload.php';
+
+
 // Connexion à la base de données
 $dbConfig = require_once '../config/database.php';
 $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset={$dbConfig['charset']}";
@@ -30,7 +35,7 @@ $universController = new UniversController($db);
 // La page par défaut est maintenant 'dashboard'
 $action = $_GET['action'] ?? 'dashboard';
 
-// Routage
+// Routage (le switch...case reste inchangé)
 switch ($action) {
     // Dashboard
     case 'dashboard': $dashboardController->indexAction(); break;
@@ -72,7 +77,7 @@ switch ($action) {
     case 'deleteUnivers': $universController->deleteAction(); break;
     case 'updateUniversZone': $universController->updateZoneAction(); break;
 
-    // Action par défaut (si l'action n'est pas reconnue, retourne au dashboard)
+    // Action par défaut
     default:
         $dashboardController->indexAction();
         break;
