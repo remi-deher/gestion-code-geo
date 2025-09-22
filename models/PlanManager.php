@@ -109,9 +109,13 @@ class PlanManager {
         if (empty($positions)) return true;
         $this->db->beginTransaction();
         try {
+            // CORRECTION : S'assure que plan_id est aussi mis à jour
             $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y) 
                     VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y)
-                    ON DUPLICATE KEY UPDATE pos_x = VALUES(pos_x), pos_y = VALUES(pos_y)";
+                    ON DUPLICATE KEY UPDATE 
+                        plan_id = VALUES(plan_id), 
+                        pos_x = VALUES(pos_x), 
+                        pos_y = VALUES(pos_y)";
             $stmt = $this->db->prepare($sql);
             foreach ($positions as $pos) {
                 $stmt->execute([

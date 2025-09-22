@@ -33,7 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let panzoomInstance = null;
     let lastClickTime = 0;
     let draggedItemFromSidebar = null;
-    let allCodesData = []; // Variable unique pour stocker tous les codes (placés et non placés)
+    // CORRECTION : `allCodesData` devient la seule source de vérité, initialisée avec les codes de la page.
+    let allCodesData = [...placedGeoCodes]; 
 
     // --- INITIALISATION ---
     panzoomInstance = Panzoom(zoomWrapper, {
@@ -70,16 +71,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- FONCTIONS DE MISE À JOUR DU DOM ---
     async function updateDisplayForPlan(planId) {
         currentPlanId = planId;
-        unplacedList.innerHTML = '';
-        zoomWrapper.querySelectorAll('.geo-tag').forEach(tag => tag.remove());
-        panzoomInstance.reset();
         clearSelection();
 
         if (!planId) {
             mapImage.style.display = 'none';
             printBtn.disabled = true;
-            unplacedList.innerHTML = '<p class="text-muted small">Veuillez sélectionner un plan pour voir les codes disponibles.</p>';
-            applyFilters();
+            // On ne met pas à jour la liste des codes si aucun plan n'est sélectionné
+            redrawAllElements();
             return;
         }
 
@@ -88,30 +86,72 @@ document.addEventListener('DOMContentLoaded', () => {
         mapImage.style.display = 'block';
         printBtn.disabled = false;
         
-        // On charge les codes non placés pour ce plan
+        // On charge les codes non placés pour ce plan et on met à jour notre source de vérité
         const unplacedCodes = await fetchAvailableCodes(planId);
-        // On combine avec les codes déjà placés (passés par PHP)
-        allCodesData = [...placedGeoCodes, ...unplacedCodes];
-        
-        // On affiche les étiquettes déjà placées sur ce plan
-        placedGeoCodes.forEach(code => {
-            if (code.plan_id == planId) {
+        // On fusionne les listes : les codes déjà placés + les nouveaux codes non placés
+        const placedIds = new Set(allCodesData.filter(c => c.plan_id).map(c => c.id));
+        unplacedCodes.forEach(code => {
+            if (!placedIds.has(code.id)) {
+                const existingIndex = allCodesData.findIndex(c => c.id === code.id);
+                if (existingIndex > -1) {
+                    allCodesData[existingIndex] = { ...allCodesData[existingIndex], ...code, plan_id: null, pos_x: null, pos_y: null };
+                } else {
+                    allCodesData.push(code);
+                }
+            }
+        });
+
+        redrawAllElements();
+    }
+
+    function redrawAllElements() {
+        unplacedList.innerHTML = '';
+        zoomWrapper.querySelectorAll('.geo-tag').forEach(tag => tag.remove());
+        panzoomInstance.reset();
+
+        if (!currentPlanId) {
+            unplacedList.innerHTML = '<p class="text-muted small">Veuillez sélectionner un plan pour commencer.</p>';
+            applyFilters();
+            return;
+        }
+
+        const unplacedForThisPlan = allCodesData.filter(code => {
+            const isPlacedOnThisPlan = code.plan_id == currentPlanId;
+            // Un code est "à placer" s'il n'est placé sur aucun plan ET s'il correspond au plan actuel via son univers/zone
+            const isAvailable = document.querySelector(`.unplaced-item[data-id="${code.id}"]`) !== null;
+            return !isPlacedOnThisPlan && isAvailable;
+        });
+
+        let hasUnplaced = false;
+        allCodesData.forEach(code => {
+            if (code.plan_id == currentPlanId) {
                 const tag = createPlacedTag(code);
                 tag.style.left = `${code.pos_x}%`;
                 tag.style.top = `${code.pos_y}%`;
                 zoomWrapper.appendChild(tag);
+            } else {
+                 const isUnplaced = !code.plan_id;
+                 if(isUnplaced) {
+                     // Pour éviter de ré-afficher des codes d'autres plans, on vérifie si un élément correspondant existe dans les données initiales
+                     const initialUnplaced = document.querySelector(`.unplaced-item[data-id="${code.id}"]`);
+                     if(initialUnplaced) {
+                        unplacedList.appendChild(createUnplacedItem(code));
+                        hasUnplaced = true;
+                     }
+                 }
             }
         });
         
-        // On remplit la liste des codes à placer
-        if(unplacedCodes.length === 0){
-             unplacedList.innerHTML = '<p class="text-muted small">Aucun code disponible pour ce plan.</p>';
-        } else {
-            unplacedCodes.forEach(code => {
-                unplacedList.appendChild(createUnplacedItem(code));
-            });
-        }
-        
+        fetchAvailableCodes(currentPlanId).then(codes => {
+            unplacedList.innerHTML = ''; // On vide avant de remplir
+            if (codes.length === 0) {
+                unplacedList.innerHTML = '<p class="text-muted small">Aucun code disponible pour ce plan.</p>';
+            } else {
+                codes.forEach(code => unplacedList.appendChild(createUnplacedItem(code)));
+            }
+            applyFilters();
+        });
+
         applyFilters();
     }
 
@@ -120,7 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let unplacedVisibleCount = 0;
         document.querySelectorAll('#unplaced-list .unplaced-item').forEach(item => {
-            const searchMatch = item.dataset.code.toLowerCase().includes(searchTerm);
+            const searchData = `${item.dataset.code} ${item.dataset.libelle}`.toLowerCase();
+            const searchMatch = searchData.includes(searchTerm);
             if (searchMatch) {
                 item.style.display = 'block';
                 unplacedVisibleCount++;
@@ -130,7 +171,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.querySelectorAll('#zoom-wrapper .geo-tag').forEach(tag => {
-            const searchMatch = tag.dataset.code.toLowerCase().includes(searchTerm);
+            const searchData = `${tag.dataset.code} ${tag.dataset.libelle}`.toLowerCase();
+            const searchMatch = searchData.includes(searchTerm);
             tag.style.display = searchMatch ? 'flex' : 'none';
         });
 
@@ -173,8 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedTags.forEach(tag => {
                 const startPos = dragStartPositions.get(tag);
                 if (startPos) {
-                    tag.style.left = `${startPos.x + dx}%`;
-                    tag.style.top = `${startPos.y + dy}%`;
+                    tag.style.left = `${Math.max(0, Math.min(100, startPos.x + dx))}%`;
+                    tag.style.top = `${Math.max(0, Math.min(100, startPos.y + dy))}%`;
                 }
             });
         } else if (isSelecting) {
@@ -185,17 +227,24 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleMouseUp(e) {
         const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
         if (isDragging) {
-            if (dist > 5) {
+            if (dist > 5) { // C'est un glissement, pas un clic
                 const positionsToSave = Array.from(selectedTags).map(tag => {
-                    const newPosition = { id: parseInt(tag.dataset.id), x: parseFloat(tag.style.left), y: parseFloat(tag.style.top) };
-                    const code = allCodesData.find(c => c.id == tag.dataset.id);
-                    if (code) { code.pos_x = newPosition.x; code.pos_y = newPosition.y; }
-                    return newPosition;
+                    return { id: parseInt(tag.dataset.id), x: parseFloat(tag.style.left), y: parseFloat(tag.style.top) };
                 });
+                
                 if (await saveMultiplePositionsAPI(positionsToSave)) {
+                    // CORRECTION : Mettre à jour la source de vérité locale
+                    positionsToSave.forEach(pos => {
+                        const code = allCodesData.find(c => c.id == pos.id);
+                        if(code) {
+                            code.pos_x = pos.x;
+                            code.pos_y = pos.y;
+                            code.plan_id = currentPlanId;
+                        }
+                    });
                     flashTags(selectedTags, 'saved');
                 }
-            } else {
+            } else { // C'est un clic
                 handleTagClick(e);
             }
         } else if (isSelecting) {
@@ -219,10 +268,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             if (!e.ctrlKey && !e.metaKey) {
                 clearSelection();
-                toggleTagSelection(clickedTag);
-            } else {
-                toggleTagSelection(clickedTag);
             }
+            toggleTagSelection(clickedTag);
         }
         lastClickTime = currentTime;
     }
@@ -246,19 +293,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const y = (e.clientY - zoomRect.top - pan.y) / (zoomRect.height * scale) * 100;
         
         if (await saveMultiplePositionsAPI([{ id: parseInt(codeId), x: x, y: y }])) {
+            // CORRECTION : Mettre à jour la source de vérité et redessiner
             const codeData = allCodesData.find(c => c.id == codeId);
             if (codeData) {
                 codeData.pos_x = x;
                 codeData.pos_y = y;
                 codeData.plan_id = currentPlanId;
-                const newTag = createPlacedTag(codeData);
-                newTag.style.left = `${x}%`;
-                newTag.style.top = `${y}%`;
-                zoomWrapper.appendChild(newTag);
-                draggedItemFromSidebar.remove();
-                applyFilters();
-                flashTags(new Set([newTag]), 'saved');
             }
+            await updateDisplayForPlan(currentPlanId);
         }
         draggedItemFromSidebar = null;
     }
@@ -282,10 +324,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tag.dataset.id = code.id;
         tag.dataset.univers = code.univers;
         tag.dataset.code = code.code_geo;
-        tag.dataset.isPlaced = 'true';
+        tag.dataset.libelle = code.libelle;
         tag.style.setProperty('--tag-bg-color', universColors[code.univers] || '#7f8c8d');
         tag.style.backgroundColor = 'var(--tag-bg-color)';
-        tag.style.color = isColorDark(tag.style.backgroundColor) ? '#FFFFFF' : '#333333';
         const tooltip = document.createElement('span');
         tooltip.className = 'tag-tooltip';
         tooltip.textContent = `${code.libelle} (${code.univers})`;
@@ -299,6 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
         item.dataset.id = code.id;
         item.dataset.univers = code.univers;
         item.dataset.code = code.code_geo;
+        item.dataset.libelle = code.libelle;
         item.draggable = true;
         item.innerHTML = `<span class="item-code" style="color: ${universColors[code.univers] || '#7f8c8d'}">${code.code_geo}</span><span class="item-libelle">${code.libelle}</span>`;
         return item;
@@ -322,8 +364,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- FONCTIONS DE SÉLECTION ---
     function toggleTagSelection(tag) {
-        tag.classList.toggle('selected');
-        selectedTags[selectedTags.has(tag) ? 'delete' : 'add'](tag);
+        if (tag.classList.contains('selected')) {
+            tag.classList.remove('selected');
+            selectedTags.delete(tag);
+        } else {
+            tag.classList.add('selected');
+            selectedTags.add(tag);
+        }
     }
     function clearSelection() {
         selectedTags.forEach(tag => tag.classList.remove('selected'));
@@ -353,12 +400,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- FONCTIONS API & UTILITAIRES ---
-    function isColorDark(hexColor) {
-        if (!hexColor || !hexColor.startsWith('#')) return false;
-        const rgb = parseInt(hexColor.substring(1), 16);
-        const [r, g, b] = [(rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff];
-        return (r * 299 + g * 587 + b * 114) / 1000 < 128;
-    }
     function flashTags(tags, className) {
         tags.forEach(tag => {
             tag.classList.remove(className);
@@ -368,6 +409,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     async function unplacePosition(codeId) {
+        if (await removePositionAPI(codeId)) {
+            const code = allCodesData.find(c => c.id == codeId);
+            if (code) {
+                code.plan_id = null; 
+                code.pos_x = null; 
+                code.pos_y = null;
+            }
+            await updateDisplayForPlan(currentPlanId);
+        }
+    }
+    async function removePositionAPI(codeId) {
         try {
             const response = await fetch(`index.php?action=removePosition`, {
                 method: 'POST',
@@ -375,18 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ id: parseInt(codeId) })
             });
             if (!response.ok) return false;
-            const result = await response.json();
-            if (result.status === 'success') {
-                const code = allCodesData.find(c => c.id == codeId);
-                if (code) {
-                    code.plan_id = null; code.pos_x = null; code.pos_y = null;
-                    const tagElement = zoomWrapper.querySelector(`.geo-tag[data-id="${codeId}"]`);
-                    if (tagElement) tagElement.remove();
-                    unplacedList.appendChild(createUnplacedItem(code));
-                    applyFilters();
-                }
-                return true;
-            }
+            return (await response.json()).status === 'success';
         } catch (error) { console.error('Erreur:', error); }
         return false;
     }
