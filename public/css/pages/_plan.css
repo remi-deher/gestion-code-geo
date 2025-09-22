@@ -63,9 +63,6 @@
 .geo-tag {
     position: absolute;
     color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.9rem;
     font-weight: bold;
     cursor: grab;
     user-select: none;
@@ -76,7 +73,7 @@
     align-items: center;
     justify-content: center;
     border: 2px solid transparent;
-    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+    transition: all 0.2s ease-in-out;
 }
 
 .geo-tag:active {
@@ -98,6 +95,25 @@
 .geo-tag.saved {
     animation: flash-success 1s ease-out;
 }
+
+/* --- NOUVEAU : GESTION DE LA TAILLE DES ÉTIQUETTES --- */
+#zoom-wrapper.tag-size-medium .geo-tag {
+    font-size: 0.9rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+#zoom-wrapper.tag-size-small .geo-tag {
+    font-size: 0.7rem;
+    padding: 2px 5px;
+    border-radius: 3px;
+    border-width: 1px;
+}
+#zoom-wrapper.tag-size-large .geo-tag {
+    font-size: 1.1rem;
+    padding: 6px 12px;
+    border-radius: 5px;
+}
+
 
 /* --- Rectangle de sélection --- */
 #selection-box {

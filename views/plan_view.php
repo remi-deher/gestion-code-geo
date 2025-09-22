@@ -84,6 +84,15 @@
                 </select>
             </div>
             <button id="print-plan-btn" class="btn btn-secondary" disabled><i class="bi bi-printer-fill"></i> Imprimer le plan</button>
+            
+            <div class="form-group ms-auto">
+                <label class="form-label d-block mb-1 small">Taille étiquettes</label>
+                <div class="btn-group btn-group-sm" role="group" id="tag-size-selector">
+                    <button type="button" class="btn btn-outline-secondary" data-size="small" title="Petite">S</button>
+                    <button type="button" class="btn btn-outline-secondary active" data-size="medium" title="Moyenne">M</button>
+                    <button type="button" class="btn btn-outline-secondary" data-size="large" title="Grande">L</button>
+                </div>
+            </div>
         </div>
         <div id="plan-container">
             <div id="zoom-wrapper">
