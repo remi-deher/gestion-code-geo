@@ -89,7 +89,7 @@
             <div id="zoom-wrapper">
                 <img src="" alt="Plan du magasin" id="map-image" style="display: none;">
             </div>
-            <div id="plan-placeholder"><p>Veuillez sélectionner un plan pour commencer.</p></div>
+            <div id="plan-placeholder" class="no-print"><p>Veuillez sélectionner un plan pour commencer.</p></div>
         </div>
         <div id="zoom-controls" class="no-print">
             <button id="zoom-in-btn" class="btn btn-light" title="Zoomer">+</button>
