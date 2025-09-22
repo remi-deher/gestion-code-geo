@@ -1,0 +1,96 @@
+/* public/css/components/_list-view.css */
+
+.geo-list-container {
+    background-color: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.geo-list-header {
+    display: none; /* Masqué par défaut, visible sur grand écran */
+    font-weight: bold;
+    background-color: var(--light-gray);
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.geo-list-item {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+}
+
+.geo-list-item:last-child {
+    border-bottom: none;
+}
+
+.geo-list-item:hover {
+    background-color: #f8f9fa;
+}
+
+.item-main-info, .item-details, .item-actions {
+    margin-top: 0.5rem;
+}
+
+.item-main-info .info-code {
+    font-family: var(--monospace-font);
+    font-size: 1.1rem;
+    color: var(--primary-color);
+}
+
+.item-main-info .info-libelle {
+    color: #6c757d;
+}
+
+.item-details {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.info-univers {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.univers-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.item-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+/* Styles pour écrans larges (Desktop) */
+@media (min-width: 992px) {
+    .geo-list-header, .geo-list-item {
+        display: grid;
+        grid-template-columns: 50px 2fr 1.5fr 120px;
+        gap: 1rem;
+        align-items: center;
+        flex-direction: row;
+        padding: 0.75rem 1rem;
+    }
+
+    .item-main-info, .item-details, .item-actions {
+        margin-top: 0;
+    }
+
+    .item-main-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .item-actions {
+        justify-content: flex-end;
+    }
+}
