@@ -1,101 +1,21 @@
 <?php $title = 'Options d\'Impression des Étiquettes'; ?>
 
 <?php ob_start(); ?>
-<style>
-    .print-options-form .card {
-        margin-bottom: 1.5rem;
-        border: none;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-    .print-options-form .card-header {
-        font-size: 1.1rem;
-        font-weight: 500;
-        background-color: transparent;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    .print-options-form .step-number {
-        background-color: var(--primary-color);
-        color: white;
-        border-radius: 50%;
-        width: 28px;
-        height: 28px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-    }
-    .print-options-form .univers-selection,
-    .print-options-form .field-selection {
-        max-height: 250px;
-        overflow-y: auto;
-        border: 1px solid var(--border-color);
-        padding: 1rem;
-        border-radius: 0.375rem;
-        background-color: #f8f9fa;
-    }
-    .print-options-form .form-actions {
-        position: sticky;
-        bottom: 0;
-        background: white;
-        padding: 1.5rem;
-        border-top: 1px solid var(--border-color);
-        box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
-        display: flex;
-        justify-content: flex-end;
-        margin: 2rem -2rem -2rem -2rem;
-        border-radius: 0 0 8px 8px;
-    }
-    .print-options-form .btn-generate {
-        font-size: 1.1rem;
-        padding: 0.75rem 1.5rem;
-    }
-    .template-choices { display: flex; flex-wrap: wrap; gap: 1rem; }
-    .template-option input[type="radio"] { display: none; }
-    .template-option label {
-        display: block;
-        padding: 0.5rem;
-        border: 2px solid var(--border-color);
-        border-radius: 8px;
-        cursor: pointer;
-        text-align: center;
-        transition: all 0.2s ease-in-out;
-    }
-    .template-option input[type="radio"]:checked + label {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
-        background-color: #e9f4ff;
-    }
-    .template-preview {
-        height: 80px;
-        width: 140px;
-        background-color: #f8f9fa;
-        border: 1px dashed #ccc;
-        margin-bottom: 0.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        padding: 8px;
-    }
-    .template-preview .qr { width: 40px; height: 40px; background-color: #adb5bd; flex-shrink: 0; }
-    .template-preview .text { flex-grow: 1; height: 80%; background-color: #ced4da; }
-    .template-preview.layout-qr-top { flex-direction: column; }
-    .template-preview.layout-compact .text { height: 40%; }
-    .template-option span { font-weight: 500; font-size: 0.9rem; }
-</style>
-<?php $head_styles = ob_get_clean(); ?>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="js/print-options.js"></script>
+<?php $body_scripts = ob_get_clean(); ?>
+
 
 <div class="container">
     <section>
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Options d'Impression</h1>
         </div>
-        <form action="index.php?action=generatePrint" method="POST" target="_blank" class="print-options-form">
+        <form action="index.php?action=generatePdf" method="POST" target="_blank" class="print-options-form">
             <div class="row g-4">
                 <div class="col-lg-7">
-                    <div class="card">
+                    
+                    <div class="card mb-4">
                         <div class="card-header"><span class="step-number">1</span> Sélectionner les univers</div>
                         <div class="card-body">
                             <div class="d-flex gap-2 mb-3">
@@ -144,34 +64,36 @@
                             </div>
                         </div>
                     </div>
+
                 </div>
 
                 <div class="col-lg-5">
-                    <div class="card">
-                        <div class="card-header"><span class="step-number">3</span> Choisir la disposition</div>
+                    <div class="card sticky-top" style="top: calc(var(--navbar-height) + 1rem);">
+                        <div class="card-header"><span class="step-number">3</span> Choisir la disposition et l'aperçu</div>
                         <div class="card-body">
-                            <div class="template-choices">
-                                <div class="template-option">
-                                    <input type="radio" name="template" value="qr-left" id="template-qr-left" checked>
-                                    <label for="template-qr-left">
-                                        <div class="template-preview layout-qr-left"><div class="qr"></div><div class="text"></div></div>
-                                        <span>Classique</span>
-                                    </label>
+                            
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Aperçu de l'étiquette :</label>
+                                <div id="preview-box">
+                                    <div class="print-item" id="label-preview-container">
+                                        <div class="print-qr-code" id="preview-qrcode"></div>
+                                        <div class="print-details" id="preview-details">
+                                            <div id="preview-code-geo" class="print-code">ZV-A01-R2-N3</div>
+                                            <div id="preview-libelle" class="print-libelle">Exemple de Libellé</div>
+                                            <div id="preview-univers" class="print-univers" style="display: none;"><strong>Univers :</strong> High-Tech</div>
+                                            <div id="preview-commentaire" class="print-comment" style="display: none;"><strong>Note :</strong> Fragile</div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="template-option">
-                                    <input type="radio" name="template" value="qr-top" id="template-qr-top">
-                                    <label for="template-qr-top">
-                                        <div class="template-preview layout-qr-top"><div class="qr"></div><div class="text"></div></div>
-                                        <span>Vertical</span>
-                                    </label>
-                                </div>
-                                <div class="template-option">
-                                    <input type="radio" name="template" value="compact" id="template-compact">
-                                    <label for="template-compact">
-                                        <div class="template-preview layout-compact"><div class="qr"></div><div class="text"></div></div>
-                                        <span>Compact</span>
-                                    </label>
-                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Format de l'étiquette :</label>
+                                 <select name="template" id="layout_format" class="form-select">
+                                    <option value="qr-left">Classique (85mm x 40mm)</option>
+                                    <option value="qr-top">Verticale (60mm x 55mm)</option>
+                                    <option value="compact">Compacte (85mm x 25mm)</option>
+                                </select>
                             </div>
                             <hr>
                             <div class="mb-3">
@@ -189,7 +111,7 @@
             
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-generate">
-                    <i class="bi bi-printer-fill"></i> Générer les étiquettes
+                    <i class="bi bi-file-earmark-pdf-fill"></i> Générer le PDF
                 </button>
             </div>
         </form>
@@ -216,4 +138,4 @@
         }
     });
 </script>
-<?php $body_scripts = ob_get_clean(); ?>
+<?php $body_scripts .= ob_get_clean(); ?>

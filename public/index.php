@@ -51,6 +51,8 @@ switch ($action) {
     case 'handleImport': $geoCodeController->handleImportAction(); break;
     case 'printLabels': $geoCodeController->showPrintOptionsAction(); break;
     case 'generatePrint': $geoCodeController->generatePrintPageAction(); break;
+    case 'printSingle': $geoCodeController->printSingleLabelAction(); break; 
+    case 'generatePdf': $geoCodeController->generatePdfAction(); break; 
 
     // Plans
     case 'plan': $planController->planAction(); break;
@@ -60,8 +62,8 @@ switch ($action) {
     case 'listPlans': $planController->listPlansAction(); break;
     case 'addPlan': $planController->addPlanAction(); break;
     case 'deletePlan': $planController->deletePlanAction(); break;
-    case 'editPlan': $planController->editPlanAction(); break; // ROUTE CORRIGÉE
-    case 'updatePlan': $planController->updatePlanAction(); break; // ROUTE CORRIGÉE
+    case 'editPlan': $planController->editPlanAction(); break; 
+    case 'updatePlan': $planController->updatePlanAction(); break; 
     case 'getAvailableCodesForPlan': $planController->getAvailableCodesForPlanAction(); break;
 
     // Univers

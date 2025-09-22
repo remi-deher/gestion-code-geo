@@ -75,6 +75,7 @@
                         <div class="geo-card-actions d-grid gap-2">
                             <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil-fill"></i><span class="btn-text"> Modifier</span></a>
                             <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Êtes-vous sûr ?');"><i class="bi bi-trash-fill"></i><span class="btn-text"> Supprimer</span></a>
+                            <a href="index.php?action=printSingle&id=<?= $code['id'] ?>" target="_blank" class="btn btn-sm btn-secondary"><i class="bi bi-printer-fill"></i><span class="btn-text"> Imprimer</span></a>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -106,6 +107,7 @@
                                 <td><?= htmlspecialchars($code['zone']) ?></td>
                                 <td class="item-actions no-print text-center">
                                     <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-warning" title="Modifier"><i class="bi bi-pencil-fill"></i></a>
+                                    <a href="index.php?action=printSingle&id=<?= $code['id'] ?>" target="_blank" class="btn btn-secondary" title="Imprimer"><i class="bi bi-printer-fill"></i></a>
                                     <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn btn-danger" title="Supprimer" onclick="return confirm('Êtes-vous sûr ?');"><i class="bi bi-trash-fill"></i></a>
                                 </td>
                             </tr>
