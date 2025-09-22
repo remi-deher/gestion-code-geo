@@ -11,20 +11,24 @@
             </button>
             <div class="d-none d-lg-block">
                 <div class="filter-section">
-                    <strong>Univers :</strong>
-                    <div id="filtres-univers" class="filter-pills d-flex flex-wrap align-items-center gap-2 mt-2">
-                        <span class="badge filter-pill active" data-filter="all">Tout voir</span>
-                        <?php if (!empty($univers)): foreach ($univers as $u): ?>
-                            <span class="badge filter-pill active" data-filter="<?= htmlspecialchars($u['nom']) ?>"><?= htmlspecialchars($u['nom']) ?></span>
-                        <?php endforeach; endif; ?>
-                    </div>
-                </div>
-                <div class="filter-section mt-3">
                     <strong>Zone :</strong>
                     <div class="zone-tabs d-flex flex-wrap align-items-center gap-2 mt-2">
                         <button class="zone-tab active" data-zone="all">Toutes</button>
                         <button class="zone-tab" data-zone="vente">Vente</button>
                         <button class="zone-tab" data-zone="reserve">Réserve</button>
+                    </div>
+                </div>
+                <div class="filter-section mt-3">
+                    <strong>Univers :</strong>
+                    <div id="filtres-univers" class="filter-pills d-flex flex-wrap align-items-center gap-2 mt-2">
+                        <span class="badge filter-pill active" data-filter="all">Tout voir</span>
+                        <?php if (!empty($univers)): foreach ($univers as $u): ?>
+                            <span class="badge filter-pill active" 
+                                  data-filter="<?= htmlspecialchars($u['nom']) ?>" 
+                                  data-zone="<?= htmlspecialchars($u['zone_assignee']) ?>">
+                                <?= htmlspecialchars($u['nom']) ?>
+                            </span>
+                        <?php endforeach; endif; ?>
                     </div>
                 </div>
             </div>
@@ -119,18 +123,22 @@
         <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body">
-        <h5>Univers</h5>
-        <div id="filtres-univers-mobile" class="filter-pills d-flex flex-wrap align-items-center gap-2 mb-4">
-             <span class="badge filter-pill active" data-filter="all">Tout voir</span>
-            <?php if (!empty($univers)): foreach ($univers as $u): ?>
-                <span class="badge filter-pill active" data-filter="<?= htmlspecialchars($u['nom']) ?>"><?= htmlspecialchars($u['nom']) ?></span>
-            <?php endforeach; endif; ?>
-        </div>
         <h5>Zone</h5>
-        <div class="zone-tabs-mobile btn-group w-100" role="group">
+        <div class="zone-tabs-mobile btn-group w-100 mb-4" role="group">
             <button type="button" class="btn btn-outline-secondary active" data-zone="all">Toutes</button>
             <button type="button" class="btn btn-outline-secondary" data-zone="vente">Vente</button>
             <button type="button" class="btn btn-outline-secondary" data-zone="reserve">Réserve</button>
+        </div>
+        <h5>Univers</h5>
+        <div id="filtres-univers-mobile" class="filter-pills d-flex flex-wrap align-items-center gap-2">
+             <span class="badge filter-pill active" data-filter="all">Tout voir</span>
+            <?php if (!empty($univers)): foreach ($univers as $u): ?>
+                <span class="badge filter-pill active" 
+                      data-filter="<?= htmlspecialchars($u['nom']) ?>"
+                      data-zone="<?= htmlspecialchars($u['zone_assignee']) ?>">
+                    <?= htmlspecialchars($u['nom']) ?>
+                </span>
+            <?php endforeach; endif; ?>
         </div>
     </div>
 </div>

@@ -34,6 +34,35 @@ document.addEventListener('DOMContentLoaded', () => {
     allFilterPills.forEach(pill => pill.addEventListener('click', handlePillClick));
     allZoneTabs.forEach(tab => tab.addEventListener('click', handleZoneClick));
 
+    // --- NOUVELLE FONCTION ---
+    /**
+     * Met à jour la visibilité des filtres "univers" en fonction de la zone sélectionnée.
+     */
+    function updateUniversFiltersVisibility() {
+        const activeZone = document.querySelector('.zone-tab.active')?.dataset.zone || 'all';
+        const universPills = document.querySelectorAll('.filter-pill[data-zone]');
+
+        universPills.forEach(pill => {
+            const pillZone = pill.dataset.zone;
+            if (activeZone === 'all' || pillZone === activeZone) {
+                pill.style.display = ''; // Affiche la pilule
+            } else {
+                pill.style.display = 'none'; // Masque la pilule
+                // Si la pilule masquée était active, on la désactive
+                pill.classList.remove('active');
+            }
+        });
+
+        // S'assure que la pilule "Tout voir" est active si aucune autre ne l'est
+        document.querySelectorAll('#filtres-univers, #filtres-univers-mobile').forEach(container => {
+            const activeVisiblePills = container.querySelectorAll('.filter-pill.active[data-zone]:not([style*="display: none"])').length;
+            const toutVoirPill = container.querySelector('.filter-pill[data-filter="all"]');
+            if (toutVoirPill) {
+                toutVoirPill.classList.toggle('active', activeVisiblePills === 0);
+            }
+        });
+    }
+
     // --- LOGIQUE DES ÉVÉNEMENTS ---
 
     function switchView(view) {
@@ -53,27 +82,43 @@ document.addEventListener('DOMContentLoaded', () => {
     function handlePillClick(e) {
         const clickedPill = e.currentTarget;
         const filterValue = clickedPill.dataset.filter;
-        const isActivating = !clickedPill.classList.contains('active');
-
-        // Gère la logique de la pilule "Tout voir"
+        
         if (filterValue === 'all') {
-            allFilterPills.forEach(p => p.classList.toggle('active', isActivating));
+            // Si on clique sur "Tout voir", on désactive les autres pilules de la même zone
+            const activeZone = document.querySelector('.zone-tab.active')?.dataset.zone || 'all';
+            document.querySelectorAll('.filter-pill[data-zone]').forEach(p => {
+                 if (activeZone === 'all' || p.dataset.zone === activeZone) {
+                    p.classList.remove('active');
+                }
+            });
+            clickedPill.classList.add('active');
         } else {
-            // Synchronise la pilule cliquée sur les deux vues (desktop et mobile)
-            document.querySelectorAll(`.filter-pill[data-filter="${filterValue}"]`).forEach(p => p.classList.toggle('active'));
-            
-            // Met à jour l'état de la pilule "Tout voir"
-            const activePillsCount = document.querySelectorAll('#filtres-univers .filter-pill.active:not([data-filter="all"])').length;
-            const allPillCount = document.querySelectorAll('#filtres-univers .filter-pill:not([data-filter="all"])').length;
-            document.querySelectorAll('.filter-pill[data-filter="all"]').forEach(p => p.classList.toggle('active', activePillsCount === allPillCount));
+            // Active ou désactive la pilule cliquée
+            clickedPill.classList.toggle('active');
+            // Désactive "Tout voir" si une autre pilule est active
+            const container = clickedPill.closest('.filter-pills');
+            if(container) container.querySelector('.filter-pill[data-filter="all"]')?.classList.remove('active');
         }
+
+        // Synchronise l'état entre la vue desktop et mobile
+        syncPillStates(filterValue, clickedPill.classList.contains('active'));
+        
         applyFiltersAndSort();
     }
 
+    function syncPillStates(filter, isActive) {
+        document.querySelectorAll(`.filter-pill[data-filter="${filter}"]`).forEach(p => p.classList.toggle('active', isActive));
+    }
+
+    // --- FONCTION MISE À JOUR ---
     function handleZoneClick(e) {
         const zoneValue = e.currentTarget.dataset.zone;
         allZoneTabs.forEach(t => t.classList.remove('active'));
         document.querySelectorAll(`[data-zone="${zoneValue}"]`).forEach(t => t.classList.add('active'));
+        
+        // On met à jour les filtres d'univers visibles
+        updateUniversFiltersVisibility();
+        // On applique les filtres globaux
         applyFiltersAndSort();
     }
 
@@ -84,26 +129,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
         const activeZoneEl = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active');
         const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
-        const activeUniversFilters = new Set(
-            Array.from(document.querySelectorAll('#filtres-univers .filter-pill.active:not([data-filter="all"])'))
+        
+        let activeUniversFilters = new Set(
+            Array.from(document.querySelectorAll('#filtres-univers .filter-pill.active[data-zone]'))
                  .map(p => p.dataset.filter)
         );
-        // Si "Tout voir" est actif, on ajoute tous les univers
-        if (document.querySelector('.filter-pill[data-filter="all"].active')) {
-            allGeoCards.forEach(card => activeUniversFilters.add(card.dataset.univers));
+        
+        // Si "Tout voir" est actif, on considère tous les univers de la zone visible
+        if (document.querySelector('#filtres-univers .filter-pill[data-filter="all"].active')) {
+            activeUniversFilters = new Set(
+                 Array.from(document.querySelectorAll('#filtres-univers .filter-pill[data-zone]:not([style*="display: none"])'))
+                 .map(p => p.dataset.filter)
+            );
         }
+
 
         // 2. Filtrer les éléments
         allGeoCards.forEach(card => {
             const searchMatch = (card.dataset.searchable || '').includes(searchTerm);
-            const universMatch = activeUniversFilters.has(card.dataset.univers);
+            const universMatch = activeUniversFilters.size === 0 || activeUniversFilters.has(card.dataset.univers);
             const zoneMatch = (activeZone === 'all' || card.dataset.zone === activeZone);
             card.style.display = (searchMatch && universMatch && zoneMatch) ? 'grid' : 'none';
         });
 
         allTableRows.forEach(row => {
             const searchMatch = (row.dataset.searchable || '').includes(searchTerm);
-            const universMatch = activeUniversFilters.has(row.dataset.univers);
+            const universMatch = activeUniversFilters.size === 0 || activeUniversFilters.has(row.dataset.univers);
             const zoneMatch = (activeZone === 'all' || row.dataset.zone === activeZone);
             row.style.display = (searchMatch && universMatch && zoneMatch) ? '' : 'none';
         });
