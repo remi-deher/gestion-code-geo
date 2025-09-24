@@ -82,7 +82,7 @@
             <?php endif; ?>
         </div>
 
-        <div id="table-view" style="display: none;">
+        <div id="table-view" class='d-none'>
             <table class="geo-table">
                 <thead>
                     <tr>

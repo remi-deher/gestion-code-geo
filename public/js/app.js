@@ -65,20 +65,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LOGIQUE DES ÉVÉNEMENTS ---
 
-    function switchView(view) {
-        if (view === 'card') {
-            cardView.style.display = 'flex';
-            tableView.style.display = 'none';
-            viewCardBtn.classList.add('active');
-            viewTableBtn.classList.remove('active');
-        } else {
-            cardView.style.display = 'none';
-            tableView.style.display = 'block';
-            viewCardBtn.classList.remove('active');
-            viewTableBtn.classList.add('active');
-        }
+function switchView(view) {
+    if (view === 'card') {
+        cardView.classList.remove('d-none');
+        tableView.classList.add('d-none');
+        viewCardBtn.classList.add('active');
+        viewTableBtn.classList.remove('active');
+    } else {
+        cardView.classList.add('d-none');
+        tableView.classList.remove('d-none');
+        viewCardBtn.classList.remove('active');
+        viewTableBtn.classList.add('active');
     }
-
+}
     function handlePillClick(e) {
         const clickedPill = e.currentTarget;
         const filterValue = clickedPill.dataset.filter;
