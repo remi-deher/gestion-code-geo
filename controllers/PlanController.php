@@ -43,18 +43,12 @@ class PlanController extends BaseController {
         header('Content-Type: application/json');
         $planId = (int)($_GET['id'] ?? 0);
         
-        error_log("--- PlanController : Action getAvailableCodesForPlanAction appelée pour planId = $planId ---");
-
         if ($planId <= 0) {
-            error_log("--- PlanController : ERREUR, ID de plan invalide. ---");
             echo json_encode(['error' => 'ID de plan invalide']);
             exit();
         }
 
         $availableCodes = $this->geoCodeManager->getAvailableCodesForPlan($planId);
-        
-        error_log("--- PlanController : Données reçues du Manager. Nombre de codes : " . count($availableCodes) . ". Envoi en JSON. ---");
-
         echo json_encode($availableCodes);
         exit();
     }
@@ -63,7 +57,14 @@ class PlanController extends BaseController {
         header('Content-Type: application/json');
         $input = json_decode(file_get_contents('php://input'), true);
         if (isset($input['id'], $input['plan_id'], $input['x'], $input['y'])) {
-            $success = $this->planManager->savePosition((int)$input['id'], (int)$input['plan_id'], (int)$input['x'], (int)$input['y']);
+            $success = $this->planManager->savePosition(
+                (int)$input['id'], 
+                (int)$input['plan_id'], 
+                (int)$input['x'], 
+                (int)$input['y'],
+                isset($input['width']) ? (int)$input['width'] : null,
+                isset($input['height']) ? (int)$input['height'] : null
+            );
             echo json_encode(['status' => $success ? 'success' : 'error']);
         } else {
             echo json_encode(['status' => 'error', 'message' => 'Invalid data']);

@@ -9,9 +9,6 @@ class PlanManager {
         $this->db = $db;
     }
 
-    /**
-     * MODIFIÉ : Récupère tous les plans avec leur zone et les noms des univers associés.
-     */
     public function getAllPlans() {
         $sql = "
             SELECT p.*, GROUP_CONCAT(u.nom SEPARATOR ', ') as univers_names
@@ -36,9 +33,6 @@ class PlanManager {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
     
-    /**
-     * NOUVEAU : Récupère un plan et les IDs de ses univers associés.
-     */
     public function getPlanWithUnivers(int $id): array {
         $plan = $this->getPlanById($id);
         if (!$plan) {
@@ -47,7 +41,6 @@ class PlanManager {
         
         $stmt = $this->db->prepare("SELECT univers_id FROM plan_univers WHERE plan_id = ?");
         $stmt->execute([$id]);
-        // fetchAll(PDO::FETCH_COLUMN) retourne un tableau simple [id1, id2, ...]
         $plan['univers_ids'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
         return $plan;
@@ -59,21 +52,15 @@ class PlanManager {
         return $stmt->execute([$id]);
     }
     
-    /**
-     * NOUVEAU : Met à jour le nom, la zone et les univers associés à un plan.
-     */
     public function updatePlanAssociations(int $planId, string $nom, ?string $zone, array $universIds): bool {
         $this->db->beginTransaction();
         try {
-            // 1. Mettre à jour le nom et la zone du plan
             $stmt = $this->db->prepare("UPDATE plans SET nom = ?, zone = ? WHERE id = ?");
             $stmt->execute([$nom, $zone, $planId]);
             
-            // 2. Supprimer les anciennes associations d'univers
             $stmt = $this->db->prepare("DELETE FROM plan_univers WHERE plan_id = ?");
             $stmt->execute([$planId]);
             
-            // 3. Insérer les nouvelles associations
             if (!empty($universIds)) {
                 $sql = "INSERT INTO plan_univers (plan_id, univers_id) VALUES (?, ?)";
                 $stmt = $this->db->prepare($sql);
@@ -103,15 +90,20 @@ class PlanManager {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function savePosition(int $geo_code_id, int $plan_id, int $pos_x, int $pos_y) {
+    public function savePosition(int $geo_code_id, int $plan_id, int $pos_x, int $pos_y, ?int $width = null, ?int $height = null) {
         $existingPosition = $this->getPositionByCodeId($geo_code_id);
         $action = $existingPosition ? 'moved' : 'placed';
 
-        $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y) 
-                VALUES (?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE plan_id = VALUES(plan_id), pos_x = VALUES(pos_x), pos_y = VALUES(pos_y)";
+        $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height) 
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                    plan_id = VALUES(plan_id), 
+                    pos_x = VALUES(pos_x), 
+                    pos_y = VALUES(pos_y),
+                    width = VALUES(width),
+                    height = VALUES(height)";
         $stmt = $this->db->prepare($sql);
-        $success = $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y]);
+        $success = $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y, $width, $height]);
 
         if ($success) {
             $this->_logHistory($geo_code_id, $plan_id, $pos_x, $pos_y, $action);
@@ -125,36 +117,38 @@ class PlanManager {
             $sql = "DELETE FROM geo_positions WHERE geo_code_id = ?";
             $stmt = $this->db->prepare($sql);
             $success = $stmt->execute([$geo_code_id]);
-
             if ($success) {
                 $this->_logHistory($geo_code_id, $existingPosition['plan_id'], null, null, 'removed');
             }
             return $success;
         }
-        return false; // N'existait pas
+        return false;
     }
 
     public function saveMultiplePositions(array $positions, int $plan_id): bool {
         if (empty($positions)) return true;
         $this->db->beginTransaction();
         try {
-            $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y) 
-                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y)
+            $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height) 
+                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y, :width, :height)
                     ON DUPLICATE KEY UPDATE 
                         plan_id = VALUES(plan_id), 
                         pos_x = VALUES(pos_x), 
-                        pos_y = VALUES(pos_y)";
+                        pos_y = VALUES(pos_y),
+                        width = VALUES(width),
+                        height = VALUES(height)";
             $stmt = $this->db->prepare($sql);
-
             foreach ($positions as $pos) {
                 $existingPosition = $this->getPositionByCodeId($pos['id']);
                 $action = $existingPosition ? 'moved' : 'placed';
-
+                
                 $stmt->execute([
                     ':geo_code_id' => $pos['id'],
                     ':plan_id'     => $plan_id,
                     ':pos_x'       => round($pos['x']),
-                    ':pos_y'       => round($pos['y'])
+                    ':pos_y'       => round($pos['y']),
+                    ':width'       => $pos['width'] ?? null,
+                    ':height'      => $pos['height'] ?? null
                 ]);
                 $this->_logHistory($pos['id'], $plan_id, round($pos['x']), round($pos['y']), $action);
             }

@@ -46,11 +46,18 @@ CREATE TABLE IF NOT EXISTS `geo_positions` (
     `plan_id` INT NOT NULL,
     `pos_x` INT NOT NULL,
     `pos_y` INT NOT NULL,
+    `width` INT NULL, -- NOUVEAU: Largeur de l'étiquette en pixels
+    `height` INT NULL, -- NOUVEAU: Hauteur de l'étiquette en pixels
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (geo_code_id) REFERENCES geo_codes(id) ON DELETE CASCADE,
     FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
 );
+
+-- Si la table existe déjà, exécutez cette commande :
+ALTER TABLE `geo_positions` 
+ADD COLUMN `width` INT NULL DEFAULT NULL AFTER `pos_y`,
+ADD COLUMN `height` INT NULL DEFAULT NULL AFTER `width`;
 
 -- NOUVELLE TABLE pour l'historique des positions des codes géo
 CREATE TABLE IF NOT EXISTS `geo_positions_history` (

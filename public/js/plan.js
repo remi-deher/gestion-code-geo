@@ -31,29 +31,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialisation des Modales (AVEC VÉRIFICATION) ---
     const modalElement = document.getElementById('geoCodeDetailModal');
-    let geoCodeModal = null;
-    if (modalElement) {
-        geoCodeModal = new bootstrap.Modal(modalElement);
-    }
-
+    let geoCodeModal = modalElement ? new bootstrap.Modal(modalElement) : null;
     const printPlanModalEl = document.getElementById('printPlanModal');
-    let printPlanModal = null;
-    if (printPlanModalEl) {
-        printPlanModal = new bootstrap.Modal(printPlanModalEl);
-    }
+    let printPlanModal = printPlanModalEl ? new bootstrap.Modal(printPlanModalEl) : null;
     
     // --- ÉTAT DE L'APPLICATION ---
     let currentPlanId = null;
     let selectedTags = new Set();
     let isDragging = false;
+    let isResizing = false;
     let isSelecting = false;
     let selectionBox = null;
     let startCoords = { x: 0, y: 0 };
     let dragStartPositions = new Map();
+    let resizeStartInfo = {};
     let panzoomInstance = null;
     let draggedItemFromSidebar = null;
     let allCodesData = [...placedGeoCodes];
-    
     let isMultiSelectMode = false;
     let isPlacementMode = false;
     let placementCodeId = null;
@@ -62,9 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastClickTime = 0;
 
     // --- INITIALISATION ---
-    panzoomInstance = Panzoom(zoomWrapper, {
-        maxScale: 10, minScale: 0.5, excludeClass: 'geo-tag', canvas: true
-    });
+    panzoomInstance = Panzoom(zoomWrapper, { maxScale: 10, minScale: 0.5, excludeClass: 'geo-tag', canvas: true });
     zoomWrapper.classList.add('tag-size-medium');
     addEventListeners();
     updateDisplayForPlan(null);
@@ -115,9 +107,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LOGIQUE D'INTERACTION SOURIS ---
     function handleMouseDown(e) {
         if (e.button !== 0) return;
-        const clickedTag = e.target.closest('.geo-tag');
+        const target = e.target;
         startCoords = { x: e.clientX, y: e.clientY };
-        if (clickedTag) {
+
+        if (target.classList.contains('resize-handle')) {
+            isResizing = true;
+            const tag = target.closest('.geo-tag');
+            resizeStartInfo = {
+                element: tag,
+                width: tag.offsetWidth,
+                height: tag.offsetHeight,
+                x: startCoords.x,
+                y: startCoords.y
+            };
+            e.stopImmediatePropagation();
+            panzoomInstance.setOptions({ disablePan: true });
+        } else if (target.closest('.geo-tag')) {
+            const clickedTag = target.closest('.geo-tag');
             e.stopImmediatePropagation();
             isDragging = true;
             if (!selectedTags.has(clickedTag)) {
@@ -140,7 +146,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleMouseMove(e) {
-        if (isDragging) {
+        if (isResizing) {
+            const dx = e.clientX - resizeStartInfo.x;
+            const dy = e.clientY - resizeStartInfo.y;
+            const newWidth = Math.max(50, resizeStartInfo.width + dx);
+            const newHeight = Math.max(25, resizeStartInfo.height + dy);
+            resizeStartInfo.element.style.width = `${newWidth}px`;
+            resizeStartInfo.element.style.height = `${newHeight}px`;
+        } else if (isDragging) {
             const scale = panzoomInstance.getScale();
             const dx = (e.clientX - startCoords.x) / (zoomWrapper.clientWidth * scale) * 100;
             const dy = (e.clientY - startCoords.y) / (zoomWrapper.clientHeight * scale) * 100;
@@ -157,10 +170,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleMouseUp(e) {
-        const dist = Math.hypot(e.clientX - startCoords.x, e.clientY - startCoords.y);
-        if (isDragging) {
+        if (isResizing) {
+            const tag = resizeStartInfo.element;
+            const pos = {
+                id: parseInt(tag.dataset.id),
+                x: parseFloat(tag.style.left),
+                y: parseFloat(tag.style.top),
+                width: tag.offsetWidth,
+                height: tag.offsetHeight
+            };
+            if (await saveMultiplePositionsAPI([pos])) {
+                flashTags(new Set([tag]), 'saved');
+                fetchAndDisplayHistory(currentPlanId);
+            }
+        } else if (isDragging) {
+            const dist = Math.hypot(e.clientX - startCoords.x, e.clientY - startCoords.y);
             if (dist > 5) {
-                const positionsToSave = Array.from(selectedTags).map(tag => ({ id: parseInt(tag.dataset.id), x: parseFloat(tag.style.left), y: parseFloat(tag.style.top) }));
+                const positionsToSave = Array.from(selectedTags).map(tag => ({ 
+                    id: parseInt(tag.dataset.id), 
+                    x: parseFloat(tag.style.left), 
+                    y: parseFloat(tag.style.top),
+                    width: tag.offsetWidth,
+                    height: tag.offsetHeight
+                }));
                 if (await saveMultiplePositionsAPI(positionsToSave)) {
                     flashTags(selectedTags, 'saved');
                     fetchAndDisplayHistory(currentPlanId);
@@ -175,6 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectionBox = null;
             }
         }
+        isResizing = false;
         isDragging = false;
         isSelecting = false;
         panzoomInstance.setOptions({ disablePan: false });
@@ -465,6 +498,13 @@ document.addEventListener('DOMContentLoaded', () => {
         tag.dataset.libelle = code.libelle;
         tag.style.setProperty('--tag-bg-color', universColors[code.univers] || '#7f8c8d');
         tag.style.backgroundColor = 'var(--tag-bg-color)';
+        if (code.width && code.height) {
+            tag.style.width = `${code.width}px`;
+            tag.style.height = `${code.height}px`;
+        }
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'resize-handle';
+        tag.appendChild(resizeHandle);
         return tag;
     }
     
@@ -571,6 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Fonctions API ---
     async function removePositionAPI(codeId) {
         try {
             const response = await fetch(`index.php?action=removePosition`, {
@@ -691,6 +732,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Fonctions d'impression ---
     function getPrintOptions() {
         return {
             title: document.getElementById('print-title').value.trim(),
@@ -782,3 +824,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+

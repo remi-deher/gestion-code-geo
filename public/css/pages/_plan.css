@@ -22,7 +22,7 @@
     flex-direction: column;
     transition: margin-left 0.3s ease-in-out;
 }
-/* Style pour les items de la liste en mode placement */
+
 .unplaced-item.placement-active {
     background-color: var(--primary-color) !important;
     color: white;
@@ -93,7 +93,6 @@
     justify-content: center;
 }
 
-/* --- NOUVEAU : Styles pour la bannière de placement --- */
 #placement-mode-banner {
     position: absolute;
     top: 10px;
@@ -137,7 +136,23 @@
     align-items: center;
     justify-content: center;
     border: 2px solid transparent;
-    transition: all 0.2s ease-in-out;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    min-width: 50px;
+    min-height: 25px;
+    overflow: hidden;
+    padding: 4px 8px;
+    font-size: 0.9rem;
+    border-radius: 4px;
+}
+
+.resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 15px;
+    height: 15px;
+    cursor: se-resize;
+    background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.4) 50%);
 }
 
 .geo-tag:active {
@@ -149,7 +164,7 @@
     box-shadow: 0 0 10px rgba(13, 110, 253, 0.7);
     z-index: 10;
 }
-/* NOUVEAU : Style pour une étiquette en cours de déplacement tactile */
+
 .geo-tag.is-moving {
     opacity: 0.7;
     border-style: dashed;
@@ -180,7 +195,6 @@
         flex-direction: column;
         height: auto;
     }
-
     #unplaced-codes-sidebar {
         width: 100%;
         height: auto;
@@ -188,11 +202,9 @@
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         margin-left: 0 !important;
     }
-    
     .plan-main-content {
         height: calc(100vh - var(--navbar-height) - 40vh);
     }
-    
     #toggle-sidebar-btn {
         display: none;
     }
