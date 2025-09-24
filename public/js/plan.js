@@ -14,11 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const planContainer = document.getElementById('plan-container');
     const planPlaceholder = document.getElementById('plan-placeholder');
     
-    // Éléments de la modale
     const tagActionModal = new bootstrap.Modal(document.getElementById('tag-action-modal'));
     const modalTitle = document.getElementById('tagActionModalLabel');
     const modalAddArrowBtn = document.getElementById('modal-add-arrow-btn');
     const modalDeleteBtn = document.getElementById('modal-delete-btn');
+
+    const printOptionsModal = new bootstrap.Modal(document.getElementById('print-options-modal'));
+    const printUniversFilterContainer = document.getElementById('print-univers-filter');
+    const executePrintBtn = document.getElementById('execute-print-btn');
+    const legendContainer = document.getElementById('legend-container');
+
 
     // --- ÉTAT DE L'APPLICATION ---
     let allCodesData = [...placedGeoCodes];
@@ -81,18 +86,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function drawArrow(fromX, fromY, toX, toY) {
-        const headlen = 10 / scale;
+    function drawArrow(fromX, fromY, toX, toY, targetCtx = ctx) {
+        const scaleFactor = (targetCtx === ctx) ? scale : 1;
+        const headlen = 10 / scaleFactor;
         const angle = Math.atan2(toY - fromY, toX - fromX);
-        ctx.beginPath();
-        ctx.moveTo(fromX, fromY);
-        ctx.lineTo(toX, toY);
-        ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
-        ctx.moveTo(toX, toY);
-        ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
-        ctx.strokeStyle = '#34495e';
-        ctx.lineWidth = 2 / scale;
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.moveTo(fromX, fromY);
+        targetCtx.lineTo(toX, toY);
+        targetCtx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+        targetCtx.moveTo(toX, toY);
+        targetCtx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+        targetCtx.strokeStyle = '#34495e';
+        targetCtx.lineWidth = 2 / scaleFactor;
+        targetCtx.stroke();
     }
     
     function drawResizeHandles(tag) {
@@ -127,10 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             tagActionModal.hide();
         });
+
+        executePrintBtn.addEventListener('click', handlePrintExecution);
     }
     
     function handleMouseDown(e) {
-        // Gère uniquement le clic gauche (bouton 0)
         if (e.button !== 0) return;
 
         const coords = getCanvasCoords(e);
@@ -186,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleMouseUp(e) {
-        if (e.button !== 0) return; // Ne réagit qu'au relâchement du clic gauche
+        if (e.button !== 0) return;
         const code = allCodesData.find(c => c.id === draggedTagId);
         if ((isDraggingTag || isResizing || isDrawingArrow) && code) {
             savePositionAPI(code);
@@ -206,9 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
              draw();
         }
     }
-
-    // --- CORRECTION ---
-    // Gère le clic droit pour ouvrir la modale et empêcher le menu natif
+    
     function handleContextMenu(e) {
         e.preventDefault();
         const coords = getCanvasCoords(e);
@@ -273,7 +278,11 @@ document.addEventListener('DOMContentLoaded', () => {
             planPlaceholder.style.display = 'none';
             canvas.style.display = 'block';
         }
-        mapImage.onload = () => resizeCanvas();
+        mapImage.onload = () => {
+            resizeCanvas();
+            updateLegend();
+            populatePrintModalFilters();
+        };
         await fetchAndDisplayUnplacedCodes(planId);
         draw();
     }
@@ -359,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const handleSize = 8 / scale;
         if (x >= tag.x + tag.width/2 - handleSize && x <= tag.x + tag.width/2 + handleSize &&
             y >= tag.y + tag.height/2 - handleSize && y <= tag.y + tag.height/2 + handleSize) {
-            return 'se'; // Sud-Est
+            return 'se';
         }
         return null;
     }
@@ -439,6 +448,105 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Erreur API fetchAvailableCodes:", error);
             return [];
         }
+    }
+
+    function updateLegend() {
+        legendContainer.innerHTML = '';
+        const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId).map(c => c.univers));
+        placedUnivers.forEach(universName => {
+            const color = universColors[universName] || '#7f8c8d';
+            const legendItem = document.createElement('div');
+            legendItem.className = 'legend-item';
+            legendItem.innerHTML = `<div class="legend-color-box" style="background-color: ${color};"></div><span>${universName}</span>`;
+            legendContainer.appendChild(legendItem);
+        });
+    }
+
+    function populatePrintModalFilters() {
+        printUniversFilterContainer.innerHTML = '';
+        const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId).map(c => c.univers));
+        placedUnivers.forEach(universName => {
+            const filterItem = document.createElement('div');
+            filterItem.className = 'form-check';
+            filterItem.innerHTML = `
+                <input class="form-check-input" type="checkbox" value="${universName}" id="print-filter-${universName.replace(/\s+/g, '')}" checked>
+                <label class="form-check-label" for="print-filter-${universName.replace(/\s+/g, '')}">
+                    ${universName}
+                </label>`;
+            printUniversFilterContainer.appendChild(filterItem);
+        });
+    }
+
+    function handlePrintExecution() {
+        printOptionsModal.hide();
+    
+        const printCanvas = document.createElement('canvas');
+        printCanvas.width = mapImage.naturalWidth;
+        printCanvas.height = mapImage.naturalHeight;
+        const printCtx = printCanvas.getContext('2d');
+    
+        const printTitle = document.getElementById('print-title').value;
+        const includeLegend = document.getElementById('print-legend-toggle').checked;
+        const activeFilters = Array.from(document.querySelectorAll('#print-univers-filter input:checked')).map(cb => cb.value);
+    
+        printCtx.drawImage(mapImage, 0, 0);
+    
+        allCodesData.forEach(code => {
+            if (code.plan_id == currentPlanId && code.pos_x !== null && activeFilters.includes(code.univers)) {
+                const tag = getTagDimensions(code);
+    
+                if (code.anchor_x != null) {
+                    drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, printCtx);
+                }
+    
+                printCtx.strokeStyle = 'black';
+                printCtx.lineWidth = 2;
+                printCtx.fillStyle = universColors[code.univers] || '#7f8c8d';
+                printCtx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
+                printCtx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
+                
+                printCtx.font = `bold 16px Arial`;
+                printCtx.fillStyle = 'white';
+                printCtx.textAlign = 'center';
+                printCtx.textBaseline = 'middle';
+                printCtx.fillText(code.code_geo, tag.x, tag.y);
+            }
+        });
+    
+        const printContainer = document.createElement('div');
+        printContainer.className = 'print-container';
+    
+        if (printTitle) {
+            const header = document.createElement('div');
+            header.className = 'print-header-container';
+            header.innerHTML = `<h1>${printTitle}</h1><p>Généré le ${new Date().toLocaleDateString()}</p>`;
+            printContainer.appendChild(header);
+        }
+    
+        const imageContainer = document.createElement('div');
+        const img = document.createElement('img');
+        img.style.width = '100%';
+        imageContainer.appendChild(img);
+        printContainer.appendChild(imageContainer);
+    
+        if (includeLegend) {
+            const legend = document.createElement('div');
+            legend.className = 'print-legend-container';
+            legend.innerHTML = '<h2>Légende</h2>';
+            const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId && activeFilters.includes(c.univers)).map(c => c.univers));
+            placedUnivers.forEach(universName => {
+                const color = universColors[universName] || '#7f8c8d';
+                legend.innerHTML += `<div class="legend-item"><div class="legend-color-box" style="background-color: ${color};"></div><span>${universName}</span></div>`;
+            });
+            printContainer.appendChild(legend);
+        }
+        
+        img.onload = () => {
+            document.body.appendChild(printContainer);
+            window.print();
+            document.body.removeChild(printContainer);
+        };
+        img.src = printCanvas.toDataURL('image/png');
     }
 
     initialize();

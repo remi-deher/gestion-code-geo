@@ -21,6 +21,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const allGeoCards = Array.from(cardView.querySelectorAll('.geo-card'));
     const allTableRows = Array.from(tableView.querySelectorAll('tbody tr'));
     
+
+    // Éléments de la modale d'actions
+    const tagActionModal = new bootstrap.Modal(document.getElementById('tag-action-modal'));
+    const modalTitle = document.getElementById('tagActionModalLabel');
+    const modalAddArrowBtn = document.getElementById('modal-add-arrow-btn');
+    const modalDeleteBtn = document.getElementById('modal-delete-btn');
+
+    // NOUVEAU : Éléments de la modale d'impression
+    const printOptionsModal = new bootstrap.Modal(document.getElementById('print-options-modal'));
+    const printUniversFilterContainer = document.getElementById('print-univers-filter');
+    const executePrintBtn = document.getElementById('execute-print-btn');
+    const legendContainer = document.getElementById('legend-container');
+
+
     // --- GESTION DES ÉVÉNEMENTS ---
 
     if (viewCardBtn && viewTableBtn) {
