@@ -1,9 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- VÉRIFICATION INITIALE ---
     const planPageContainer = document.querySelector('.plan-page-container');
-    if (!planPageContainer) {
-        return; // Stoppe le script si on n'est pas sur la page du plan
-    }
+    if (!planPageContainer) return;
 
     // --- ÉLÉMENTS DU DOM ---
     const sidebar = document.getElementById('unplaced-codes-sidebar');
@@ -15,14 +12,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const geoCodeModal = new bootstrap.Modal(modalElement);
     const mapImage = document.getElementById('map-image');
     const planSelector = document.getElementById('plan-selector');
-    const printBtn = document.getElementById('print-plan-btn');
     const searchInput = document.getElementById('tag-search-input');
     const zoomInBtn = document.getElementById('zoom-in-btn');
     const zoomOutBtn = document.getElementById('zoom-out-btn');
     const zoomResetBtn = document.getElementById('zoom-reset-btn');
     const accordionItems = document.querySelectorAll('.accordion-item');
     const tagSizeSelector = document.getElementById('tag-size-selector');
-    const planPlaceholder = document.getElementById('plan-placeholder'); // Élément du message ajouté
+    const planPlaceholder = document.getElementById('plan-placeholder');
+    
+    // NOUVEAUX ÉLÉMENTS POUR L'IMPRESSION
+    const printModalBtn = document.getElementById('open-print-modal-btn');
+    const printPlanModalEl = document.getElementById('printPlanModal');
+    const printPlanModal = new bootstrap.Modal(printPlanModalEl);
+    const printBrowserBtn = document.getElementById('print-browser-btn');
+    const printPdfBtn = document.getElementById('print-pdf-btn');
+
 
     // --- ÉTAT DE L'APPLICATION ---
     let currentPlanId = null;
@@ -35,14 +39,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let panzoomInstance = null;
     let lastClickTime = 0;
     let draggedItemFromSidebar = null;
-    let allCodesData = [...placedGeoCodes]; 
+    let allCodesData = [...placedGeoCodes];
 
     // --- INITIALISATION ---
     panzoomInstance = Panzoom(zoomWrapper, {
-        maxScale: 10,
-        minScale: 0.5,
-        excludeClass: 'geo-tag',
-        canvas: true
+        maxScale: 10, minScale: 0.5, excludeClass: 'geo-tag', canvas: true
     });
     zoomWrapper.classList.add('tag-size-medium');
     addEventListeners();
@@ -52,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function addEventListeners() {
         planContainer.addEventListener('wheel', panzoomInstance.zoomWithWheel, { passive: false });
         planSelector.addEventListener('change', (e) => updateDisplayForPlan(e.target.value));
-        printBtn.addEventListener('click', () => window.print());
         searchInput.addEventListener('input', applyFilters);
         zoomInBtn.addEventListener('click', () => panzoomInstance.zoomIn());
         zoomOutBtn.addEventListener('click', () => panzoomInstance.zoomOut());
@@ -69,38 +69,41 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.addEventListener('dragover', (e) => e.preventDefault());
         sidebar.addEventListener('drop', handleDropOnSidebar);
         
+        // Événements pour les nouveaux boutons d'impression
+        printModalBtn.addEventListener('click', () => printPlanModal.show());
+        printBrowserBtn.addEventListener('click', handleBrowserPrint);
+        printPdfBtn.addEventListener('click', handlePdfExport);
+
         if (tagSizeSelector) {
             tagSizeSelector.addEventListener('click', (e) => {
                 const button = e.target.closest('button');
                 if (!button || button.classList.contains('active')) return;
-
                 const size = button.dataset.size;
                 tagSizeSelector.querySelector('.active')?.classList.remove('active');
                 button.classList.add('active');
-
                 zoomWrapper.classList.remove('tag-size-small', 'tag-size-medium', 'tag-size-large');
                 zoomWrapper.classList.add(`tag-size-${size}`);
             });
         }
     }
-    
+
     async function updateDisplayForPlan(planId) {
         currentPlanId = planId;
         clearSelection();
-
+    
         if (!planId) {
             mapImage.style.display = 'none';
-            planPlaceholder.style.display = 'block'; // Affiche le message
-            printBtn.disabled = true;
+            planPlaceholder.style.display = 'block';
+            printModalBtn.disabled = true;
             redrawAllElements();
             return;
         }
-
+    
         const selectedOption = planSelector.querySelector(`option[value="${planId}"]`);
         mapImage.src = `uploads/plans/${selectedOption.dataset.filename}`;
         mapImage.style.display = 'block';
-        planPlaceholder.style.display = 'none'; // Masque le message
-        printBtn.disabled = false;
+        planPlaceholder.style.display = 'none';
+        printModalBtn.disabled = false;
         
         const unplacedCodes = await fetchAvailableCodes(planId);
         const placedIds = new Set(allCodesData.filter(c => c.plan_id).map(c => c.id));
@@ -114,10 +117,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-
+    
         redrawAllElements();
     }
-
+    
+    // ... (TOUTES LES AUTRES FONCTIONS RESTENT INCHANGÉES : redrawAllElements, applyFilters, handleMouseDown, etc.)
     function redrawAllElements() {
         unplacedList.innerHTML = '';
         zoomWrapper.querySelectorAll('.geo-tag').forEach(tag => tag.remove());
@@ -444,5 +448,112 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Erreur lors de la récupération des codes:", error);
             return [];
         }
+    }
+    
+    // --- NOUVELLES FONCTIONS D'IMPRESSION ---
+
+    function getPrintOptions() {
+        return {
+            title: document.getElementById('print-title').value.trim(),
+            includeLegend: document.getElementById('print-legend-check').checked,
+            onlyFiltered: document.getElementById('print-filter-check').checked,
+        };
+    }
+
+    function preparePrintContent(options) {
+        const printContainer = document.createElement('div');
+
+        if (options.title) {
+            const header = document.createElement('div');
+            header.className = 'print-header-container no-print';
+            header.innerHTML = `<h1>${options.title}</h1><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>`;
+            printContainer.appendChild(header);
+        }
+
+        const planToPrint = zoomWrapper.cloneNode(true);
+        planToPrint.style.transform = 'none';
+        planToPrint.style.cursor = 'default';
+        planToPrint.style.width = '100%'; 
+        planToPrint.style.height = 'auto';
+
+        if (options.onlyFiltered) {
+            zoomWrapper.querySelectorAll('.geo-tag').forEach((originalTag, index) => {
+                if (originalTag.style.display === 'none') {
+                    planToPrint.querySelectorAll('.geo-tag')[index].classList.add('print-hidden');
+                }
+            });
+        }
+        printContainer.appendChild(planToPrint);
+
+        if (options.includeLegend) {
+            const legendContainer = document.createElement('div');
+            legendContainer.className = 'print-legend-container';
+            legendContainer.innerHTML = '<h2>Légende</h2>';
+            const legendContent = document.getElementById('legend-content');
+            if (legendContent) {
+                legendContainer.appendChild(legendContent.cloneNode(true));
+            }
+            printContainer.appendChild(legendContainer);
+        }
+        
+        return printContainer;
+    }
+
+    function handleBrowserPrint() {
+        const options = getPrintOptions();
+        printPlanModal.hide();
+
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'absolute';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+
+        const frameDoc = printFrame.contentWindow.document;
+        frameDoc.open();
+        frameDoc.write('<!DOCTYPE html><html><head><title>Impression du Plan</title>');
+        // Copie des feuilles de style
+        document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+            frameDoc.head.appendChild(link.cloneNode(true));
+        });
+        frameDoc.write('</head><body></body></html>');
+        frameDoc.close();
+
+        const printContent = preparePrintContent(options);
+        frameDoc.body.appendChild(printContent);
+
+        setTimeout(() => {
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+            setTimeout(() => document.body.removeChild(printFrame), 500);
+        }, 500);
+    }
+
+    function handlePdfExport() {
+        const options = getPrintOptions();
+        const filename = (options.title || 'plan').replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.pdf';
+        printPlanModal.hide();
+
+        const elementToExport = preparePrintContent(options);
+        // Style pour le rendu off-screen
+        elementToExport.style.position = 'absolute';
+        elementToExport.style.left = '-9999px';
+        elementToExport.style.width = '280mm'; // Largeur A4 paysage moins marges
+        document.body.appendChild(elementToExport);
+
+        const pdfOptions = {
+          margin: 10,
+          filename: filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        };
+        
+        html2pdf().set(pdfOptions).from(elementToExport).save().then(() => {
+            if (elementToExport.parentElement) {
+                 elementToExport.parentElement.removeChild(elementToExport);
+            }
+        });
     }
 });

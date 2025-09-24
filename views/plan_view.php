@@ -60,7 +60,7 @@
                     <h3>Légende</h3>
                     <span class="accordion-arrow">▶</span>
                 </div>
-                <div class="accordion-content">
+                <div class="accordion-content" id="legend-content">
                     <?php if (!empty($universColors)): foreach ($universColors as $univers => $color): ?>
                         <div class="legend-item">
                             <div class="legend-color-box" style="background-color: <?= htmlspecialchars($color) ?>;"></div>
@@ -83,7 +83,7 @@
                     <?php endforeach; endif; ?>
                 </select>
             </div>
-            <button id="print-plan-btn" class="btn btn-secondary" disabled><i class="bi bi-printer-fill"></i> Imprimer le plan</button>
+            <button id="open-print-modal-btn" class="btn btn-secondary" disabled><i class="bi bi-printer-fill"></i> Imprimer le plan</button>
             
             <div class="form-group ms-auto">
                 <label class="form-label d-block mb-1 small">Taille étiquettes</label>
@@ -129,6 +129,38 @@
         <a href="#" id="modal-edit-btn" class="btn btn-warning">
             <i class="bi bi-pencil-fill"></i> Modifier
         </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="printPlanModal" tabindex="-1" aria-labelledby="printPlanModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="printPlanModalLabel">Options d'impression du plan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="print-title" class="form-label">Titre du document (optionnel)</label>
+          <input type="text" class="form-control" id="print-title" placeholder="Ex: Plan d'implantation - <?= date('d/m/Y') ?>">
+        </div>
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="print-legend-check" checked>
+          <label class="form-check-label" for="print-legend-check">Inclure la légende des univers</label>
+        </div>
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="print-filter-check">
+          <label class="form-check-label" for="print-filter-check">N'imprimer que les étiquettes visibles</label>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <div>
+            <button type="button" class="btn btn-primary" id="print-browser-btn"><i class="bi bi-printer"></i> Imprimer</button>
+            <button type="button" class="btn btn-success" id="print-pdf-btn"><i class="bi bi-file-earmark-pdf"></i> Télécharger en PDF</button>
+        </div>
       </div>
     </div>
   </div>
