@@ -49,6 +49,7 @@ switch ($action) {
     case 'delete': $geoCodeController->deleteAction(); break;
     case 'showBatchCreate': $geoCodeController->showBatchCreateAction(); break;
     case 'handleBatchCreate': $geoCodeController->handleBatchCreateAction(); break;
+    case 'getAllCodesJson': $geoCodeController->getAllCodesJsonAction(); break; // NOUVELLE ROUTE
     
     // Import/Export et Impression
     case 'export': $geoCodeController->exportAction(); break;
@@ -70,8 +71,8 @@ switch ($action) {
     case 'editPlan': $planController->editPlanAction(); break; 
     case 'updatePlan': $planController->updatePlanAction(); break; 
     case 'getAvailableCodesForPlan': $planController->getAvailableCodesForPlanAction(); break;
-    case 'getHistory': $planController->getHistoryAction(); break; // NOUVEAU
-    case 'restorePosition': $planController->restorePositionAction(); break; // NOUVEAU
+    case 'getHistory': $planController->getHistoryAction(); break;
+    case 'restorePosition': $planController->restorePositionAction(); break;
 
     // Univers
     case 'listUnivers': $universController->listAction(); break;

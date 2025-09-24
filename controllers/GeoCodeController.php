@@ -154,14 +154,12 @@ class GeoCodeController extends BaseController {
     }
     
     public function generatePrintPageAction() {
-        // --- Récupération des données ---
         $universIds = $_POST['univers_ids'] ?? [];
         $geoCodes = [];
         if (!empty($universIds)) {
             $geoCodes = $this->geoCodeManager->getGeoCodesByUniversIds(array_map('intval', $universIds));
         }
         
-        // --- Récupération des options d'impression ---
         $options = [
             'title'    => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
             'copies'   => (int)($_POST['copies'] ?? 1),
@@ -169,49 +167,35 @@ class GeoCodeController extends BaseController {
             'template' => $_POST['template'] ?? 'qr-left'
         ];
 
-        // --- Groupement des codes par univers pour l'affichage ---
         $groupedCodes = [];
         foreach ($geoCodes as $code) {
             $groupedCodes[$code['univers']][] = $code;
         }
 
-        // --- Rendu de la vue d'impression (sans layout) ---
         require __DIR__ . '/../views/print_page_view.php';
     }
 
-    /**
-     * ACTION POUR IMPRIMER UNE SEULE ÉTIQUETTE
-     */
     public function printSingleLabelAction() {
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) {
             die("ID du code géo manquant ou invalide.");
         }
 
-        // On réutilise la méthode existante pour récupérer les infos
         $geoCode = $this->geoCodeManager->getGeoCodeById($id);
 
         if (!$geoCode) {
             die("Code géo non trouvé.");
         }
 
-        // On doit aussi récupérer le nom de l'univers
         $univers = $this->universManager->getUniversById($geoCode['univers_id']);
         $geoCode['univers'] = $univers['nom'] ?? 'N/A';
         
-        // On appelle une nouvelle vue dédiée, sans le layout principal
         require __DIR__ . '/../views/print_single_view.php';
     }
 
-    /**
-     * ACTION POUR GÉNÉRER UN PDF DES ÉTIQUETTES
-     */
     public function generatePdfAction() {
-        // Cette action nécessite la bibliothèque FPDF.
-        // Assurez-vous que le fichier fpdf.php est accessible.
         require_once __DIR__ . '/../helpers/PdfGenerator.php';
 
-        // 1. Récupération des données (similaire à generatePrintPageAction)
         $universIds = $_POST['univers_ids'] ?? [];
         $geoCodes = [];
         if (!empty($universIds)) {
@@ -230,12 +214,19 @@ class GeoCodeController extends BaseController {
             $groupedCodes[$code['univers']][] = $code;
         }
 
-        // 2. Génération du PDF
         if (empty($groupedCodes)) {
             die("Aucun code à imprimer pour la sélection effectuée.");
         }
 
         $pdfGenerator = new PdfGenerator();
         $pdfGenerator->generateLabelsPdf($groupedCodes, $options);
+    }
+    
+    // NOUVELLE MÉTHODE POUR L'API
+    public function getAllCodesJsonAction() {
+        header('Content-Type: application/json');
+        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
+        echo json_encode($geoCodes);
+        exit();
     }
 }

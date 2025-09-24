@@ -32,7 +32,8 @@
 <?php ob_start(); ?>
 <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
 <script>
-    const placedGeoCodes = <?= json_encode($placedGeoCodes ?? []); ?>;
+    // On utilise 'let' pour permettre la réassignation des données après une restauration.
+    let placedGeoCodes = <?= json_encode($placedGeoCodes ?? []); ?>;
     const universColors = <?= json_encode($universColors ?? []); ?>;
 </script>
 <script src="js/plan.js"></script> 
@@ -90,6 +91,10 @@
             </div>
         </div>
     </div>
+
+    <button id="toggle-sidebar-btn" class="btn btn-light no-print" title="Cacher le panneau">
+        <i class="bi bi-chevron-left"></i>
+    </button>
 
     <div class="plan-main-content">
         <div class="plan-toolbar no-print">

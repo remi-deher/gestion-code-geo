@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- VÉRIFICATION INITIALE ---
     const planPageContainer = document.querySelector('.plan-page-container');
     if (!planPageContainer) {
         return; 
@@ -27,7 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const printPlanModal = new bootstrap.Modal(printPlanModalEl);
     const printBrowserBtn = document.getElementById('print-browser-btn');
     const printPdfBtn = document.getElementById('print-pdf-btn');
-    const historyList = document.getElementById('history-list'); // NOUVEAU
+    const historyList = document.getElementById('history-list');
+    const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
 
     // --- ÉTAT DE L'APPLICATION ---
     let currentPlanId = null;
@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let panzoomInstance = null;
     let lastClickTime = 0;
     let draggedItemFromSidebar = null;
+    // CORRECTION : On utilise la variable globale 'placedGeoCodes' qui a été définie dans la vue.
     let allCodesData = [...placedGeoCodes]; 
 
     // --- INITIALISATION ---
@@ -74,6 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
         printBrowserBtn.addEventListener('click', handleBrowserPrint);
         printPdfBtn.addEventListener('click', handlePdfExport);
 
+        toggleSidebarBtn.addEventListener('click', () => {
+            planPageContainer.classList.toggle('sidebar-hidden');
+        });
+
         if (tagSizeSelector) {
             tagSizeSelector.addEventListener('click', (e) => {
                 const button = e.target.closest('button');
@@ -90,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updateDisplayForPlan(planId) {
         currentPlanId = planId;
         clearSelection();
-        fetchAndDisplayHistory(planId); // On charge l'historique
+        fetchAndDisplayHistory(planId);
     
         if (!planId) {
             mapImage.style.display = 'none';
@@ -121,93 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         redrawAllElements();
     }
-
-    // ... (les autres fonctions restent identiques jusqu'à la fin du fichier)
-    
-    // NOUVELLES FONCTIONS POUR L'HISTORIQUE
-    async function fetchAndDisplayHistory(planId) {
-        if (!planId) {
-            historyList.innerHTML = '<p class="text-muted small">Sélectionnez un plan pour voir les dernières modifications.</p>';
-            return;
-        }
-    
-        try {
-            const response = await fetch(`index.php?action=getHistory&id=${planId}`);
-            const historyData = await response.json();
-    
-            historyList.innerHTML = '';
-            if (historyData.length === 0) {
-                historyList.innerHTML = '<p class="text-muted small">Aucun historique pour ce plan.</p>';
-                return;
-            }
-    
-            historyData.forEach(entry => {
-                const item = document.createElement('div');
-                item.className = 'history-item';
-                
-                const actionIcons = {
-                    placed: '<i class="bi bi-geo-alt-fill text-success action-icon"></i>',
-                    moved: '<i class="bi bi-arrows-move text-primary action-icon"></i>',
-                    removed: '<i class="bi bi-x-circle-fill text-danger action-icon"></i>'
-                };
-                
-                const date = new Date(entry.action_timestamp);
-                const formattedDate = `${date.toLocaleDateString('fr-FR')} à ${date.toLocaleTimeString('fr-FR')}`;
-
-                item.innerHTML = `
-                    <div class="action-info">
-                        ${actionIcons[entry.action_type] || ''}
-                        <div>
-                            <span class="action-code">${entry.code_geo}</span>
-                            <span class="action-time">${formattedDate}</span>
-                        </div>
-                    </div>
-                    <button class="btn btn-sm btn-outline-secondary restore-btn" data-history-id="${entry.id}" title="Restaurer cet état">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                    </button>
-                `;
-                
-                item.querySelector('.restore-btn').addEventListener('click', (e) => {
-                    const id = e.currentTarget.dataset.historyId;
-                    if (confirm('Voulez-vous vraiment restaurer cet état ?')) {
-                        handleRestoreClick(id);
-                    }
-                });
-
-                historyList.appendChild(item);
-            });
-        } catch (error) {
-            console.error("Erreur lors de la récupération de l'historique:", error);
-            historyList.innerHTML = '<p class="text-danger small">Erreur de chargement.</p>';
-        }
-    }
-
-    async function handleRestoreClick(historyId) {
-        try {
-            const response = await fetch('index.php?action=restorePosition', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: parseInt(historyId) })
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                if (result.status === 'success') {
-                    // Recharger toutes les données pour être sûr de l'état actuel
-                    const fullDataResponse = await fetch('index.php?action=getGeoCodes');
-                    allCodesData = await fullDataResponse.json();
-                    
-                    await updateDisplayForPlan(currentPlanId);
-                } else {
-                    alert('Erreur lors de la restauration.');
-                }
-            }
-        } catch (error) {
-            console.error('Erreur de restauration:', error);
-        }
-    }
-    
-    // ... (le reste des fonctions de gestion de la vue et des API)
 
     function redrawAllElements() {
         unplacedList.innerHTML = '';
@@ -246,12 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('#unplaced-list .unplaced-item').forEach(item => {
             const searchData = `${item.dataset.code} ${item.dataset.libelle}`.toLowerCase();
             const searchMatch = searchData.includes(searchTerm);
-            if (searchMatch) {
-                item.style.display = 'block';
-                unplacedVisibleCount++;
-            } else {
-                item.style.display = 'none';
-            }
+            item.style.display = searchMatch ? 'block' : 'none';
+            if (searchMatch) unplacedVisibleCount++;
         });
 
         document.querySelectorAll('#zoom-wrapper .geo-tag').forEach(tag => {
@@ -323,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                     flashTags(selectedTags, 'saved');
+                    fetchAndDisplayHistory(currentPlanId);
                 }
             } else {
                 handleTagClick(e);
@@ -380,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 codeData.plan_id = currentPlanId;
             }
             await redrawAllElements();
+            fetchAndDisplayHistory(currentPlanId);
         }
         draggedItemFromSidebar = null;
     }
@@ -392,6 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const tag of tagsToUnplace) {
                 await unplacePosition(tag.dataset.id);
             }
+            fetchAndDisplayHistory(currentPlanId);
         }
     }
     
@@ -432,6 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         unplaceBtn.onclick = async () => {
             geoCodeModal.hide();
             await unplacePosition(codeId);
+            fetchAndDisplayHistory(currentPlanId);
         };
         geoCodeModal.show();
     }
@@ -537,6 +455,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    async function fetchAndDisplayHistory(planId) {
+        if (!planId) {
+            historyList.innerHTML = '<p class="text-muted small">Sélectionnez un plan pour voir les dernières modifications.</p>';
+            return;
+        }
+    
+        try {
+            const response = await fetch(`index.php?action=getHistory&id=${planId}`);
+            const historyData = await response.json();
+    
+            historyList.innerHTML = '';
+            if (historyData.length === 0) {
+                historyList.innerHTML = '<p class="text-muted small">Aucun historique pour ce plan.</p>';
+                return;
+            }
+    
+            historyData.forEach(entry => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                
+                const actionIcons = {
+                    placed: '<i class="bi bi-geo-alt-fill text-success action-icon"></i>',
+                    moved: '<i class="bi bi-arrows-move text-primary action-icon"></i>',
+                    removed: '<i class="bi bi-x-circle-fill text-danger action-icon"></i>'
+                };
+                
+                const date = new Date(entry.action_timestamp);
+                const formattedDate = `${date.toLocaleDateString('fr-FR')} à ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+
+                item.innerHTML = `
+                    <div class="action-info">
+                        ${actionIcons[entry.action_type] || ''}
+                        <div>
+                            <span class="action-code">${entry.code_geo}</span>
+                            <span class="action-time">${formattedDate}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary restore-btn" data-history-id="${entry.id}" title="Restaurer cet état">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                `;
+                
+                item.querySelector('.restore-btn').addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.historyId;
+                    if (confirm('Voulez-vous vraiment restaurer cet état ? L\'action actuelle sera enregistrée dans l\'historique.')) {
+                        handleRestoreClick(id);
+                    }
+                });
+
+                historyList.appendChild(item);
+            });
+        } catch (error) {
+            console.error("Erreur lors de la récupération de l'historique:", error);
+            historyList.innerHTML = '<p class="text-danger small">Erreur de chargement.</p>';
+        }
+    }
+
+    async function handleRestoreClick(historyId) {
+        try {
+            const response = await fetch('index.php?action=restorePosition', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: parseInt(historyId) })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.status === 'success') {
+                    // On recharge les données depuis le serveur pour garantir la cohérence
+                    const dataResponse = await fetch('index.php?action=getAllCodesJson');
+                    const newGeoCodes = await dataResponse.json();
+                    allCodesData = [...newGeoCodes];
+                    placedGeoCodes = newGeoCodes; // Mettre à jour la variable globale
+                    await updateDisplayForPlan(currentPlanId);
+                } else {
+                    alert('Erreur lors de la restauration : ' + (result.message || ''));
+                }
+            }
+        } catch (error) {
+            console.error('Erreur de restauration:', error);
+            alert('Une erreur réseau est survenue.');
+        }
+    }
+
     function getPrintOptions() {
         return {
             title: document.getElementById('print-title').value.trim(),
@@ -640,3 +642,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
