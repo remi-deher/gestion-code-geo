@@ -22,11 +22,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPlanId = null;
     let isPlacementMode = false;
     let placementCodeId = null;
+    
+    // Variables pour le pan & zoom
     let scale = 1;
     let panX = 0;
     let panY = 0;
     let isPanning = false;
     let panStart = { x: 0, y: 0 };
+
 
     // --- INITIALISATION ---
     function initialize() {
@@ -44,16 +47,23 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- BOUCLE DE RENDU PRINCIPALE ---
     function draw() {
+        // Effacer le canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Appliquer la transformation (pan & zoom)
         ctx.save();
         ctx.translate(panX, panY);
         ctx.scale(scale, scale);
 
+        // Dessiner l'image du plan
         if (mapImage.complete && mapImage.src) {
             ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
         }
 
+        // Dessiner les étiquettes
         drawTags();
+        
+        // Restaurer le contexte
         ctx.restore();
     }
 
@@ -70,17 +80,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const y = (code.pos_y / 100) * canvas.height;
                 const text = code.code_geo;
                 const textMetrics = ctx.measureText(text);
-                const tagWidth = textMetrics.width + 12; // Un peu plus de marge
-                const tagHeight = 22;
+                const tagWidth = textMetrics.width + 10;
+                const tagHeight = 20;
 
+                // Dessin du fond de l'étiquette
                 ctx.fillStyle = universColors[code.univers] || '#7f8c8d';
                 ctx.fillRect(x - tagWidth / 2, y - tagHeight / 2, tagWidth, tagHeight);
 
+                // Dessin du texte
                 ctx.fillStyle = 'white';
                 ctx.fillText(text, x, y);
             }
         });
     }
+
 
     // --- GESTION DES ÉVÉNEMENTS ---
     function addEventListeners() {
@@ -89,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         unplacedList.addEventListener('click', handleUnplacedItemClick);
         searchInput.addEventListener('input', applyFilters);
         
+        // Pan (déplacement)
         canvas.addEventListener('mousedown', (e) => {
             if (isPlacementMode) {
                  const coords = getCanvasCoords(e);
@@ -118,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.style.cursor = isPlacementMode ? 'crosshair' : 'grab';
         });
 
+        // Zoom
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const zoomIntensity = 0.1;
@@ -161,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const relativeY = (canvasY / canvas.height) * 100;
 
         if (await savePositionAPI(placementCodeId, relativeX, relativeY)) {
+            // Mettre à jour les données locales pour un affichage immédiat
             const codeIndex = allCodesData.findIndex(c => c.id == placementCodeId);
             if(codeIndex > -1) {
                 allCodesData[codeIndex].plan_id = parseInt(currentPlanId);
@@ -205,6 +221,8 @@ document.addEventListener('DOMContentLoaded', () => {
                  item.className = 'unplaced-item';
                  item.dataset.id = code.id;
                  item.dataset.code = code.code_geo;
+                 item.dataset.libelle = code.libelle; // Ajout pour le filtre
+                 item.dataset.univers = code.univers; // Ajout pour la couleur
                  item.innerHTML = `<span class="item-code" style="color: ${universColors[code.univers] || '#7f8c8d'}">${code.code_geo}</span> <span class="item-libelle">${code.libelle}</span>`;
                  unplacedList.appendChild(item);
             });
@@ -216,7 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchTerm = searchInput.value.toLowerCase();
         let count = 0;
         document.querySelectorAll('#unplaced-list .unplaced-item').forEach(item => {
-            const isVisible = item.dataset.code.toLowerCase().includes(searchTerm);
+            const searchData = `${item.dataset.code} ${item.dataset.libelle}`.toLowerCase();
+            const isVisible = searchData.includes(searchTerm);
             item.style.display = isVisible ? 'block' : 'none';
             if (isVisible) count++;
         });
@@ -244,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     id: parseInt(codeId),
                     plan_id: parseInt(currentPlanId),
                     x: x,
-                    y: y,
+                    y: y
                 })
             });
             const result = await response.json();
