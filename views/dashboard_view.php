@@ -45,17 +45,17 @@ document.addEventListener('DOMContentLoaded', () => {
 <?php $body_scripts = ob_get_clean(); ?>
 
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center dashboard-header">
+    <div class="dashboard-header flex-column flex-md-row">
         <h1>Tableau de bord</h1>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 mt-3 mt-md-0">
             <a href="index.php?action=list" class="btn btn-outline-secondary"><i class="bi bi-list-ul"></i> Voir la liste</a>
-            <a href="index.php?action=create" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter un code</a>
-            <a href="index.php?action=plan" class="btn btn-secondary"><i class="bi bi-map-fill"></i> Voir le plan</a>
+            <a href="index.php?action=create" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter</a>
+            <a href="index.php?action=plan" class="btn btn-secondary"><i class="bi bi-map-fill"></i> Plan</a>
         </div>
     </div>
 
     <div class="row g-4 mb-4">
-        <div class="col-md-6 col-lg-4">
+        <div class="col-lg-4 col-md-6">
             <div class="card dashboard-card stat-card h-100">
                 <div class="card-body">
                     <div class="stat-icon icon-total"><i class="bi bi-box-seam"></i></div>
@@ -68,14 +68,13 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
 
         <?php 
-            // Calcul sécurisé du pourcentage
             $percentage = ($stats['totalCodes'] > 0) ? ($stats['placedCodes'] / $stats['totalCodes']) * 100 : 0;
         ?>
-        <div class="col-md-6 col-lg-4">
+        <div class="col-lg-4 col-md-6">
             <div class="card dashboard-card progress-card h-100">
                  <div class="card-body d-flex flex-column justify-content-center">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Progression des Emplacements</h5>
+                        <h5 class="card-title mb-0">Progression</h5>
                         <span class="fw-bold fs-5"><?= round($percentage) ?>%</span>
                     </div>
                     <p class="text-muted small mb-2"><?= $stats['placedCodes'] ?> sur <?= $stats['totalCodes'] ?> codes placés</p>
@@ -86,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>
         
-        <div class="col-md-12 col-lg-4">
+        <div class="col-lg-4 col-md-12">
             <div class="card dashboard-card h-100">
                 <div class="card-header"><i class="bi bi-geo-alt-fill"></i> Répartition par Zone</div>
                 <div class="card-body d-flex flex-column justify-content-center gap-3">

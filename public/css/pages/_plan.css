@@ -59,7 +59,6 @@
     object-fit: contain;
 }
 
-/* --- AMÉLIORATIONS DES ÉTIQUETTES --- */
 .geo-tag {
     position: absolute;
     color: white;
@@ -80,23 +79,20 @@
     cursor: grabbing;
 }
 
-/* Style pour la sélection multiple */
 .geo-tag.selected {
     border-color: #0d6efd;
     box-shadow: 0 0 10px rgba(13, 110, 253, 0.7);
     z-index: 10;
 }
 
-/* Style pour la confirmation de sauvegarde */
 @keyframes flash-success {
-    0% { background-color: #198754; } /* Vert Bootstrap */
+    0% { background-color: #198754; }
     100% { background-color: var(--tag-bg-color); }
 }
 .geo-tag.saved {
     animation: flash-success 1s ease-out;
 }
 
-/* --- NOUVEAU : GESTION DE LA TAILLE DES ÉTIQUETTES --- */
 #zoom-wrapper.tag-size-medium .geo-tag {
     font-size: 0.9rem;
     padding: 4px 8px;
@@ -115,7 +111,6 @@
 }
 
 
-/* --- Rectangle de sélection --- */
 #selection-box {
     position: absolute;
     border: 1px dashed #0d6efd;
@@ -128,4 +123,24 @@
     position: absolute;
     bottom: 1rem;
     right: 1rem;
+}
+
+/* --- Responsive pour la page du plan --- */
+@media (max-width: 991.98px) {
+    .plan-page-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    #unplaced-codes-sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 40vh; /* Limite la hauteur sur mobile */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .plan-main-content {
+        /* Calcule la hauteur restante pour le plan */
+        height: calc(100vh - var(--navbar-height) - 40vh);
+    }
 }

@@ -49,3 +49,23 @@
     background-color: var(--zone-reserve-bg); 
     color: var(--zone-reserve-color); 
 }
+
+/* --- Responsive pour les fiches sur mobile --- */
+@media (max-width: 767.98px) {
+    .geo-card {
+        grid-template-columns: 1fr; /* Une seule colonne */
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .geo-card-qr {
+        margin: 0 auto; /* Centrer le QR code */
+    }
+
+    .geo-card-actions {
+        display: flex;
+        justify-content: center; /* Centrer les boutons */
+        gap: 0.5rem;
+        width: 100%;
+    }
+}
