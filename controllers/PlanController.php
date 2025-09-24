@@ -146,7 +146,6 @@ class PlanController extends BaseController {
                 $finalFilename = '';
                 $destination = '';
     
-                // PDF : conversion en PNG
                 if ($extension === 'pdf' && class_exists('Imagick')) {
                     $finalFilename = $newFilenameBase . '.png';
                     $destination = $uploadDir . $finalFilename;
@@ -158,12 +157,10 @@ class PlanController extends BaseController {
                         $imagick->clear();
                         $imagick->destroy();
                     } catch (Exception $e) {
-                        // Gérer l'erreur de conversion
                         $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de la conversion du PDF.'];
                         header('Location: index.php?action=listPlans');
                         exit();
                     }
-                // SVG, PNG, JPG/JPEG : sauvegarde directe
                 } else if (in_array($extension, ['svg', 'png', 'jpg', 'jpeg'])) {
                     $finalFilename = $newFilenameBase . '.' . $extension;
                     $destination = $uploadDir . $finalFilename;
@@ -192,6 +189,46 @@ class PlanController extends BaseController {
             $this->planManager->deletePlan($id);
         }
         header('Location: index.php?action=listPlans');
+        exit();
+    }
+
+    public function getHistoryAction() {
+        header('Content-Type: application/json');
+        $planId = (int)($_GET['id'] ?? 0);
+        if ($planId > 0) {
+            $history = $this->planManager->getHistoryForPlan($planId);
+            echo json_encode($history);
+        } else {
+            echo json_encode([]);
+        }
+        exit();
+    }
+
+    public function restorePositionAction() {
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true);
+        $historyId = (int)($input['id'] ?? 0);
+
+        if ($historyId > 0) {
+            $historyEntry = $this->planManager->getHistoryEntry($historyId);
+            if ($historyEntry) {
+                if ($historyEntry['action_type'] === 'removed') {
+                    $success = $this->planManager->removePosition($historyEntry['geo_code_id']);
+                } else {
+                    $success = $this->planManager->savePosition(
+                        $historyEntry['geo_code_id'],
+                        $historyEntry['plan_id'],
+                        $historyEntry['pos_x'],
+                        $historyEntry['pos_y']
+                    );
+                }
+                echo json_encode(['status' => $success ? 'success' : 'error']);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'History entry not found']);
+            }
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid history ID']);
+        }
         exit();
     }
 }

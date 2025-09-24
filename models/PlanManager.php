@@ -91,25 +91,53 @@ class PlanManager {
         }
     }
 
+    private function _logHistory(int $geo_code_id, int $plan_id, ?int $pos_x, ?int $pos_y, string $action_type) {
+        $sql = "INSERT INTO geo_positions_history (geo_code_id, plan_id, pos_x, pos_y, action_type) VALUES (?, ?, ?, ?, ?)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y, $action_type]);
+    }
+    
+    public function getPositionByCodeId(int $geo_code_id) {
+        $stmt = $this->db->prepare("SELECT * FROM geo_positions WHERE geo_code_id = ?");
+        $stmt->execute([$geo_code_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
     public function savePosition(int $geo_code_id, int $plan_id, int $pos_x, int $pos_y) {
+        $existingPosition = $this->getPositionByCodeId($geo_code_id);
+        $action = $existingPosition ? 'moved' : 'placed';
+
         $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y) 
                 VALUES (?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE plan_id = VALUES(plan_id), pos_x = VALUES(pos_x), pos_y = VALUES(pos_y)";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y]);
+        $success = $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y]);
+
+        if ($success) {
+            $this->_logHistory($geo_code_id, $plan_id, $pos_x, $pos_y, $action);
+        }
+        return $success;
     }
 
     public function removePosition(int $geo_code_id): bool {
-        $sql = "DELETE FROM geo_positions WHERE geo_code_id = ?";
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$geo_code_id]);
+        $existingPosition = $this->getPositionByCodeId($geo_code_id);
+        if ($existingPosition) {
+            $sql = "DELETE FROM geo_positions WHERE geo_code_id = ?";
+            $stmt = $this->db->prepare($sql);
+            $success = $stmt->execute([$geo_code_id]);
+
+            if ($success) {
+                $this->_logHistory($geo_code_id, $existingPosition['plan_id'], null, null, 'removed');
+            }
+            return $success;
+        }
+        return false; // N'existait pas
     }
 
     public function saveMultiplePositions(array $positions, int $plan_id): bool {
         if (empty($positions)) return true;
         $this->db->beginTransaction();
         try {
-            // CORRECTION : S'assure que plan_id est aussi mis à jour
             $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y) 
                     VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y)
                     ON DUPLICATE KEY UPDATE 
@@ -117,13 +145,18 @@ class PlanManager {
                         pos_x = VALUES(pos_x), 
                         pos_y = VALUES(pos_y)";
             $stmt = $this->db->prepare($sql);
+
             foreach ($positions as $pos) {
+                $existingPosition = $this->getPositionByCodeId($pos['id']);
+                $action = $existingPosition ? 'moved' : 'placed';
+
                 $stmt->execute([
                     ':geo_code_id' => $pos['id'],
                     ':plan_id'     => $plan_id,
                     ':pos_x'       => round($pos['x']),
                     ':pos_y'       => round($pos['y'])
                 ]);
+                $this->_logHistory($pos['id'], $plan_id, round($pos['x']), round($pos['y']), $action);
             }
             $this->db->commit();
             return true;
@@ -132,6 +165,28 @@ class PlanManager {
             error_log("Erreur lors de la sauvegarde multiple : " . $e->getMessage());
             return false;
         }
+    }
+
+    public function getHistoryForPlan(int $planId, int $limit = 10) {
+        $sql = "
+            SELECT h.*, gc.code_geo
+            FROM geo_positions_history h
+            JOIN geo_codes gc ON h.geo_code_id = gc.id
+            WHERE h.plan_id = ?
+            ORDER BY h.action_timestamp DESC
+            LIMIT ?
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(1, $planId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    public function getHistoryEntry(int $historyId) {
+        $stmt = $this->db->prepare("SELECT * FROM geo_positions_history WHERE id = ?");
+        $stmt->execute([$historyId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     public function countTotalPlans(): int {

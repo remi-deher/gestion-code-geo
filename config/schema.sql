@@ -51,3 +51,16 @@ CREATE TABLE IF NOT EXISTS `geo_positions` (
     FOREIGN KEY (geo_code_id) REFERENCES geo_codes(id) ON DELETE CASCADE,
     FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
 );
+
+-- NOUVELLE TABLE pour l'historique des positions des codes géo
+CREATE TABLE IF NOT EXISTS `geo_positions_history` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `geo_code_id` INT NOT NULL,
+  `plan_id` INT NOT NULL,
+  `pos_x` INT NULL, -- Peut être NULL si l'action est un retrait
+  `pos_y` INT NULL, -- Peut être NULL si l'action est un retrait
+  `action_type` ENUM('placed', 'moved', 'removed') NOT NULL,
+  `action_timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY `geo_code_id_idx` (`geo_code_id`),
+  KEY `plan_id_idx` (`plan_id`)
+);

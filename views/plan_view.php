@@ -17,13 +17,21 @@
     .unplaced-item .item-libelle { font-size: 0.8rem; color: #6c757d; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .legend-color-box { width: 15px; height: 15px; border: 1px solid #ccc; border-radius: 3px; }
+    
+    /* Styles pour la liste de l'historique */
+    #history-list .history-item { font-size: 0.85rem; padding: 0.5rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    #history-list .history-item:last-child { border-bottom: none; }
+    #history-list .history-item .action-info { display: flex; align-items: center; gap: 0.5rem; }
+    #history-list .history-item .action-icon { font-size: 1rem; }
+    #history-list .history-item .action-code { font-weight: bold; }
+    #history-list .history-item .action-time { display: block; font-size: 0.75rem; color: #6c757d; }
+
 </style>
 <?php $head_styles = ob_get_clean(); ?>
 
 <?php ob_start(); ?>
 <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
 <script>
-    // On ne passe plus que les codes déjà placés et les couleurs
     const placedGeoCodes = <?= json_encode($placedGeoCodes ?? []); ?>;
     const universColors = <?= json_encode($universColors ?? []); ?>;
 </script>
@@ -67,6 +75,17 @@
                             <span><?= htmlspecialchars($univers) ?></span>
                         </div>
                     <?php endforeach; endif; ?>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <div class="accordion-header">
+                    <h3><i class="bi bi-clock-history"></i> Historique</h3>
+                    <span class="accordion-arrow">▶</span>
+                </div>
+                <div class="accordion-content">
+                    <div id="history-list">
+                        <p class="text-muted small">Sélectionnez un plan pour voir les dernières modifications.</p>
+                    </div>
                 </div>
             </div>
         </div>

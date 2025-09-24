@@ -1,6 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- VÉRIFICATION INITIALE ---
     const planPageContainer = document.querySelector('.plan-page-container');
-    if (!planPageContainer) return;
+    if (!planPageContainer) {
+        return; 
+    }
 
     // --- ÉLÉMENTS DU DOM ---
     const sidebar = document.getElementById('unplaced-codes-sidebar');
@@ -19,14 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const accordionItems = document.querySelectorAll('.accordion-item');
     const tagSizeSelector = document.getElementById('tag-size-selector');
     const planPlaceholder = document.getElementById('plan-placeholder');
-    
-    // NOUVEAUX ÉLÉMENTS POUR L'IMPRESSION
     const printModalBtn = document.getElementById('open-print-modal-btn');
     const printPlanModalEl = document.getElementById('printPlanModal');
     const printPlanModal = new bootstrap.Modal(printPlanModalEl);
     const printBrowserBtn = document.getElementById('print-browser-btn');
     const printPdfBtn = document.getElementById('print-pdf-btn');
-
+    const historyList = document.getElementById('history-list'); // NOUVEAU
 
     // --- ÉTAT DE L'APPLICATION ---
     let currentPlanId = null;
@@ -39,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let panzoomInstance = null;
     let lastClickTime = 0;
     let draggedItemFromSidebar = null;
-    let allCodesData = [...placedGeoCodes];
+    let allCodesData = [...placedGeoCodes]; 
 
     // --- INITIALISATION ---
     panzoomInstance = Panzoom(zoomWrapper, {
@@ -69,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.addEventListener('dragover', (e) => e.preventDefault());
         sidebar.addEventListener('drop', handleDropOnSidebar);
         
-        // Événements pour les nouveaux boutons d'impression
         printModalBtn.addEventListener('click', () => printPlanModal.show());
         printBrowserBtn.addEventListener('click', handleBrowserPrint);
         printPdfBtn.addEventListener('click', handlePdfExport);
@@ -86,10 +86,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
-
+    
     async function updateDisplayForPlan(planId) {
         currentPlanId = planId;
         clearSelection();
+        fetchAndDisplayHistory(planId); // On charge l'historique
     
         if (!planId) {
             mapImage.style.display = 'none';
@@ -120,8 +121,94 @@ document.addEventListener('DOMContentLoaded', () => {
     
         redrawAllElements();
     }
+
+    // ... (les autres fonctions restent identiques jusqu'à la fin du fichier)
     
-    // ... (TOUTES LES AUTRES FONCTIONS RESTENT INCHANGÉES : redrawAllElements, applyFilters, handleMouseDown, etc.)
+    // NOUVELLES FONCTIONS POUR L'HISTORIQUE
+    async function fetchAndDisplayHistory(planId) {
+        if (!planId) {
+            historyList.innerHTML = '<p class="text-muted small">Sélectionnez un plan pour voir les dernières modifications.</p>';
+            return;
+        }
+    
+        try {
+            const response = await fetch(`index.php?action=getHistory&id=${planId}`);
+            const historyData = await response.json();
+    
+            historyList.innerHTML = '';
+            if (historyData.length === 0) {
+                historyList.innerHTML = '<p class="text-muted small">Aucun historique pour ce plan.</p>';
+                return;
+            }
+    
+            historyData.forEach(entry => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                
+                const actionIcons = {
+                    placed: '<i class="bi bi-geo-alt-fill text-success action-icon"></i>',
+                    moved: '<i class="bi bi-arrows-move text-primary action-icon"></i>',
+                    removed: '<i class="bi bi-x-circle-fill text-danger action-icon"></i>'
+                };
+                
+                const date = new Date(entry.action_timestamp);
+                const formattedDate = `${date.toLocaleDateString('fr-FR')} à ${date.toLocaleTimeString('fr-FR')}`;
+
+                item.innerHTML = `
+                    <div class="action-info">
+                        ${actionIcons[entry.action_type] || ''}
+                        <div>
+                            <span class="action-code">${entry.code_geo}</span>
+                            <span class="action-time">${formattedDate}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary restore-btn" data-history-id="${entry.id}" title="Restaurer cet état">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                `;
+                
+                item.querySelector('.restore-btn').addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.historyId;
+                    if (confirm('Voulez-vous vraiment restaurer cet état ?')) {
+                        handleRestoreClick(id);
+                    }
+                });
+
+                historyList.appendChild(item);
+            });
+        } catch (error) {
+            console.error("Erreur lors de la récupération de l'historique:", error);
+            historyList.innerHTML = '<p class="text-danger small">Erreur de chargement.</p>';
+        }
+    }
+
+    async function handleRestoreClick(historyId) {
+        try {
+            const response = await fetch('index.php?action=restorePosition', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: parseInt(historyId) })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.status === 'success') {
+                    // Recharger toutes les données pour être sûr de l'état actuel
+                    const fullDataResponse = await fetch('index.php?action=getGeoCodes');
+                    allCodesData = await fullDataResponse.json();
+                    
+                    await updateDisplayForPlan(currentPlanId);
+                } else {
+                    alert('Erreur lors de la restauration.');
+                }
+            }
+        } catch (error) {
+            console.error('Erreur de restauration:', error);
+        }
+    }
+    
+    // ... (le reste des fonctions de gestion de la vue et des API)
+
     function redrawAllElements() {
         unplacedList.innerHTML = '';
         zoomWrapper.querySelectorAll('.geo-tag').forEach(tag => tag.remove());
@@ -450,8 +537,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- NOUVELLES FONCTIONS D'IMPRESSION ---
-
     function getPrintOptions() {
         return {
             title: document.getElementById('print-title').value.trim(),
@@ -513,7 +598,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const frameDoc = printFrame.contentWindow.document;
         frameDoc.open();
         frameDoc.write('<!DOCTYPE html><html><head><title>Impression du Plan</title>');
-        // Copie des feuilles de style
         document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
             frameDoc.head.appendChild(link.cloneNode(true));
         });
@@ -536,10 +620,9 @@ document.addEventListener('DOMContentLoaded', () => {
         printPlanModal.hide();
 
         const elementToExport = preparePrintContent(options);
-        // Style pour le rendu off-screen
         elementToExport.style.position = 'absolute';
         elementToExport.style.left = '-9999px';
-        elementToExport.style.width = '280mm'; // Largeur A4 paysage moins marges
+        elementToExport.style.width = '280mm';
         document.body.appendChild(elementToExport);
 
         const pdfOptions = {

@@ -70,6 +70,8 @@ switch ($action) {
     case 'editPlan': $planController->editPlanAction(); break; 
     case 'updatePlan': $planController->updatePlanAction(); break; 
     case 'getAvailableCodesForPlan': $planController->getAvailableCodesForPlanAction(); break;
+    case 'getHistory': $planController->getHistoryAction(); break; // NOUVEAU
+    case 'restorePosition': $planController->restorePositionAction(); break; // NOUVEAU
 
     // Univers
     case 'listUnivers': $universController->listAction(); break;
