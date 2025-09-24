@@ -1,8 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const planPageContainer = document.querySelector('.plan-page-container');
-    if (!planPageContainer) {
-        return; 
-    }
+    if (!planPageContainer) return;
 
     // --- ÉLÉMENTS DU DOM ---
     const sidebar = document.getElementById('unplaced-codes-sidebar');
@@ -10,8 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const unplacedList = document.getElementById('unplaced-list');
     const unplacedCounter = document.getElementById('unplaced-counter');
     const planContainer = document.getElementById('plan-container');
-    const modalElement = document.getElementById('geoCodeDetailModal');
-    const geoCodeModal = new bootstrap.Modal(modalElement);
     const mapImage = document.getElementById('map-image');
     const planSelector = document.getElementById('plan-selector');
     const searchInput = document.getElementById('tag-search-input');
@@ -22,26 +18,48 @@ document.addEventListener('DOMContentLoaded', () => {
     const tagSizeSelector = document.getElementById('tag-size-selector');
     const planPlaceholder = document.getElementById('plan-placeholder');
     const printModalBtn = document.getElementById('open-print-modal-btn');
-    const printPlanModalEl = document.getElementById('printPlanModal');
-    const printPlanModal = new bootstrap.Modal(printPlanModalEl);
     const printBrowserBtn = document.getElementById('print-browser-btn');
     const printPdfBtn = document.getElementById('print-pdf-btn');
     const historyList = document.getElementById('history-list');
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+    const touchToolbar = document.getElementById('touch-controls-toolbar');
+    const multiSelectToggle = document.getElementById('multi-select-toggle');
+    const placementBanner = document.getElementById('placement-mode-banner');
+    const placementCodeLabel = document.getElementById('placement-code-label');
+    const cancelPlacementBtn = document.getElementById('cancel-placement-btn');
+    const contextMenu = document.getElementById('tag-context-menu');
 
+    // --- Initialisation des Modales (AVEC VÉRIFICATION) ---
+    const modalElement = document.getElementById('geoCodeDetailModal');
+    let geoCodeModal = null;
+    if (modalElement) {
+        geoCodeModal = new bootstrap.Modal(modalElement);
+    }
+
+    const printPlanModalEl = document.getElementById('printPlanModal');
+    let printPlanModal = null;
+    if (printPlanModalEl) {
+        printPlanModal = new bootstrap.Modal(printPlanModalEl);
+    }
+    
     // --- ÉTAT DE L'APPLICATION ---
     let currentPlanId = null;
     let selectedTags = new Set();
     let isDragging = false;
     let isSelecting = false;
     let selectionBox = null;
-    let startX, startY;
+    let startCoords = { x: 0, y: 0 };
     let dragStartPositions = new Map();
     let panzoomInstance = null;
-    let lastClickTime = 0;
     let draggedItemFromSidebar = null;
-    // CORRECTION : On utilise la variable globale 'placedGeoCodes' qui a été définie dans la vue.
-    let allCodesData = [...placedGeoCodes]; 
+    let allCodesData = [...placedGeoCodes];
+    
+    let isMultiSelectMode = false;
+    let isPlacementMode = false;
+    let placementCodeId = null;
+    let longPressTimer = null;
+    let isTouchMovingTag = false;
+    let lastClickTime = 0;
 
     // --- INITIALISATION ---
     panzoomInstance = Panzoom(zoomWrapper, {
@@ -51,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addEventListeners();
     updateDisplayForPlan(null);
 
-    // --- GESTION DES ÉVÉNEMENTS ---
+    // --- GESTIONNAIRES D'ÉVÉNEMENTS ---
     function addEventListeners() {
         planContainer.addEventListener('wheel', panzoomInstance.zoomWithWheel, { passive: false });
         planSelector.addEventListener('change', (e) => updateDisplayForPlan(e.target.value));
@@ -62,22 +80,24 @@ document.addEventListener('DOMContentLoaded', () => {
         accordionItems.forEach(item => {
             item.querySelector('.accordion-header').addEventListener('click', () => item.classList.toggle('open'));
         });
+        toggleSidebarBtn.addEventListener('click', () => planPageContainer.classList.toggle('sidebar-hidden'));
         zoomWrapper.addEventListener('mousedown', handleMouseDown);
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
         document.addEventListener('dragstart', handleDragStart);
+        zoomWrapper.addEventListener('touchstart', handleTouchStart, { passive: false });
+        zoomWrapper.addEventListener('touchmove', handleTouchMove, { passive: false });
+        zoomWrapper.addEventListener('touchend', handleTouchEnd);
+        unplacedList.addEventListener('click', handleUnplacedItemClick);
+        cancelPlacementBtn.addEventListener('click', cancelPlacementMode);
+        multiSelectToggle.addEventListener('click', toggleMultiSelectMode);
+        printModalBtn.addEventListener('click', () => { if(printPlanModal) printPlanModal.show(); });
+        printBrowserBtn.addEventListener('click', handleBrowserPrint);
+        printPdfBtn.addEventListener('click', handlePdfExport);
         zoomWrapper.addEventListener('dragover', (e) => e.preventDefault());
         zoomWrapper.addEventListener('drop', handleDropOnPlan);
         sidebar.addEventListener('dragover', (e) => e.preventDefault());
         sidebar.addEventListener('drop', handleDropOnSidebar);
-        
-        printModalBtn.addEventListener('click', () => printPlanModal.show());
-        printBrowserBtn.addEventListener('click', handleBrowserPrint);
-        printPdfBtn.addEventListener('click', handlePdfExport);
-
-        toggleSidebarBtn.addEventListener('click', () => {
-            planPageContainer.classList.toggle('sidebar-hidden');
-        });
 
         if (tagSizeSelector) {
             tagSizeSelector.addEventListener('click', (e) => {
@@ -91,97 +111,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
-    
-    async function updateDisplayForPlan(planId) {
-        currentPlanId = planId;
-        clearSelection();
-        fetchAndDisplayHistory(planId);
-    
-        if (!planId) {
-            mapImage.style.display = 'none';
-            planPlaceholder.style.display = 'block';
-            printModalBtn.disabled = true;
-            redrawAllElements();
-            return;
-        }
-    
-        const selectedOption = planSelector.querySelector(`option[value="${planId}"]`);
-        mapImage.src = `uploads/plans/${selectedOption.dataset.filename}`;
-        mapImage.style.display = 'block';
-        planPlaceholder.style.display = 'none';
-        printModalBtn.disabled = false;
-        
-        const unplacedCodes = await fetchAvailableCodes(planId);
-        const placedIds = new Set(allCodesData.filter(c => c.plan_id).map(c => c.id));
-        unplacedCodes.forEach(code => {
-            if (!placedIds.has(code.id)) {
-                const existingIndex = allCodesData.findIndex(c => c.id === code.id);
-                if (existingIndex > -1) {
-                    allCodesData[existingIndex] = { ...allCodesData[existingIndex], ...code, plan_id: null, pos_x: null, pos_y: null };
-                } else {
-                    allCodesData.push(code);
-                }
-            }
-        });
-    
-        redrawAllElements();
-    }
 
-    function redrawAllElements() {
-        unplacedList.innerHTML = '';
-        zoomWrapper.querySelectorAll('.geo-tag').forEach(tag => tag.remove());
-        
-        if (!currentPlanId) {
-            unplacedList.innerHTML = '<p class="text-muted small">Veuillez sélectionner un plan pour commencer.</p>';
-            applyFilters();
-            return;
-        }
-        
-        allCodesData.forEach(code => {
-            if (code.plan_id == currentPlanId) {
-                const tag = createPlacedTag(code);
-                tag.style.left = `${code.pos_x}%`;
-                tag.style.top = `${code.pos_y}%`;
-                zoomWrapper.appendChild(tag);
-            }
-        });
-        
-        fetchAvailableCodes(currentPlanId).then(codes => {
-            unplacedList.innerHTML = '';
-            if (codes.length === 0) {
-                unplacedList.innerHTML = '<p class="text-muted small">Aucun code disponible pour ce plan.</p>';
-            } else {
-                codes.forEach(code => unplacedList.appendChild(createUnplacedItem(code)));
-            }
-            applyFilters();
-        });
-    }
-
-    function applyFilters() {
-        const searchTerm = searchInput.value.toLowerCase();
-        
-        let unplacedVisibleCount = 0;
-        document.querySelectorAll('#unplaced-list .unplaced-item').forEach(item => {
-            const searchData = `${item.dataset.code} ${item.dataset.libelle}`.toLowerCase();
-            const searchMatch = searchData.includes(searchTerm);
-            item.style.display = searchMatch ? 'block' : 'none';
-            if (searchMatch) unplacedVisibleCount++;
-        });
-
-        document.querySelectorAll('#zoom-wrapper .geo-tag').forEach(tag => {
-            const searchData = `${tag.dataset.code} ${tag.dataset.libelle}`.toLowerCase();
-            const searchMatch = searchData.includes(searchTerm);
-            tag.style.display = searchMatch ? 'flex' : 'none';
-        });
-
-        unplacedCounter.textContent = `(${unplacedVisibleCount})`;
-    }
-
+    // --- LOGIQUE D'INTERACTION SOURIS ---
     function handleMouseDown(e) {
         if (e.button !== 0) return;
         const clickedTag = e.target.closest('.geo-tag');
-        startX = e.clientX;
-        startY = e.clientY;
+        startCoords = { x: e.clientX, y: e.clientY };
         if (clickedTag) {
             e.stopImmediatePropagation();
             isDragging = true;
@@ -207,8 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleMouseMove(e) {
         if (isDragging) {
             const scale = panzoomInstance.getScale();
-            const dx = (e.clientX - startX) / (zoomWrapper.clientWidth * scale) * 100;
-            const dy = (e.clientY - startY) / (zoomWrapper.clientHeight * scale) * 100;
+            const dx = (e.clientX - startCoords.x) / (zoomWrapper.clientWidth * scale) * 100;
+            const dy = (e.clientY - startCoords.y) / (zoomWrapper.clientHeight * scale) * 100;
             selectedTags.forEach(tag => {
                 const startPos = dragStartPositions.get(tag);
                 if (startPos) {
@@ -222,20 +157,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleMouseUp(e) {
-        const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
+        const dist = Math.hypot(e.clientX - startCoords.x, e.clientY - startCoords.y);
         if (isDragging) {
             if (dist > 5) {
                 const positionsToSave = Array.from(selectedTags).map(tag => ({ id: parseInt(tag.dataset.id), x: parseFloat(tag.style.left), y: parseFloat(tag.style.top) }));
-                
                 if (await saveMultiplePositionsAPI(positionsToSave)) {
-                    positionsToSave.forEach(pos => {
-                        const code = allCodesData.find(c => c.id == pos.id);
-                        if(code) {
-                            code.pos_x = pos.x;
-                            code.pos_y = pos.y;
-                            code.plan_id = currentPlanId;
-                        }
-                    });
                     flashTags(selectedTags, 'saved');
                     fetchAndDisplayHistory(currentPlanId);
                 }
@@ -253,7 +179,135 @@ document.addEventListener('DOMContentLoaded', () => {
         isSelecting = false;
         panzoomInstance.setOptions({ disablePan: false });
     }
+
+    // --- LOGIQUE D'INTERACTION TACTILE ---
+    function handleTouchStart(e) {
+        if (e.touches.length > 1) return;
+        const touch = e.touches[0];
+        const target = touch.target.closest('.geo-tag');
+        startCoords = { x: touch.clientX, y: touch.clientY };
+
+        if (isPlacementMode) {
+            e.preventDefault();
+            placeItemAt(touch.clientX, touch.clientY);
+            return;
+        }
+
+        if (isTouchMovingTag) {
+            e.preventDefault();
+            stopTouchMove();
+            return;
+        }
+
+        if (target) {
+            e.preventDefault();
+            panzoomInstance.setOptions({ disablePan: true });
+            longPressTimer = setTimeout(() => {
+                longPressTimer = null;
+                if (!isMultiSelectMode) {
+                    clearSelection();
+                    toggleTagSelection(target);
+                }
+                showContextMenu(target, touch.clientX, touch.clientY);
+            }, 500);
+        }
+    }
+
+    function handleTouchMove(e) {
+        if (e.touches.length > 1 || !longPressTimer) return;
+        const touch = e.touches[0];
+        if (Math.hypot(touch.clientX - startCoords.x, touch.clientY - startCoords.y) > 10) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+    }
+
+    function handleTouchEnd(e) {
+        clearTimeout(longPressTimer);
+        const target = e.target.closest('.geo-tag');
+        if (longPressTimer && target) {
+            if (isMultiSelectMode) {
+                toggleTagSelection(target);
+            } else {
+                clearSelection();
+                toggleTagSelection(target);
+            }
+        }
+        panzoomInstance.setOptions({ disablePan: false });
+    }
+
+    // --- LOGIQUE DES MODES ET ACTIONS ---
+    function handleUnplacedItemClick(e) {
+        const item = e.target.closest('.unplaced-item');
+        if (item && !isPlacementMode) {
+            enterPlacementMode(item);
+        }
+    }
+
+    function enterPlacementMode(item) {
+        isPlacementMode = true;
+        placementCodeId = item.dataset.id;
+        item.classList.add('placement-active');
+        placementCodeLabel.textContent = item.dataset.code;
+        placementBanner.style.display = 'flex';
+        panzoomInstance.setOptions({ disablePan: true });
+    }
+
+    function cancelPlacementMode() {
+        if (isPlacementMode) {
+            isPlacementMode = false;
+            placementCodeId = null;
+            document.querySelector('.unplaced-item.placement-active')?.classList.remove('placement-active');
+            placementBanner.style.display = 'none';
+            panzoomInstance.setOptions({ disablePan: false });
+        }
+    }
     
+    async function placeItemAt(x, y) {
+        if (!isPlacementMode || !placementCodeId) return;
+        const pan = panzoomInstance.getPan();
+        const scale = panzoomInstance.getScale();
+        const zoomRect = zoomWrapper.getBoundingClientRect();
+        const posX = (x - zoomRect.left - pan.x) / (zoomRect.width * scale) * 100;
+        const posY = (y - zoomRect.top - pan.y) / (zoomRect.height * scale) * 100;
+        if (await saveMultiplePositionsAPI([{ id: parseInt(placementCodeId), x: posX, y: posY }])) {
+            await reloadAllDataAndRedraw();
+            fetchAndDisplayHistory(currentPlanId);
+        }
+        cancelPlacementMode();
+    }
+
+    function startTouchMove() {
+        isTouchMovingTag = true;
+        selectedTags.forEach(tag => {
+            tag.classList.add('is-moving');
+            dragStartPositions.set(tag, { x: parseFloat(tag.style.left), y: parseFloat(tag.style.top) });
+        });
+        panzoomInstance.setOptions({ disablePan: true });
+    }
+
+    async function stopTouchMove() {
+        isTouchMovingTag = false;
+        const positionsToSave = [];
+        selectedTags.forEach(tag => {
+            tag.classList.remove('is-moving');
+            positionsToSave.push({ id: parseInt(tag.dataset.id), x: parseFloat(tag.style.left), y: parseFloat(tag.style.top) });
+        });
+        if (await saveMultiplePositionsAPI(positionsToSave)) {
+            flashTags(selectedTags, 'saved');
+            fetchAndDisplayHistory(currentPlanId);
+        }
+        panzoomInstance.setOptions({ disablePan: false });
+    }
+
+    function toggleMultiSelectMode() {
+        isMultiSelectMode = !isMultiSelectMode;
+        multiSelectToggle.classList.toggle('active', isMultiSelectMode);
+        if (!isMultiSelectMode) {
+            clearSelection();
+        }
+    }
+
     function handleTagClick(e) {
         const clickedTag = e.target.closest('.geo-tag');
         if (!clickedTag) return;
@@ -286,15 +340,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const zoomRect = zoomWrapper.getBoundingClientRect();
         const x = (e.clientX - zoomRect.left - pan.x) / (zoomRect.width * scale) * 100;
         const y = (e.clientY - zoomRect.top - pan.y) / (zoomRect.height * scale) * 100;
-        
         if (await saveMultiplePositionsAPI([{ id: parseInt(codeId), x: x, y: y }])) {
-            const codeData = allCodesData.find(c => c.id == codeId);
-            if (codeData) {
-                codeData.pos_x = x;
-                codeData.pos_y = y;
-                codeData.plan_id = currentPlanId;
-            }
-            await redrawAllElements();
+            await reloadAllDataAndRedraw();
             fetchAndDisplayHistory(currentPlanId);
         }
         draggedItemFromSidebar = null;
@@ -312,6 +359,102 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- FONCTIONS UTILITAIRES ET AFFICHAGE ---
+    async function reloadAllDataAndRedraw() {
+        const dataResponse = await fetch('index.php?action=getAllCodesJson');
+        const newGeoCodes = await dataResponse.json();
+        allCodesData = [...newGeoCodes];
+        placedGeoCodes = newGeoCodes;
+        await updateDisplayForPlan(currentPlanId);
+    }
+
+    async function updateDisplayForPlan(planId) {
+        currentPlanId = planId;
+        clearSelection();
+        cancelPlacementMode();
+        if (isTouchMovingTag) stopTouchMove();
+        
+        fetchAndDisplayHistory(planId);
+    
+        if (!planId) {
+            mapImage.style.display = 'none';
+            planPlaceholder.style.display = 'block';
+            printModalBtn.disabled = true;
+            touchToolbar.style.display = 'none';
+            redrawAllElements();
+            return;
+        }
+    
+        const selectedOption = planSelector.querySelector(`option[value="${planId}"]`);
+        mapImage.src = `uploads/plans/${selectedOption.dataset.filename}`;
+        mapImage.style.display = 'block';
+        planPlaceholder.style.display = 'none';
+        printModalBtn.disabled = false;
+        touchToolbar.style.display = 'flex';
+        
+        const unplacedCodes = await fetchAvailableCodes(planId);
+        const placedIds = new Set(allCodesData.filter(c => c.plan_id).map(c => c.id));
+        unplacedCodes.forEach(code => {
+            if (!placedIds.has(code.id)) {
+                const existingIndex = allCodesData.findIndex(c => c.id === code.id);
+                if (existingIndex > -1) {
+                    allCodesData[existingIndex] = { ...allCodesData[existingIndex], ...code, plan_id: null, pos_x: null, pos_y: null };
+                } else {
+                    allCodesData.push(code);
+                }
+            }
+        });
+    
+        redrawAllElements();
+    }
+    
+    function redrawAllElements() {
+        unplacedList.innerHTML = '';
+        zoomWrapper.querySelectorAll('.geo-tag').forEach(tag => tag.remove());
+        
+        if (!currentPlanId) {
+            unplacedList.innerHTML = '<p class="text-muted small">Veuillez sélectionner un plan pour commencer.</p>';
+            applyFilters();
+            return;
+        }
+        
+        allCodesData.forEach(code => {
+            if (code.plan_id == currentPlanId) {
+                const tag = createPlacedTag(code);
+                tag.style.left = `${code.pos_x}%`;
+                tag.style.top = `${code.pos_y}%`;
+                zoomWrapper.appendChild(tag);
+            }
+        });
+        
+        fetchAvailableCodes(currentPlanId).then(codes => {
+            unplacedList.innerHTML = '';
+            if (codes.length === 0) {
+                unplacedList.innerHTML = '<p class="text-muted small">Aucun code disponible pour ce plan.</p>';
+            } else {
+                codes.forEach(code => unplacedList.appendChild(createUnplacedItem(code)));
+            }
+            applyFilters();
+        });
+    }
+
+    function applyFilters() {
+        const searchTerm = searchInput.value.toLowerCase();
+        let unplacedVisibleCount = 0;
+        document.querySelectorAll('#unplaced-list .unplaced-item').forEach(item => {
+            const searchData = `${item.dataset.code} ${item.dataset.libelle}`.toLowerCase();
+            const searchMatch = searchData.includes(searchTerm);
+            item.style.display = searchMatch ? 'block' : 'none';
+            if (searchMatch) unplacedVisibleCount++;
+        });
+        document.querySelectorAll('#zoom-wrapper .geo-tag').forEach(tag => {
+            const searchData = `${tag.dataset.code} ${tag.dataset.libelle}`.toLowerCase();
+            const searchMatch = searchData.includes(searchTerm);
+            tag.style.display = searchMatch ? 'flex' : 'none';
+        });
+        unplacedCounter.textContent = `(${unplacedVisibleCount})`;
+    }
+
     function createPlacedTag(code) {
         const tag = document.createElement('div');
         tag.className = 'geo-tag';
@@ -338,6 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showDetailModal(codeId) {
+        if (!geoCodeModal) return;
         const codeData = allCodesData.find(c => c.id == codeId);
         if (!codeData) return;
         document.getElementById('modal-code-geo').textContent = codeData.code_geo;
@@ -354,8 +498,28 @@ document.addEventListener('DOMContentLoaded', () => {
         geoCodeModal.show();
     }
     
+    function showContextMenu(tag, x, y) {
+        hideContextMenu();
+        contextMenu.style.display = 'block';
+        contextMenu.style.left = `${x}px`;
+        contextMenu.style.top = `${y}px`;
+        const codeId = tag.dataset.id;
+        document.getElementById('ctx-details').onclick = () => { hideContextMenu(); showDetailModal(codeId); };
+        document.getElementById('ctx-remove').onclick = async () => {
+            hideContextMenu();
+            if(confirm('Retirer cette étiquette du plan ?')) {
+                await unplacePosition(codeId);
+                fetchAndDisplayHistory(currentPlanId);
+            }
+        };
+        document.getElementById('ctx-move').onclick = () => { hideContextMenu(); startTouchMove(); };
+        setTimeout(() => document.addEventListener('click', hideContextMenu, { once: true }), 10);
+    }
+
+    function hideContextMenu() { contextMenu.style.display = 'none'; }
+    
     function toggleTagSelection(tag) {
-        if (tag.classList.contains('selected')) {
+        if (selectedTags.has(tag)) {
             tag.classList.remove('selected');
             selectedTags.delete(tag);
         } else {
@@ -373,8 +537,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const planRect = planContainer.getBoundingClientRect();
         const mouseX = e.clientX - planRect.left;
         const mouseY = e.clientY - planRect.top;
-        const boxStartX = startX - planRect.left;
-        const boxStartY = startY - planRect.top;
+        const boxStartX = startCoords.x - planRect.left;
+        const boxStartY = startCoords.y - planRect.top;
         selectionBox.style.left = `${Math.min(boxStartX, mouseX)}px`;
         selectionBox.style.top = `${Math.min(boxStartY, mouseY)}px`;
         selectionBox.style.width = `${Math.abs(boxStartX - mouseX)}px`;
@@ -395,22 +559,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function flashTags(tags, className) {
         tags.forEach(tag => {
-            tag.classList.remove(className);
-            void tag.offsetWidth;
+            tag.classList.remove(className); void tag.offsetWidth;
             tag.classList.add(className);
             tag.addEventListener('animationend', () => tag.classList.remove(className), { once: true });
         });
     }
-
+    
     async function unplacePosition(codeId) {
         if (await removePositionAPI(codeId)) {
-            const code = allCodesData.find(c => c.id == codeId);
-            if (code) {
-                code.plan_id = null; 
-                code.pos_x = null; 
-                code.pos_y = null;
-            }
-            await redrawAllElements();
+            await reloadAllDataAndRedraw();
         }
     }
 
@@ -523,12 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 const result = await response.json();
                 if (result.status === 'success') {
-                    // On recharge les données depuis le serveur pour garantir la cohérence
-                    const dataResponse = await fetch('index.php?action=getAllCodesJson');
-                    const newGeoCodes = await dataResponse.json();
-                    allCodesData = [...newGeoCodes];
-                    placedGeoCodes = newGeoCodes; // Mettre à jour la variable globale
-                    await updateDisplayForPlan(currentPlanId);
+                    await reloadAllDataAndRedraw();
                 } else {
                     alert('Erreur lors de la restauration : ' + (result.message || ''));
                 }
@@ -549,20 +701,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function preparePrintContent(options) {
         const printContainer = document.createElement('div');
-
         if (options.title) {
             const header = document.createElement('div');
             header.className = 'print-header-container no-print';
             header.innerHTML = `<h1>${options.title}</h1><p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>`;
             printContainer.appendChild(header);
         }
-
         const planToPrint = zoomWrapper.cloneNode(true);
         planToPrint.style.transform = 'none';
         planToPrint.style.cursor = 'default';
         planToPrint.style.width = '100%'; 
         planToPrint.style.height = 'auto';
-
         if (options.onlyFiltered) {
             zoomWrapper.querySelectorAll('.geo-tag').forEach((originalTag, index) => {
                 if (originalTag.style.display === 'none') {
@@ -571,7 +720,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         printContainer.appendChild(planToPrint);
-
         if (options.includeLegend) {
             const legendContainer = document.createElement('div');
             legendContainer.className = 'print-legend-container';
@@ -582,21 +730,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             printContainer.appendChild(legendContainer);
         }
-        
         return printContainer;
     }
 
     function handleBrowserPrint() {
         const options = getPrintOptions();
-        printPlanModal.hide();
-
+        if(printPlanModal) printPlanModal.hide();
         const printFrame = document.createElement('iframe');
         printFrame.style.position = 'absolute';
         printFrame.style.width = '0';
         printFrame.style.height = '0';
         printFrame.style.border = '0';
         document.body.appendChild(printFrame);
-
         const frameDoc = printFrame.contentWindow.document;
         frameDoc.open();
         frameDoc.write('<!DOCTYPE html><html><head><title>Impression du Plan</title>');
@@ -605,10 +750,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         frameDoc.write('</head><body></body></html>');
         frameDoc.close();
-
         const printContent = preparePrintContent(options);
         frameDoc.body.appendChild(printContent);
-
         setTimeout(() => {
             printFrame.contentWindow.focus();
             printFrame.contentWindow.print();
@@ -619,14 +762,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function handlePdfExport() {
         const options = getPrintOptions();
         const filename = (options.title || 'plan').replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.pdf';
-        printPlanModal.hide();
-
+        if(printPlanModal) printPlanModal.hide();
         const elementToExport = preparePrintContent(options);
         elementToExport.style.position = 'absolute';
         elementToExport.style.left = '-9999px';
         elementToExport.style.width = '280mm';
         document.body.appendChild(elementToExport);
-
         const pdfOptions = {
           margin: 10,
           filename: filename,
@@ -634,7 +775,6 @@ document.addEventListener('DOMContentLoaded', () => {
           html2canvas: { scale: 2, useCORS: true, logging: false },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
         };
-        
         html2pdf().set(pdfOptions).from(elementToExport).save().then(() => {
             if (elementToExport.parentElement) {
                  elementToExport.parentElement.removeChild(elementToExport);
@@ -642,4 +782,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-

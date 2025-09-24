@@ -18,21 +18,18 @@
     .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .legend-color-box { width: 15px; height: 15px; border: 1px solid #ccc; border-radius: 3px; }
     
-    /* Styles pour la liste de l'historique */
     #history-list .history-item { font-size: 0.85rem; padding: 0.5rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
     #history-list .history-item:last-child { border-bottom: none; }
     #history-list .history-item .action-info { display: flex; align-items: center; gap: 0.5rem; }
     #history-list .history-item .action-icon { font-size: 1rem; }
     #history-list .history-item .action-code { font-weight: bold; }
     #history-list .history-item .action-time { display: block; font-size: 0.75rem; color: #6c757d; }
-
 </style>
 <?php $head_styles = ob_get_clean(); ?>
 
 <?php ob_start(); ?>
 <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
 <script>
-    // On utilise 'let' pour permettre la réassignation des données après une restauration.
     let placedGeoCodes = <?= json_encode($placedGeoCodes ?? []); ?>;
     const universColors = <?= json_encode($universColors ?? []); ?>;
 </script>
@@ -44,31 +41,20 @@
     <div id="unplaced-codes-sidebar" class="no-print">
         <div class="sidebar-accordion">
             <div class="accordion-item open">
-                <div class="accordion-header">
-                    <h3>Filtres</h3>
-                    <span class="accordion-arrow">▶</span>
-                </div>
+                <div class="accordion-header"><h3>Filtres</h3><span class="accordion-arrow">▶</span></div>
                 <div class="accordion-content">
                     <input type="search" id="tag-search-input" placeholder="Rechercher un code..." class="form-control mb-3">
                     <p class="small text-muted">Les filtres s'appliquent sur la liste des codes à placer et sur les étiquettes du plan.</p>
                 </div>
             </div>
             <div class="accordion-item open">
-                <div class="accordion-header">
-                    <h3>Codes à placer <span id="unplaced-counter">(0)</span></h3>
-                    <span class="accordion-arrow">▶</span>
-                </div>
+                <div class="accordion-header"><h3>Codes à placer <span id="unplaced-counter">(0)</span></h3><span class="accordion-arrow">▶</span></div>
                 <div class="accordion-content" id="unplaced-list-container">
-                    <div id="unplaced-list">
-                        <p class="text-muted small">Veuillez sélectionner un plan pour voir les codes disponibles.</p>
-                    </div>
+                    <div id="unplaced-list"><p class="text-muted small">Veuillez sélectionner un plan pour voir les codes disponibles.</p></div>
                 </div>
             </div>
             <div class="accordion-item">
-                <div class="accordion-header">
-                    <h3>Légende</h3>
-                    <span class="accordion-arrow">▶</span>
-                </div>
+                <div class="accordion-header"><h3>Légende</h3><span class="accordion-arrow">▶</span></div>
                 <div class="accordion-content" id="legend-content">
                     <?php if (!empty($universColors)): foreach ($universColors as $univers => $color): ?>
                         <div class="legend-item">
@@ -79,14 +65,9 @@
                 </div>
             </div>
             <div class="accordion-item">
-                <div class="accordion-header">
-                    <h3><i class="bi bi-clock-history"></i> Historique</h3>
-                    <span class="accordion-arrow">▶</span>
-                </div>
+                <div class="accordion-header"><h3><i class="bi bi-clock-history"></i> Historique</h3><span class="accordion-arrow">▶</span></div>
                 <div class="accordion-content">
-                    <div id="history-list">
-                        <p class="text-muted small">Sélectionnez un plan pour voir les dernières modifications.</p>
-                    </div>
+                    <div id="history-list"><p class="text-muted small">Sélectionnez un plan pour voir les dernières modifications.</p></div>
                 </div>
             </div>
         </div>
@@ -108,7 +89,6 @@
                 </select>
             </div>
             <button id="open-print-modal-btn" class="btn btn-secondary" disabled><i class="bi bi-printer-fill"></i> Imprimer le plan</button>
-            
             <div class="form-group ms-auto">
                 <label class="form-label d-block mb-1 small">Taille étiquettes</label>
                 <div class="btn-group btn-group-sm" role="group" id="tag-size-selector">
@@ -118,7 +98,14 @@
                 </div>
             </div>
         </div>
+        <div id="touch-controls-toolbar" class="plan-toolbar no-print d-lg-none">
+            <button id="multi-select-toggle" class="btn btn-sm btn-outline-primary"><i class="bi bi-ui-checks-grid"></i> Sélectionner plusieurs</button>
+        </div>
         <div id="plan-container">
+            <div id="placement-mode-banner" class="no-print" style="display: none;">
+                <p>Appuyez sur le plan pour placer <strong id="placement-code-label"></strong></p>
+                <button id="cancel-placement-btn" class="btn btn-sm btn-danger">Annuler</button>
+            </div>
             <div id="zoom-wrapper">
                 <img src="" alt="Plan du magasin" id="map-image" style="display: none;">
             </div>
@@ -130,6 +117,12 @@
             <button id="zoom-reset-btn" class="btn btn-light" title="Réinitialiser">⟲</button>
         </div>
     </div>
+</div>
+
+<div id="tag-context-menu" class="dropdown-menu no-print">
+    <a class="dropdown-item" href="#" id="ctx-details"><i class="bi bi-info-circle-fill"></i> Détails</a>
+    <a class="dropdown-item" href="#" id="ctx-move"><i class="bi bi-arrows-move"></i> Déplacer</a>
+    <a class="dropdown-item text-danger" href="#" id="ctx-remove"><i class="bi bi-trash-fill"></i> Retirer du plan</a>
 </div>
 
 <div class="modal fade" id="geoCodeDetailModal" tabindex="-1" aria-labelledby="geoCodeDetailModalLabel" aria-hidden="true">

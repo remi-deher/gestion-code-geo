@@ -1,4 +1,4 @@
-/*   */
+/* public/css/pages/_plan.css */
 
 .plan-page-container {
     display: flex;
@@ -7,8 +7,8 @@
     margin: 0;
     max-width: 100%;
     padding: 0;
-    overflow-x: hidden; /* Empêche la barre de défilement horizontale pendant l'animation */
-    position: relative; /* Contexte de positionnement pour le bouton */
+    overflow-x: hidden;
+    position: relative;
 }
 
 #unplaced-codes-sidebar {
@@ -22,6 +22,12 @@
     flex-direction: column;
     transition: margin-left 0.3s ease-in-out;
 }
+/* Style pour les items de la liste en mode placement */
+.unplaced-item.placement-active {
+    background-color: var(--primary-color) !important;
+    color: white;
+}
+.unplaced-item.placement-active .item-libelle { color: #eee; }
 
 .plan-main-content {
     flex-grow: 1;
@@ -30,11 +36,10 @@
     position: relative;
 }
 
-/* --- STYLES POUR LE BOUTON DE BASCULE --- */
 #toggle-sidebar-btn {
     position: absolute;
     top: 50%;
-    left: 300px; /* Commence au bord de la sidebar */
+    left: 300px;
     transform: translateY(-50%);
     z-index: 1050;
     height: 60px;
@@ -55,25 +60,27 @@
     transition: transform 0.3s ease-in-out;
 }
 
-/* --- STYLES LORSQUE LA SIDEBAR EST CACHÉE --- */
 .sidebar-hidden #unplaced-codes-sidebar {
-    margin-left: -300px; /* Fait glisser la sidebar hors de l'écran */
+    margin-left: -300px;
 }
-
 .sidebar-hidden #toggle-sidebar-btn {
-    left: 0; /* Positionne le bouton sur le bord gauche de l'écran */
+    left: 0;
 }
-
 .sidebar-hidden #toggle-sidebar-btn i {
-    transform: rotate(180deg); /* Fait pivoter l'icône de flèche */
+    transform: rotate(180deg);
 }
 
 .plan-toolbar {
     display: flex;
-    gap: 1.5rem;
+    gap: 1rem;
     margin: 1rem;
     align-items: center;
     flex-wrap: wrap;
+}
+
+#touch-controls-toolbar {
+    padding-top: 0;
+    margin-top: 0;
 }
 
 #plan-container {
@@ -84,6 +91,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* --- NOUVEAU : Styles pour la bannière de placement --- */
+#placement-mode-banner {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1060;
+    background-color: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
 #zoom-wrapper {
@@ -125,32 +149,17 @@
     box-shadow: 0 0 10px rgba(13, 110, 253, 0.7);
     z-index: 10;
 }
-
-@keyframes flash-success {
-    0% { background-color: #198754; }
-    100% { background-color: var(--tag-bg-color); }
-}
-.geo-tag.saved {
-    animation: flash-success 1s ease-out;
+/* NOUVEAU : Style pour une étiquette en cours de déplacement tactile */
+.geo-tag.is-moving {
+    opacity: 0.7;
+    border-style: dashed;
+    cursor: grabbing;
 }
 
-#zoom-wrapper.tag-size-medium .geo-tag {
-    font-size: 0.9rem;
-    padding: 4px 8px;
-    border-radius: 4px;
+#tag-context-menu {
+    position: absolute;
+    z-index: 1100;
 }
-#zoom-wrapper.tag-size-small .geo-tag {
-    font-size: 0.7rem;
-    padding: 2px 5px;
-    border-radius: 3px;
-    border-width: 1px;
-}
-#zoom-wrapper.tag-size-large .geo-tag {
-    font-size: 1.1rem;
-    padding: 6px 12px;
-    border-radius: 5px;
-}
-
 
 #selection-box {
     position: absolute;
@@ -166,7 +175,6 @@
     right: 1rem;
 }
 
-/* --- Responsive pour la page du plan --- */
 @media (max-width: 991.98px) {
     .plan-page-container {
         flex-direction: column;
@@ -176,17 +184,15 @@
     #unplaced-codes-sidebar {
         width: 100%;
         height: auto;
-        max-height: 40vh; /* Limite la hauteur sur mobile */
+        max-height: 40vh;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        margin-left: 0 !important; /* On désactive le masquage sur mobile */
+        margin-left: 0 !important;
     }
     
     .plan-main-content {
-        /* Calcule la hauteur restante pour le plan */
         height: calc(100vh - var(--navbar-height) - 40vh);
     }
     
-    /* On cache le bouton de bascule sur les petits écrans car la sidebar n'est plus latérale */
     #toggle-sidebar-btn {
         display: none;
     }
