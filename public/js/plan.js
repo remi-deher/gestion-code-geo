@@ -21,7 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const zoomOutBtn = document.getElementById('zoom-out-btn');
     const zoomResetBtn = document.getElementById('zoom-reset-btn');
     const accordionItems = document.querySelectorAll('.accordion-item');
-    const tagSizeSelector = document.getElementById('tag-size-selector'); // NOUVEAU
+    const tagSizeSelector = document.getElementById('tag-size-selector');
+    const planPlaceholder = document.getElementById('plan-placeholder'); // Élément du message ajouté
 
     // --- ÉTAT DE L'APPLICATION ---
     let currentPlanId = null;
@@ -43,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         excludeClass: 'geo-tag',
         canvas: true
     });
-    zoomWrapper.classList.add('tag-size-medium'); // NOUVEAU : Taille par défaut
+    zoomWrapper.classList.add('tag-size-medium');
     addEventListeners();
     updateDisplayForPlan(null);
 
@@ -67,8 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         zoomWrapper.addEventListener('drop', handleDropOnPlan);
         sidebar.addEventListener('dragover', (e) => e.preventDefault());
         sidebar.addEventListener('drop', handleDropOnSidebar);
-
-        // NOUVEAU : Gestionnaire pour le sélecteur de taille
+        
         if (tagSizeSelector) {
             tagSizeSelector.addEventListener('click', (e) => {
                 const button = e.target.closest('button');
@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!planId) {
             mapImage.style.display = 'none';
+            planPlaceholder.style.display = 'block'; // Affiche le message
             printBtn.disabled = true;
             redrawAllElements();
             return;
@@ -98,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedOption = planSelector.querySelector(`option[value="${planId}"]`);
         mapImage.src = `uploads/plans/${selectedOption.dataset.filename}`;
         mapImage.style.display = 'block';
+        planPlaceholder.style.display = 'none'; // Masque le message
         printBtn.disabled = false;
         
         const unplacedCodes = await fetchAvailableCodes(planId);
@@ -302,18 +304,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- FONCTION DE CRÉATION MODIFIÉE ---
     function createPlacedTag(code) {
         const tag = document.createElement('div');
         tag.className = 'geo-tag';
-        tag.textContent = code.code_geo; // Affiche uniquement le code géo
+        tag.textContent = code.code_geo;
         tag.dataset.id = code.id;
         tag.dataset.univers = code.univers;
         tag.dataset.code = code.code_geo;
         tag.dataset.libelle = code.libelle;
         tag.style.setProperty('--tag-bg-color', universColors[code.univers] || '#7f8c8d');
         tag.style.backgroundColor = 'var(--tag-bg-color)';
-        return tag; // L'infobulle (tooltip) a été retirée
+        return tag;
     }
     
     function createUnplacedItem(code) {

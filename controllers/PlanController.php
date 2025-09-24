@@ -134,15 +134,22 @@ class PlanController extends BaseController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['planFile'])) {
             $nom = trim($_POST['nom'] ?? 'Nouveau plan');
             $file = $_FILES['planFile'];
+    
             if ($file['error'] === UPLOAD_ERR_OK && !empty($nom)) {
                 $uploadDir = __DIR__ . '/../public/uploads/plans/';
                 if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+    
                 $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-                $safeFilename = preg_replace('/[^a-zA-Z0-9-_\.]/','_', basename($file['name'], "." . $extension));
+                $safeFilename = preg_replace('/[^a-zA-Z0-9-_\.]/', '_', pathinfo($file['name'], PATHINFO_FILENAME));
                 $newFilenameBase = time() . '_' . $safeFilename;
-                $finalFilename = $newFilenameBase . '.png';
-                $destination = $uploadDir . $finalFilename;
+    
+                $finalFilename = '';
+                $destination = '';
+    
+                // PDF : conversion en PNG
                 if ($extension === 'pdf' && class_exists('Imagick')) {
+                    $finalFilename = $newFilenameBase . '.png';
+                    $destination = $uploadDir . $finalFilename;
                     try {
                         $imagick = new Imagick();
                         $imagick->readImage($file['tmp_name'] . '[0]');
@@ -150,11 +157,26 @@ class PlanController extends BaseController {
                         $imagick->writeImage($destination);
                         $imagick->clear();
                         $imagick->destroy();
-                    } catch (Exception $e) { /* Gérer l'erreur */ }
-                } else if (in_array($extension, ['png', 'jpg', 'jpeg'])) {
+                    } catch (Exception $e) {
+                        // Gérer l'erreur de conversion
+                        $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de la conversion du PDF.'];
+                        header('Location: index.php?action=listPlans');
+                        exit();
+                    }
+                // SVG, PNG, JPG/JPEG : sauvegarde directe
+                } else if (in_array($extension, ['svg', 'png', 'jpg', 'jpeg'])) {
+                    $finalFilename = $newFilenameBase . '.' . $extension;
+                    $destination = $uploadDir . $finalFilename;
                     move_uploaded_file($file['tmp_name'], $destination);
+                } else {
+                    $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Format de fichier non supporté.'];
+                    header('Location: index.php?action=listPlans');
+                    exit();
                 }
-                $this->planManager->addPlan($nom, $finalFilename);
+    
+                if ($finalFilename) {
+                    $this->planManager->addPlan($nom, $finalFilename);
+                }
             }
         }
         header('Location: index.php?action=listPlans');
