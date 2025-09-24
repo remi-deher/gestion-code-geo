@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const planPageContainer = document.querySelector('.plan-page-container');
     if (!planPageContainer) return;
 
-    // --- ÉLÉMENTS DU DOM ---
     const canvas = document.getElementById('plan-canvas');
     if (!canvas) {
         console.error("L'élément Canvas avec l'ID 'plan-canvas' est introuvable !");
@@ -17,112 +16,117 @@ document.addEventListener('DOMContentLoaded', () => {
     const planContainer = document.getElementById('plan-container');
     const planPlaceholder = document.getElementById('plan-placeholder');
 
-    // --- ÉTAT DE L'APPLICATION ---
     let allCodesData = [...placedGeoCodes];
     let currentPlanId = null;
     let isPlacementMode = false;
     let placementCodeId = null;
-    
-    // Variables pour le pan, zoom et l'interaction avec les étiquettes
-    let scale = 1;
-    let panX = 0;
-    let panY = 0;
-    let isPanning = false;
-    let isDraggingTag = false;
-    let panStart = { x: 0, y: 0 };
-    let selectedTagId = null;
-    let draggedTagId = null;
 
-    // --- INITIALISATION ---
+    let scale = 1, panX = 0, panY = 0;
+    let isPanning = false, isDraggingTag = false, isResizing = false, isDrawingArrow = false;
+    let panStart = { x: 0, y: 0 };
+    let selectedTagId = null, draggedTagId = null;
+    let resizeHandle = null;
+
+    const DEFAULT_TAG_WIDTH = 80;
+    const DEFAULT_TAG_HEIGHT = 22;
+
     function initialize() {
         resizeCanvas();
         addEventListeners();
         updateDisplayForPlan(planSelector.value || null);
     }
 
-    function resizeCanvas() {
-        const containerRect = planContainer.getBoundingClientRect();
-        canvas.width = containerRect.width;
-        canvas.height = containerRect.height;
-        draw();
-    }
-    
-    // --- BOUCLE DE RENDU PRINCIPALE ---
     function draw() {
+        if (!mapImage.complete || mapImage.naturalWidth === 0) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         ctx.translate(panX, panY);
         ctx.scale(scale, scale);
-
-        if (mapImage.complete && mapImage.src) {
-            ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
-        }
-
+        ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
         drawTags();
         ctx.restore();
     }
 
     function drawTags() {
         if (!currentPlanId) return;
-
-        ctx.font = 'bold 12px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
         allCodesData.forEach(code => {
-            if (code.plan_id == currentPlanId && code.pos_x !== null) {
-                const { x, y, width, height } = getTagDimensions(code);
+            if (code.plan_id != currentPlanId || code.pos_x === null) return;
+            
+            const tag = getTagDimensions(code);
 
-                // Style pour l'étiquette sélectionnée
-                if (code.id === selectedTagId) {
-                    ctx.strokeStyle = '#007bff';
-                    ctx.lineWidth = 2;
-                } else {
-                    ctx.strokeStyle = 'black';
-                    ctx.lineWidth = 1;
-                }
-                
-                // Dessin du fond et de la bordure
-                ctx.fillStyle = universColors[code.univers] || '#7f8c8d';
-                ctx.fillRect(x - width / 2, y - height / 2, width, height);
-                ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+            if (code.anchor_x != null) {
+                drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs);
+            }
 
+            ctx.strokeStyle = (code.id === selectedTagId) ? '#007bff' : 'black';
+            ctx.lineWidth = (code.id === selectedTagId) ? 2 / scale : 1 / scale;
 
-                // Dessin du texte
-                ctx.fillStyle = 'white';
-                ctx.fillText(code.code_geo, x, y);
+            ctx.fillStyle = universColors[code.univers] || '#7f8c8d';
+            ctx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
+            ctx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
+
+            ctx.font = `bold ${12 / scale}px Arial`;
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(code.code_geo, tag.x, tag.y);
+
+            if (code.id === selectedTagId) {
+                drawResizeHandles(tag);
             }
         });
     }
 
-    // --- GESTION DES ÉVÉNEMENTS ---
+    function drawArrow(fromX, fromY, toX, toY) {
+        const headlen = 10 / scale;
+        const angle = Math.atan2(toY - fromY, toX - fromX);
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.lineTo(toX, toY);
+        ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.strokeStyle = '#34495e';
+        ctx.lineWidth = 2 / scale;
+        ctx.stroke();
+    }
+    
+    function drawResizeHandles(tag) {
+        const handleSize = 8 / scale;
+        ctx.fillStyle = '#007bff';
+        ctx.fillRect(tag.x + tag.width/2 - handleSize/2, tag.y + tag.height/2 - handleSize/2, handleSize, handleSize);
+    }
+
     function addEventListeners() {
         window.addEventListener('resize', resizeCanvas);
         planSelector.addEventListener('change', (e) => updateDisplayForPlan(e.target.value));
         unplacedList.addEventListener('click', handleUnplacedItemClick);
         searchInput.addEventListener('input', applyFilters);
-        
         canvas.addEventListener('mousedown', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseup', handleMouseUp);
-        canvas.addEventListener('mouseleave', handleMouseUp); // Arrêter le drag si la souris quitte le canvas
+        canvas.addEventListener('mouseleave', handleMouseUp);
         canvas.addEventListener('wheel', handleWheel);
         canvas.addEventListener('contextmenu', handleContextMenu);
     }
-
+    
     function handleMouseDown(e) {
+        const coords = getCanvasCoords(e);
         if (isPlacementMode) {
-             const coords = getCanvasCoords(e);
-             placeItemAt(coords.x, coords.y);
-             return;
+            placeItemAt(coords.x, coords.y);
+            return;
         }
 
-        const coords = getCanvasCoords(e);
         const clickedTag = getTagAt(coords.x, coords.y);
+        const handle = clickedTag ? getResizeHandleAt(coords.x, coords.y, clickedTag) : null;
         
         selectedTagId = clickedTag ? clickedTag.id : null;
 
-        if (selectedTagId) {
+        if (handle) {
+            isResizing = true;
+            resizeHandle = handle;
+            draggedTagId = selectedTagId;
+        } else if (clickedTag) {
             isDraggingTag = true;
             draggedTagId = selectedTagId;
         } else {
@@ -131,36 +135,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         draw();
-        canvas.style.cursor = clickedTag ? 'grabbing' : 'grab';
+        updateCursor(coords);
     }
 
     function handleMouseMove(e) {
+        const coords = getCanvasCoords(e);
+        
         if (isDraggingTag && draggedTagId) {
             const code = allCodesData.find(c => c.id === draggedTagId);
-            if (code) {
-                const coords = getCanvasCoords(e);
-                code.pos_x = (coords.x / canvas.width) * 100;
-                code.pos_y = (coords.y / canvas.height) * 100;
-                draw();
-            }
+            code.pos_x = (coords.x / mapImage.naturalWidth) * 100;
+            code.pos_y = (coords.y / mapImage.naturalHeight) * 100;
+        } else if (isResizing && draggedTagId) {
+            const code = allCodesData.find(c => c.id === draggedTagId);
+            const tag = getTagDimensions(code);
+            code.width = Math.max(20, (coords.x - tag.x + tag.width / 2) * 2);
+            code.height = Math.max(15, (coords.y - tag.y + tag.height / 2) * 2);
         } else if (isPanning) {
             panX = e.clientX - panStart.x;
             panY = e.clientY - panStart.y;
-            draw();
+        } else if (isDrawingArrow && draggedTagId) {
+             const code = allCodesData.find(c => c.id === draggedTagId);
+             code.anchor_x = (coords.x / mapImage.naturalWidth) * 100;
+             code.anchor_y = (coords.y / mapImage.naturalHeight) * 100;
+        } else {
+            updateCursor(coords);
         }
+        
+        draw();
     }
     
     function handleMouseUp() {
-        if (isDraggingTag && draggedTagId) {
-            const code = allCodesData.find(c => c.id === draggedTagId);
-            if (code) {
-                savePositionAPI(code.id, code.pos_x, code.pos_y);
-            }
+        const code = allCodesData.find(c => c.id === draggedTagId);
+        if ((isDraggingTag || isResizing || isDrawingArrow) && code) {
+            savePositionAPI(code);
         }
-        isPanning = false;
-        isDraggingTag = false;
-        draggedTagId = null;
-        canvas.style.cursor = isPlacementMode ? 'crosshair' : 'grab';
+        isPanning = isDraggingTag = isResizing = isDrawingArrow = false;
+        draggedTagId = resizeHandle = null;
+        updateCursor();
     }
 
     function handleWheel(e) {
@@ -168,8 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const zoomIntensity = 0.1;
         const direction = e.deltaY > 0 ? -1 : 1;
         const newScale = scale + direction * zoomIntensity;
-        
-        if(newScale > 0.5 && newScale < 10) {
+        if(newScale > 0.2 && newScale < 10) {
              scale = newScale;
              draw();
         }
@@ -177,15 +187,26 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function handleContextMenu(e) {
         e.preventDefault();
-        if (selectedTagId) {
-            if (confirm(`Voulez-vous vraiment supprimer l'étiquette ${allCodesData.find(c => c.id === selectedTagId).code_geo} ?`)) {
-                removePositionAPI(selectedTagId);
-            }
+        if (!selectedTagId) return;
+        const code = allCodesData.find(c => c.id === selectedTagId);
+
+        const action = prompt(`Actions pour ${code.code_geo}:\n1: Supprimer\n2: Ajouter/Modifier une flèche\n3: Annuler`);
+        switch(action) {
+            case '1':
+                if (confirm(`Vraiment supprimer ${code.code_geo} ?`)) removePositionAPI(selectedTagId);
+                break;
+            case '2':
+                isDrawingArrow = true;
+                draggedTagId = selectedTagId;
+                alert("Cliquez sur le plan pour définir la pointe de la flèche.");
+                break;
+            default:
+                selectedTagId = null;
+                draw();
+                break;
         }
     }
-
-
-    // --- LOGIQUE DE PLACEMENT ET DE MISE À JOUR ---
+    
     function handleUnplacedItemClick(e) {
         const item = e.target.closest('.unplaced-item');
         if (item) enterPlacementMode(item);
@@ -193,40 +214,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function enterPlacementMode(item) {
         isPlacementMode = true;
+        selectedTagId = null;
         placementCodeId = item.dataset.id;
         document.querySelectorAll('.unplaced-item.placement-active').forEach(el => el.classList.remove('placement-active'));
         item.classList.add('placement-active');
-        canvas.style.cursor = 'crosshair';
+        updateCursor();
+        draw();
     }
 
     function cancelPlacementMode() {
         isPlacementMode = false;
         placementCodeId = null;
         document.querySelector('.unplaced-item.placement-active')?.classList.remove('placement-active');
-        canvas.style.cursor = 'grab';
+        updateCursor();
     }
 
     async function placeItemAt(canvasX, canvasY) {
         if (!isPlacementMode || !placementCodeId) return;
 
-        const relativeX = (canvasX / canvas.width) * 100;
-        const relativeY = (canvasY / canvas.height) * 100;
-
-        if (await savePositionAPI(placementCodeId, relativeX, relativeY)) {
-            const codeIndex = allCodesData.findIndex(c => c.id == placementCodeId);
-            if(codeIndex > -1) {
-                allCodesData[codeIndex].plan_id = parseInt(currentPlanId);
-                allCodesData[codeIndex].pos_x = relativeX;
-                allCodesData[codeIndex].pos_y = relativeY;
-            }
+        const newCodeData = {
+            id: parseInt(placementCodeId),
+            plan_id: parseInt(currentPlanId),
+            pos_x: (canvasX / mapImage.naturalWidth) * 100,
+            pos_y: (canvasY / mapImage.naturalHeight) * 100,
+            width: null, height: null, anchor_x: null, anchor_y: null
+        };
+        
+        if (await savePositionAPI(newCodeData)) {
+            let code = allCodesData.find(c => c.id == placementCodeId);
+            if(code) Object.assign(code, newCodeData);
             await fetchAndDisplayUnplacedCodes(currentPlanId);
-            draw();
         }
         cancelPlacementMode();
+        draw();
     }
     
     async function updateDisplayForPlan(planId) {
         currentPlanId = planId;
+        scale = 1; panX = 0; panY = 0; selectedTagId = null;
         if (!planId) {
             mapImage.src = '';
             planPlaceholder.style.display = 'block';
@@ -237,8 +262,27 @@ document.addEventListener('DOMContentLoaded', () => {
             planPlaceholder.style.display = 'none';
             canvas.style.display = 'block';
         }
-        mapImage.onload = () => draw();
+        mapImage.onload = () => resizeCanvas();
         await fetchAndDisplayUnplacedCodes(planId);
+        draw();
+    }
+
+    function resizeCanvas() {
+        const containerRect = planContainer.getBoundingClientRect();
+        if (mapImage.naturalWidth > 0) {
+            const imageAspectRatio = mapImage.naturalHeight / mapImage.naturalWidth;
+            const containerAspectRatio = containerRect.height / containerRect.width;
+            if (imageAspectRatio > containerAspectRatio) {
+                canvas.height = containerRect.height;
+                canvas.width = containerRect.height / imageAspectRatio;
+            } else {
+                canvas.width = containerRect.width;
+                canvas.height = containerRect.width * imageAspectRatio;
+            }
+        } else {
+            canvas.width = containerRect.width;
+            canvas.height = containerRect.height;
+        }
         draw();
     }
     
@@ -270,7 +314,6 @@ document.addEventListener('DOMContentLoaded', () => {
         unplacedCounter.textContent = `(${count})`;
     }
 
-    // --- HELPERS ---
     function getCanvasCoords(e) {
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
@@ -280,37 +323,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getTagDimensions(code) {
         const textMetrics = ctx.measureText(code.code_geo);
+        const calcWidth = textMetrics.width + 16;
         return {
-            x: (code.pos_x / 100) * canvas.width,
-            y: (code.pos_y / 100) * canvas.height,
-            width: textMetrics.width + 10,
-            height: 20
+            x: (code.pos_x / 100) * mapImage.naturalWidth,
+            y: (code.pos_y / 100) * mapImage.naturalHeight,
+            width: code.width || Math.max(DEFAULT_TAG_WIDTH, calcWidth),
+            height: code.height || DEFAULT_TAG_HEIGHT,
+            anchor_x_abs: (code.anchor_x / 100) * mapImage.naturalWidth,
+            anchor_y_abs: (code.anchor_y / 100) * mapImage.naturalHeight
         };
     }
 
     function getTagAt(x, y) {
-        for (const code of allCodesData) {
-            if (code.plan_id == currentPlanId && code.pos_x !== null) {
-                const tag = getTagDimensions(code);
-                if (x >= tag.x - tag.width / 2 && x <= tag.x + tag.width / 2 &&
-                    y >= tag.y - tag.height / 2 && y <= tag.y + tag.height / 2) {
-                    return code;
-                }
-            }
+        return allCodesData.slice().reverse().find(code => {
+            if (code.plan_id != currentPlanId || code.pos_x === null) return false;
+            const tag = getTagDimensions(code);
+            return x >= tag.x - tag.width / 2 && x <= tag.x + tag.width / 2 &&
+                   y >= tag.y - tag.height / 2 && y <= tag.y + tag.height / 2;
+        });
+    }
+    
+    function getResizeHandleAt(x, y, code) {
+        const tag = getTagDimensions(code);
+        const handleSize = 8 / scale;
+        if (x >= tag.x + tag.width/2 - handleSize && x <= tag.x + tag.width/2 + handleSize &&
+            y >= tag.y + tag.height/2 - handleSize && y <= tag.y + tag.height/2 + handleSize) {
+            return 'se'; // Sud-Est
         }
         return null;
     }
 
-    // --- FONCTIONS API ---
-    async function savePositionAPI(codeId, x, y) {
+    function updateCursor(coords) {
+        let newCursor = 'grab';
+        if (isPanning || isDraggingTag) newCursor = 'grabbing';
+        else if (isResizing) newCursor = 'se-resize';
+        else if (isPlacementMode) newCursor = 'crosshair';
+        else if(coords) {
+            const hoveredTag = getTagAt(coords.x, coords.y);
+            if (hoveredTag && selectedTagId === hoveredTag.id) {
+                if (getResizeHandleAt(coords.x, coords.y, hoveredTag)) {
+                    newCursor = 'se-resize';
+                } else {
+                    newCursor = 'move';
+                }
+            } else if (hoveredTag) {
+                newCursor = 'pointer';
+            }
+        }
+        canvas.style.cursor = newCursor;
+    }
+    
+    async function savePositionAPI(code) {
         try {
             const response = await fetch('index.php?action=savePosition', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: parseInt(codeId), plan_id: parseInt(currentPlanId), x: x, y: y })
+                body: JSON.stringify({
+                    id: code.id,
+                    plan_id: parseInt(currentPlanId),
+                    x: code.pos_x,
+                    y: code.pos_y,
+                    width: code.width,
+                    height: code.height,
+                    anchor_x: code.anchor_x,
+                    anchor_y: code.anchor_y
+                })
             });
-            const result = await response.json();
-            return result.status === 'success';
+            return response.ok;
         } catch (error) {
             console.error('Erreur API savePosition:', error);
             return false;
@@ -326,7 +405,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await response.json();
             if (result.status === 'success') {
-                allCodesData.find(c => c.id == codeId).plan_id = null; // Mettre à jour localement
+                const codeToUpdate = allCodesData.find(c => c.id == codeId);
+                if (codeToUpdate) {
+                    codeToUpdate.plan_id = null;
+                    ['pos_x', 'pos_y', 'width', 'height', 'anchor_x', 'anchor_y'].forEach(prop => codeToUpdate[prop] = null);
+                }
                 selectedTagId = null;
                 await fetchAndDisplayUnplacedCodes(currentPlanId);
                 draw();
@@ -347,6 +430,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- DÉMARRAGE ---
     initialize();
 });

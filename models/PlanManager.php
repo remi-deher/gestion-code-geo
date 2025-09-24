@@ -90,20 +90,22 @@ class PlanManager {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function savePosition(int $geo_code_id, int $plan_id, int $pos_x, int $pos_y, ?int $width = null, ?int $height = null) {
+    public function savePosition(int $geo_code_id, int $plan_id, int $pos_x, int $pos_y, ?int $width = null, ?int $height = null, ?int $anchor_x = null, ?int $anchor_y = null) {
         $existingPosition = $this->getPositionByCodeId($geo_code_id);
         $action = $existingPosition ? 'moved' : 'placed';
 
-        $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height) 
-                VALUES (?, ?, ?, ?, ?, ?)
+        $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE 
                     plan_id = VALUES(plan_id), 
                     pos_x = VALUES(pos_x), 
                     pos_y = VALUES(pos_y),
                     width = VALUES(width),
-                    height = VALUES(height)";
+                    height = VALUES(height),
+                    anchor_x = VALUES(anchor_x),
+                    anchor_y = VALUES(anchor_y)";
         $stmt = $this->db->prepare($sql);
-        $success = $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y, $width, $height]);
+        $success = $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y, $width, $height, $anchor_x, $anchor_y]);
 
         if ($success) {
             $this->_logHistory($geo_code_id, $plan_id, $pos_x, $pos_y, $action);
@@ -129,14 +131,16 @@ class PlanManager {
         if (empty($positions)) return true;
         $this->db->beginTransaction();
         try {
-            $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height) 
-                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y, :width, :height)
+            $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y) 
+                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y, :width, :height, :anchor_x, :anchor_y)
                     ON DUPLICATE KEY UPDATE 
                         plan_id = VALUES(plan_id), 
                         pos_x = VALUES(pos_x), 
                         pos_y = VALUES(pos_y),
                         width = VALUES(width),
-                        height = VALUES(height)";
+                        height = VALUES(height),
+                        anchor_x = VALUES(anchor_x),
+                        anchor_y = VALUES(anchor_y)";
             $stmt = $this->db->prepare($sql);
             foreach ($positions as $pos) {
                 $existingPosition = $this->getPositionByCodeId($pos['id']);
@@ -148,7 +152,9 @@ class PlanManager {
                     ':pos_x'       => round($pos['x']),
                     ':pos_y'       => round($pos['y']),
                     ':width'       => $pos['width'] ?? null,
-                    ':height'      => $pos['height'] ?? null
+                    ':height'      => $pos['height'] ?? null,
+                    ':anchor_x'    => $pos['anchor_x'] ?? null,
+                    ':anchor_y'    => $pos['anchor_y'] ?? null
                 ]);
                 $this->_logHistory($pos['id'], $plan_id, round($pos['x']), round($pos['y']), $action);
             }

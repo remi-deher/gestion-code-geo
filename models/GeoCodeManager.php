@@ -20,7 +20,7 @@ class GeoCodeManager {
         $sql = "
             SELECT 
                 gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire,
-                gp.pos_x, gp.pos_y, gp.plan_id
+                gp.plan_id, gp.pos_x, gp.pos_y, gp.width, gp.height, gp.anchor_x, gp.anchor_y
             FROM 
                 geo_codes gc
             LEFT JOIN 
