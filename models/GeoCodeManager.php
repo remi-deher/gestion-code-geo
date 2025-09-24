@@ -52,30 +52,25 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * CORRECTION : La requête a été simplifiée et corrigée pour se baser
+     * uniquement sur les univers associés au plan.
+     */
     public function getAvailableCodesForPlan(int $planId): array {
-        error_log("--- GeoCodeManager : Début de getAvailableCodesForPlan pour planId = $planId ---");
-        
         $sql = "
             SELECT gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone
             FROM geo_codes gc
             JOIN univers u ON gc.univers_id = u.id
-            JOIN plans p ON gc.zone = p.zone
-            JOIN plan_univers pu ON p.id = pu.plan_id AND u.id = pu.univers_id
-            LEFT JOIN geo_positions gp ON gc.id = gp.geo_code_id
-            WHERE p.id = :plan_id AND gp.geo_code_id IS NULL
+            -- Le code doit appartenir à un univers lié à ce plan
+            WHERE gc.univers_id IN (SELECT univers_id FROM plan_univers WHERE plan_id = :plan_id)
+            -- Et le code ne doit pas déjà être placé sur un plan
+            AND gc.id NOT IN (SELECT geo_code_id FROM geo_positions WHERE geo_code_id IS NOT NULL)
             ORDER BY gc.code_geo
         ";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':plan_id' => $planId]);
-        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        error_log("--- GeoCodeManager : Requête exécutée. Nombre de codes trouvés : " . count($result) . " ---");
-        if (count($result) > 0) {
-            error_log("--- GeoCodeManager : Premier code trouvé : " . print_r($result[0], true));
-        }
-        
-        return $result;
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function createGeoCode(string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
