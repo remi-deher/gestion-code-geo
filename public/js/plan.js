@@ -23,13 +23,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPlacementMode = false;
     let placementCodeId = null;
     
-    // Variables pour le pan & zoom
+    // Variables pour le pan, zoom et l'interaction avec les étiquettes
     let scale = 1;
     let panX = 0;
     let panY = 0;
     let isPanning = false;
+    let isDraggingTag = false;
     let panStart = { x: 0, y: 0 };
-
+    let selectedTagId = null;
+    let draggedTagId = null;
 
     // --- INITIALISATION ---
     function initialize() {
@@ -47,23 +49,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- BOUCLE DE RENDU PRINCIPALE ---
     function draw() {
-        // Effacer le canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Appliquer la transformation (pan & zoom)
         ctx.save();
         ctx.translate(panX, panY);
         ctx.scale(scale, scale);
 
-        // Dessiner l'image du plan
         if (mapImage.complete && mapImage.src) {
             ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
         }
 
-        // Dessiner les étiquettes
         drawTags();
-        
-        // Restaurer le contexte
         ctx.restore();
     }
 
@@ -76,24 +71,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         allCodesData.forEach(code => {
             if (code.plan_id == currentPlanId && code.pos_x !== null) {
-                const x = (code.pos_x / 100) * canvas.width;
-                const y = (code.pos_y / 100) * canvas.height;
-                const text = code.code_geo;
-                const textMetrics = ctx.measureText(text);
-                const tagWidth = textMetrics.width + 10;
-                const tagHeight = 20;
+                const { x, y, width, height } = getTagDimensions(code);
 
-                // Dessin du fond de l'étiquette
+                // Style pour l'étiquette sélectionnée
+                if (code.id === selectedTagId) {
+                    ctx.strokeStyle = '#007bff';
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 1;
+                }
+                
+                // Dessin du fond et de la bordure
                 ctx.fillStyle = universColors[code.univers] || '#7f8c8d';
-                ctx.fillRect(x - tagWidth / 2, y - tagHeight / 2, tagWidth, tagHeight);
+                ctx.fillRect(x - width / 2, y - height / 2, width, height);
+                ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+
 
                 // Dessin du texte
                 ctx.fillStyle = 'white';
-                ctx.fillText(text, x, y);
+                ctx.fillText(code.code_geo, x, y);
             }
         });
     }
-
 
     // --- GESTION DES ÉVÉNEMENTS ---
     function addEventListeners() {
@@ -102,56 +102,93 @@ document.addEventListener('DOMContentLoaded', () => {
         unplacedList.addEventListener('click', handleUnplacedItemClick);
         searchInput.addEventListener('input', applyFilters);
         
-        // Pan (déplacement)
-        canvas.addEventListener('mousedown', (e) => {
-            if (isPlacementMode) {
-                 const coords = getCanvasCoords(e);
-                 placeItemAt(coords.x, coords.y);
-            } else {
-                isPanning = true;
-                panStart = { x: e.clientX - panX, y: e.clientY - panY };
-                canvas.style.cursor = 'grabbing';
-            }
-        });
-
-        canvas.addEventListener('mousemove', (e) => {
-            if (isPanning) {
-                panX = e.clientX - panStart.x;
-                panY = e.clientY - panStart.y;
-                draw();
-            }
-        });
-
-        canvas.addEventListener('mouseup', () => {
-            isPanning = false;
-            canvas.style.cursor = isPlacementMode ? 'crosshair' : 'grab';
-        });
-        
-        canvas.addEventListener('mouseleave', () => {
-            isPanning = false;
-            canvas.style.cursor = isPlacementMode ? 'crosshair' : 'grab';
-        });
-
-        // Zoom
-        canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const zoomIntensity = 0.1;
-            const direction = e.deltaY > 0 ? -1 : 1;
-            const newScale = scale + direction * zoomIntensity;
-            
-            if(newScale > 0.5 && newScale < 10) {
-                 scale = newScale;
-                 draw();
-            }
-        });
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseUp); // Arrêter le drag si la souris quitte le canvas
+        canvas.addEventListener('wheel', handleWheel);
+        canvas.addEventListener('contextmenu', handleContextMenu);
     }
 
-    // --- LOGIQUE DE PLACEMENT ---
+    function handleMouseDown(e) {
+        if (isPlacementMode) {
+             const coords = getCanvasCoords(e);
+             placeItemAt(coords.x, coords.y);
+             return;
+        }
+
+        const coords = getCanvasCoords(e);
+        const clickedTag = getTagAt(coords.x, coords.y);
+        
+        selectedTagId = clickedTag ? clickedTag.id : null;
+
+        if (selectedTagId) {
+            isDraggingTag = true;
+            draggedTagId = selectedTagId;
+        } else {
+            isPanning = true;
+            panStart = { x: e.clientX - panX, y: e.clientY - panY };
+        }
+        
+        draw();
+        canvas.style.cursor = clickedTag ? 'grabbing' : 'grab';
+    }
+
+    function handleMouseMove(e) {
+        if (isDraggingTag && draggedTagId) {
+            const code = allCodesData.find(c => c.id === draggedTagId);
+            if (code) {
+                const coords = getCanvasCoords(e);
+                code.pos_x = (coords.x / canvas.width) * 100;
+                code.pos_y = (coords.y / canvas.height) * 100;
+                draw();
+            }
+        } else if (isPanning) {
+            panX = e.clientX - panStart.x;
+            panY = e.clientY - panStart.y;
+            draw();
+        }
+    }
+    
+    function handleMouseUp() {
+        if (isDraggingTag && draggedTagId) {
+            const code = allCodesData.find(c => c.id === draggedTagId);
+            if (code) {
+                savePositionAPI(code.id, code.pos_x, code.pos_y);
+            }
+        }
+        isPanning = false;
+        isDraggingTag = false;
+        draggedTagId = null;
+        canvas.style.cursor = isPlacementMode ? 'crosshair' : 'grab';
+    }
+
+    function handleWheel(e) {
+        e.preventDefault();
+        const zoomIntensity = 0.1;
+        const direction = e.deltaY > 0 ? -1 : 1;
+        const newScale = scale + direction * zoomIntensity;
+        
+        if(newScale > 0.5 && newScale < 10) {
+             scale = newScale;
+             draw();
+        }
+    }
+    
+    function handleContextMenu(e) {
+        e.preventDefault();
+        if (selectedTagId) {
+            if (confirm(`Voulez-vous vraiment supprimer l'étiquette ${allCodesData.find(c => c.id === selectedTagId).code_geo} ?`)) {
+                removePositionAPI(selectedTagId);
+            }
+        }
+    }
+
+
+    // --- LOGIQUE DE PLACEMENT ET DE MISE À JOUR ---
     function handleUnplacedItemClick(e) {
         const item = e.target.closest('.unplaced-item');
-        if (item) {
-            enterPlacementMode(item);
-        }
+        if (item) enterPlacementMode(item);
     }
 
     function enterPlacementMode(item) {
@@ -176,7 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const relativeY = (canvasY / canvas.height) * 100;
 
         if (await savePositionAPI(placementCodeId, relativeX, relativeY)) {
-            // Mettre à jour les données locales pour un affichage immédiat
             const codeIndex = allCodesData.findIndex(c => c.id == placementCodeId);
             if(codeIndex > -1) {
                 allCodesData[codeIndex].plan_id = parseInt(currentPlanId);
@@ -189,10 +225,8 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelPlacementMode();
     }
     
-    // --- MISE À JOUR DE L'AFFICHAGE ---
     async function updateDisplayForPlan(planId) {
         currentPlanId = planId;
-        
         if (!planId) {
             mapImage.src = '';
             planPlaceholder.style.display = 'block';
@@ -203,30 +237,24 @@ document.addEventListener('DOMContentLoaded', () => {
             planPlaceholder.style.display = 'none';
             canvas.style.display = 'block';
         }
-        
         mapImage.onload = () => draw();
-
         await fetchAndDisplayUnplacedCodes(planId);
         draw();
     }
     
     async function fetchAndDisplayUnplacedCodes(planId) {
         const codes = await fetchAvailableCodes(planId);
-        unplacedList.innerHTML = '';
-        if (codes.length === 0) {
-            unplacedList.innerHTML = '<p class="text-muted small">Aucun code disponible.</p>';
-        } else {
-            codes.forEach(code => {
-                 const item = document.createElement('div');
-                 item.className = 'unplaced-item';
-                 item.dataset.id = code.id;
-                 item.dataset.code = code.code_geo;
-                 item.dataset.libelle = code.libelle; // Ajout pour le filtre
-                 item.dataset.univers = code.univers; // Ajout pour la couleur
-                 item.innerHTML = `<span class="item-code" style="color: ${universColors[code.univers] || '#7f8c8d'}">${code.code_geo}</span> <span class="item-libelle">${code.libelle}</span>`;
-                 unplacedList.appendChild(item);
-            });
-        }
+        unplacedList.innerHTML = codes.length === 0 ? '<p class="text-muted small">Aucun code disponible.</p>' : '';
+        codes.forEach(code => {
+             const item = document.createElement('div');
+             item.className = 'unplaced-item';
+             item.dataset.id = code.id;
+             item.dataset.code = code.code_geo;
+             item.dataset.libelle = code.libelle;
+             item.dataset.univers = code.univers;
+             item.innerHTML = `<span class="item-code" style="color: ${universColors[code.univers] || '#7f8c8d'}">${code.code_geo}</span> <span class="item-libelle">${code.libelle}</span>`;
+             unplacedList.appendChild(item);
+        });
         applyFilters();
     }
 
@@ -247,11 +275,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-        const x = (mouseX - panX) / scale;
-        const y = (mouseY - panY) / scale;
-        return { x, y };
+        return { x: (mouseX - panX) / scale, y: (mouseY - panY) / scale };
     }
 
+    function getTagDimensions(code) {
+        const textMetrics = ctx.measureText(code.code_geo);
+        return {
+            x: (code.pos_x / 100) * canvas.width,
+            y: (code.pos_y / 100) * canvas.height,
+            width: textMetrics.width + 10,
+            height: 20
+        };
+    }
+
+    function getTagAt(x, y) {
+        for (const code of allCodesData) {
+            if (code.plan_id == currentPlanId && code.pos_x !== null) {
+                const tag = getTagDimensions(code);
+                if (x >= tag.x - tag.width / 2 && x <= tag.x + tag.width / 2 &&
+                    y >= tag.y - tag.height / 2 && y <= tag.y + tag.height / 2) {
+                    return code;
+                }
+            }
+        }
+        return null;
+    }
 
     // --- FONCTIONS API ---
     async function savePositionAPI(codeId, x, y) {
@@ -259,18 +307,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('index.php?action=savePosition', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: parseInt(codeId),
-                    plan_id: parseInt(currentPlanId),
-                    x: x,
-                    y: y
-                })
+                body: JSON.stringify({ id: parseInt(codeId), plan_id: parseInt(currentPlanId), x: x, y: y })
             });
             const result = await response.json();
             return result.status === 'success';
         } catch (error) {
             console.error('Erreur API savePosition:', error);
             return false;
+        }
+    }
+
+    async function removePositionAPI(codeId) {
+        try {
+            const response = await fetch('index.php?action=removePosition', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: parseInt(codeId) })
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                allCodesData.find(c => c.id == codeId).plan_id = null; // Mettre à jour localement
+                selectedTagId = null;
+                await fetchAndDisplayUnplacedCodes(currentPlanId);
+                draw();
+            }
+        } catch (error) {
+            console.error('Erreur API removePosition:', error);
         }
     }
 

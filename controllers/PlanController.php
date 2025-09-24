@@ -57,13 +57,17 @@ class PlanController extends BaseController {
         header('Content-Type: application/json');
         $input = json_decode(file_get_contents('php://input'), true);
         if (isset($input['id'], $input['plan_id'], $input['x'], $input['y'])) {
+            // --- CORRECTION DÉFINITIVE ---
+            // On s'assure de passer tous les arguments attendus par la méthode savePosition du PlanManager.
             $success = $this->planManager->savePosition(
                 (int)$input['id'], 
                 (int)$input['plan_id'], 
-                (int)$input['x'], 
-                (int)$input['y'],
+                (int)round($input['x']), 
+                (int)round($input['y']),
                 isset($input['width']) ? (int)$input['width'] : null,
-                isset($input['height']) ? (int)$input['height'] : null
+                isset($input['height']) ? (int)$input['height'] : null,
+                isset($input['anchor_x']) ? (int)$input['anchor_x'] : null,
+                isset($input['anchor_y']) ? (int)$input['anchor_y'] : null
             );
             echo json_encode(['status' => $success ? 'success' : 'error']);
         } else {
