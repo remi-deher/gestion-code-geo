@@ -2,11 +2,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const planPageContainer = document.querySelector('.plan-page-container');
     if (!planPageContainer) return;
 
+    // --- ÉLEMENTS DU DOM ---
     const canvas = document.getElementById('plan-canvas');
-    if (!canvas) {
-        console.error("L'élément Canvas avec l'ID 'plan-canvas' est introuvable !");
-        return;
-    }
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const mapImage = document.getElementById('map-image');
     const planSelector = document.getElementById('plan-selector');
@@ -15,7 +13,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const unplacedCounter = document.getElementById('unplaced-counter');
     const planContainer = document.getElementById('plan-container');
     const planPlaceholder = document.getElementById('plan-placeholder');
+    
+    // Éléments de la modale
+    const tagActionModal = new bootstrap.Modal(document.getElementById('tag-action-modal'));
+    const modalTitle = document.getElementById('tagActionModalLabel');
+    const modalAddArrowBtn = document.getElementById('modal-add-arrow-btn');
+    const modalDeleteBtn = document.getElementById('modal-delete-btn');
 
+    // --- ÉTAT DE L'APPLICATION ---
     let allCodesData = [...placedGeoCodes];
     let currentPlanId = null;
     let isPlacementMode = false;
@@ -36,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDisplayForPlan(planSelector.value || null);
     }
 
+    // --- LOGIQUE DE DESSIN ---
     function draw() {
         if (!mapImage.complete || mapImage.naturalWidth === 0) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -51,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentPlanId) return;
         allCodesData.forEach(code => {
             if (code.plan_id != currentPlanId || code.pos_x === null) return;
-            
             const tag = getTagDimensions(code);
 
             if (code.anchor_x != null) {
@@ -60,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctx.strokeStyle = (code.id === selectedTagId) ? '#007bff' : 'black';
             ctx.lineWidth = (code.id === selectedTagId) ? 2 / scale : 1 / scale;
-
             ctx.fillStyle = universColors[code.univers] || '#7f8c8d';
             ctx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
             ctx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
@@ -97,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(tag.x + tag.width/2 - handleSize/2, tag.y + tag.height/2 - handleSize/2, handleSize, handleSize);
     }
 
+    // --- GESTION DES ÉVÉNEMENTS ---
     function addEventListeners() {
         window.addEventListener('resize', resizeCanvas);
         planSelector.addEventListener('change', (e) => updateDisplayForPlan(e.target.value));
@@ -108,9 +113,26 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.addEventListener('mouseleave', handleMouseUp);
         canvas.addEventListener('wheel', handleWheel);
         canvas.addEventListener('contextmenu', handleContextMenu);
+        
+        modalAddArrowBtn.addEventListener('click', () => {
+            isDrawingArrow = true;
+            draggedTagId = selectedTagId;
+            tagActionModal.hide();
+            alert("Cliquez sur le plan pour définir la pointe de la flèche.");
+        });
+
+        modalDeleteBtn.addEventListener('click', () => {
+            if (confirm(`Voulez-vous vraiment supprimer l'étiquette ?`)) {
+                removePositionAPI(selectedTagId);
+            }
+            tagActionModal.hide();
+        });
     }
     
     function handleMouseDown(e) {
+        // Gère uniquement le clic gauche (bouton 0)
+        if (e.button !== 0) return;
+
         const coords = getCanvasCoords(e);
         if (isPlacementMode) {
             placeItemAt(coords.x, coords.y);
@@ -124,7 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (handle) {
             isResizing = true;
-            resizeHandle = handle;
             draggedTagId = selectedTagId;
         } else if (clickedTag) {
             isDraggingTag = true;
@@ -164,7 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
         draw();
     }
     
-    function handleMouseUp() {
+    function handleMouseUp(e) {
+        if (e.button !== 0) return; // Ne réagit qu'au relâchement du clic gauche
         const code = allCodesData.find(c => c.id === draggedTagId);
         if ((isDraggingTag || isResizing || isDrawingArrow) && code) {
             savePositionAPI(code);
@@ -184,26 +206,18 @@ document.addEventListener('DOMContentLoaded', () => {
              draw();
         }
     }
-    
+
+    // --- CORRECTION ---
+    // Gère le clic droit pour ouvrir la modale et empêcher le menu natif
     function handleContextMenu(e) {
         e.preventDefault();
-        if (!selectedTagId) return;
-        const code = allCodesData.find(c => c.id === selectedTagId);
-
-        const action = prompt(`Actions pour ${code.code_geo}:\n1: Supprimer\n2: Ajouter/Modifier une flèche\n3: Annuler`);
-        switch(action) {
-            case '1':
-                if (confirm(`Vraiment supprimer ${code.code_geo} ?`)) removePositionAPI(selectedTagId);
-                break;
-            case '2':
-                isDrawingArrow = true;
-                draggedTagId = selectedTagId;
-                alert("Cliquez sur le plan pour définir la pointe de la flèche.");
-                break;
-            default:
-                selectedTagId = null;
-                draw();
-                break;
+        const coords = getCanvasCoords(e);
+        const clickedTag = getTagAt(coords.x, coords.y);
+        if (clickedTag) {
+            selectedTagId = clickedTag.id;
+            modalTitle.textContent = `Actions pour ${clickedTag.code_geo}`;
+            tagActionModal.show();
+            draw();
         }
     }
     
@@ -231,7 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function placeItemAt(canvasX, canvasY) {
         if (!isPlacementMode || !placementCodeId) return;
-
         const newCodeData = {
             id: parseInt(placementCodeId),
             plan_id: parseInt(currentPlanId),
@@ -239,10 +252,8 @@ document.addEventListener('DOMContentLoaded', () => {
             pos_y: (canvasY / mapImage.naturalHeight) * 100,
             width: null, height: null, anchor_x: null, anchor_y: null
         };
-        
-        if (await savePositionAPI(newCodeData)) {
-            let code = allCodesData.find(c => c.id == placementCodeId);
-            if(code) Object.assign(code, newCodeData);
+        const code = allCodesData.find(c => c.id == placementCodeId);
+        if (await savePositionAPI(Object.assign(code, newCodeData))) {
             await fetchAndDisplayUnplacedCodes(currentPlanId);
         }
         cancelPlacementMode();
