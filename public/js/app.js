@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const classeurSection = document.getElementById('classeur');
     if (!classeurSection) {
-        return; // Stoppe le script si on n'est pas sur la bonne page
+        return; 
     }
 
     // --- Récupération des éléments du DOM ---
@@ -13,28 +13,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const tableView = document.getElementById('table-view');
     const sortBySelect = document.getElementById('sort-by');
     
-    // Filtres (Desktop + Mobile Off-canvas)
     const allFilterPills = document.querySelectorAll('.filter-pill');
     const allZoneTabs = document.querySelectorAll('.zone-tab, .zone-tabs-mobile > button');
     
-    // Stockage des éléments de la liste pour ne pas avoir à les relire du DOM
     const allGeoCards = Array.from(cardView.querySelectorAll('.geo-card'));
     const allTableRows = Array.from(tableView.querySelectorAll('tbody tr'));
     
-
-    // Éléments de la modale d'actions
-    const tagActionModal = new bootstrap.Modal(document.getElementById('tag-action-modal'));
-    const modalTitle = document.getElementById('tagActionModalLabel');
-    const modalAddArrowBtn = document.getElementById('modal-add-arrow-btn');
-    const modalDeleteBtn = document.getElementById('modal-delete-btn');
-
-    // NOUVEAU : Éléments de la modale d'impression
-    const printOptionsModal = new bootstrap.Modal(document.getElementById('print-options-modal'));
-    const printUniversFilterContainer = document.getElementById('print-univers-filter');
-    const executePrintBtn = document.getElementById('execute-print-btn');
-    const legendContainer = document.getElementById('legend-container');
-
-
     // --- GESTION DES ÉVÉNEMENTS ---
 
     if (viewCardBtn && viewTableBtn) {
@@ -48,10 +32,28 @@ document.addEventListener('DOMContentLoaded', () => {
     allFilterPills.forEach(pill => pill.addEventListener('click', handlePillClick));
     allZoneTabs.forEach(tab => tab.addEventListener('click', handleZoneClick));
 
-    // --- NOUVELLE FONCTION ---
-    /**
-     * Met à jour la visibilité des filtres "univers" en fonction de la zone sélectionnée.
-     */
+    // --- LOGIQUE DES FONCTIONS ---
+
+    function switchView(view) {
+        if (view === 'card') {
+            // Montre la vue fiches et cache la vue tableau
+            cardView.classList.remove('d-none');
+            tableView.classList.add('d-none');
+
+            // Met à jour les boutons
+            viewCardBtn.classList.add('active');
+            viewTableBtn.classList.remove('active');
+        } else { // view === 'table'
+            // Cache la vue fiches et montre la vue tableau
+            cardView.classList.add('d-none');
+            tableView.classList.remove('d-none');
+
+            // Met à jour les boutons
+            viewCardBtn.classList.remove('active');
+            viewTableBtn.classList.add('active');
+        }
+    }
+    
     function updateUniversFiltersVisibility() {
         const activeZone = document.querySelector('.zone-tab.active')?.dataset.zone || 'all';
         const universPills = document.querySelectorAll('.filter-pill[data-zone]');
@@ -59,15 +61,13 @@ document.addEventListener('DOMContentLoaded', () => {
         universPills.forEach(pill => {
             const pillZone = pill.dataset.zone;
             if (activeZone === 'all' || pillZone === activeZone) {
-                pill.style.display = ''; // Affiche la pilule
+                pill.style.display = '';
             } else {
-                pill.style.display = 'none'; // Masque la pilule
-                // Si la pilule masquée était active, on la désactive
+                pill.style.display = 'none';
                 pill.classList.remove('active');
             }
         });
 
-        // S'assure que la pilule "Tout voir" est active si aucune autre ne l'est
         document.querySelectorAll('#filtres-univers, #filtres-univers-mobile').forEach(container => {
             const activeVisiblePills = container.querySelectorAll('.filter-pill.active[data-zone]:not([style*="display: none"])').length;
             const toutVoirPill = container.querySelector('.filter-pill[data-filter="all"]');
@@ -77,27 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LOGIQUE DES ÉVÉNEMENTS ---
-
-function switchView(view) {
-    if (view === 'card') {
-        cardView.classList.remove('d-none');
-        tableView.classList.add('d-none');
-        viewCardBtn.classList.add('active');
-        viewTableBtn.classList.remove('active');
-    } else {
-        cardView.classList.add('d-none');
-        tableView.classList.remove('d-none');
-        viewCardBtn.classList.remove('active');
-        viewTableBtn.classList.add('active');
-    }
-}
     function handlePillClick(e) {
         const clickedPill = e.currentTarget;
         const filterValue = clickedPill.dataset.filter;
         
         if (filterValue === 'all') {
-            // Si on clique sur "Tout voir", on désactive les autres pilules de la même zone
             const activeZone = document.querySelector('.zone-tab.active')?.dataset.zone || 'all';
             document.querySelectorAll('.filter-pill[data-zone]').forEach(p => {
                  if (activeZone === 'all' || p.dataset.zone === activeZone) {
@@ -106,16 +90,12 @@ function switchView(view) {
             });
             clickedPill.classList.add('active');
         } else {
-            // Active ou désactive la pilule cliquée
             clickedPill.classList.toggle('active');
-            // Désactive "Tout voir" si une autre pilule est active
             const container = clickedPill.closest('.filter-pills');
             if(container) container.querySelector('.filter-pill[data-filter="all"]')?.classList.remove('active');
         }
 
-        // Synchronise l'état entre la vue desktop et mobile
         syncPillStates(filterValue, clickedPill.classList.contains('active'));
-        
         applyFiltersAndSort();
     }
 
@@ -123,22 +103,16 @@ function switchView(view) {
         document.querySelectorAll(`.filter-pill[data-filter="${filter}"]`).forEach(p => p.classList.toggle('active', isActive));
     }
 
-    // --- FONCTION MISE À JOUR ---
     function handleZoneClick(e) {
         const zoneValue = e.currentTarget.dataset.zone;
         allZoneTabs.forEach(t => t.classList.remove('active'));
         document.querySelectorAll(`[data-zone="${zoneValue}"]`).forEach(t => t.classList.add('active'));
         
-        // On met à jour les filtres d'univers visibles
         updateUniversFiltersVisibility();
-        // On applique les filtres globaux
         applyFiltersAndSort();
     }
 
-    // --- FONCTION PRINCIPALE DE FILTRAGE, TRI ET AFFICHAGE ---
-
     function applyFiltersAndSort() {
-        // 1. Lire les filtres actifs
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
         const activeZoneEl = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active');
         const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
@@ -148,7 +122,6 @@ function switchView(view) {
                  .map(p => p.dataset.filter)
         );
         
-        // Si "Tout voir" est actif, on considère tous les univers de la zone visible
         if (document.querySelector('#filtres-univers .filter-pill[data-filter="all"].active')) {
             activeUniversFilters = new Set(
                  Array.from(document.querySelectorAll('#filtres-univers .filter-pill[data-zone]:not([style*="display: none"])'))
@@ -156,8 +129,6 @@ function switchView(view) {
             );
         }
 
-
-        // 2. Filtrer les éléments
         allGeoCards.forEach(card => {
             const searchMatch = (card.dataset.searchable || '').includes(searchTerm);
             const universMatch = activeUniversFilters.size === 0 || activeUniversFilters.has(card.dataset.univers);
@@ -172,19 +143,17 @@ function switchView(view) {
             row.style.display = (searchMatch && universMatch && zoneMatch) ? '' : 'none';
         });
 
-        // 3. Trier les éléments qui sont actuellement visibles
         sortVisibleElements();
     }
 
     function sortVisibleElements() {
+        if (!sortBySelect) return;
         const sortBy = sortBySelect.value;
         const [key] = sortBy.split('-');
 
-        // Trier les fiches
         const visibleCards = allGeoCards.filter(card => card.style.display !== 'none');
         visibleCards.sort((a, b) => (a.dataset[key] || '').localeCompare(b.dataset[key] || ''));
         
-        // Vider et reconstruire la vue fiches avec les séparateurs
         cardView.innerHTML = '';
         let lastUnivers = null;
         visibleCards.forEach(card => {
@@ -199,7 +168,6 @@ function switchView(view) {
             cardView.appendChild(card);
         });
 
-        // Trier le tableau
         const tableBody = tableView.querySelector('tbody');
         if (tableBody) {
             const visibleRows = allTableRows.filter(row => row.style.display !== 'none');
@@ -210,7 +178,6 @@ function switchView(view) {
     
     // --- DÉMARRAGE ---
     
-    // Génère les QR Codes au chargement
     allGeoCards.forEach(card => {
         const qrContainer = card.querySelector('.geo-card-qr');
         if(qrContainer) {
@@ -219,6 +186,5 @@ function switchView(view) {
         }
     });
 
-    // Applique les filtres une première fois au chargement pour s'assurer que tout est correct
     applyFiltersAndSort();
 });
