@@ -4,6 +4,7 @@
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/GeoCodeManager.php';
 require_once __DIR__ . '/../models/UniversManager.php';
+require_once __DIR__ . '/../helpers/PdfGenerator.php'; // Assurez-vous que ce chemin est correct
 
 class GeoCodeController extends BaseController {
     
@@ -104,17 +105,76 @@ class GeoCodeController extends BaseController {
     }
 
     // --- Actions pour l'Import/Export et l'impression ---
-    public function exportAction() {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="export_geocodes_'.date('Y-m-d').'.csv"');
-        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
-        $output = fopen('php://output', 'w');
-        fputcsv($output, ['code_geo', 'libelle', 'univers', 'zone', 'commentaire'], ';');
-        foreach ($geoCodes as $code) {
-            fputcsv($output, [ $code['code_geo'], $code['libelle'], $code['univers'], $code['zone'], $code['commentaire'] ], ';');
+
+    public function showExportAction() {
+        $universList = $this->universManager->getAllUnivers();
+        $this->render('export_view', ['universList' => $universList]);
+    }
+
+    public function handleExportAction() {
+        $filters = [
+            'zones' => $_POST['zones'] ?? [],
+            'univers_ids' => $_POST['univers_ids'] ?? []
+        ];
+        
+        $columns = $_POST['columns'] ?? ['code_geo', 'libelle', 'univers', 'zone', 'commentaire'];
+        $format = $_POST['format'] ?? 'csv';
+        $filename = preg_replace('/[^a-zA-Z0-9-_\.]/', '_', $_POST['filename'] ?? 'export');
+
+        $data = $this->geoCodeManager->getFilteredGeoCodes($filters);
+
+        if ($format === 'pdf') {
+            $this->generatePdfExport($data, $columns, $filename);
+        } else {
+            $this->generateCsvExport($data, $columns, $filename);
         }
-        fclose($output);
         exit();
+    }
+    
+    private function generateCsvExport(array $data, array $columns, string $filename) {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '.csv"');
+        
+        $output = fopen('php://output', 'w');
+        
+        fputcsv($output, $columns, ';');
+        
+        foreach ($data as $row) {
+            $line = [];
+            foreach ($columns as $col) {
+                $line[] = $row[$col] ?? '';
+            }
+            fputcsv($output, $line, ';');
+        }
+        
+        fclose($output);
+    }
+
+    private function generatePdfExport(array $data, array $columns, string $filename) {
+        $pdf = new FPDF('L', 'mm', 'A4');
+        $pdf->AddPage();
+        $pdf->SetFont('Arial', 'B', 12);
+        
+        $pdf->Cell(0, 10, 'Export des Codes Geo', 0, 1, 'C');
+        $pdf->Ln(5);
+
+        $pdf->SetFont('Arial', 'B', 10);
+        $pdf->SetFillColor(230, 230, 230);
+        foreach ($columns as $header) {
+            $pdf->Cell(40, 7, ucfirst($header), 1, 0, 'C', true);
+        }
+        $pdf->Ln();
+
+        $pdf->SetFont('Arial', '', 10);
+        foreach ($data as $row) {
+            foreach ($columns as $col) {
+                $cellData = mb_convert_encoding($row[$col] ?? '', 'ISO-8859-1', 'UTF-8');
+                $pdf->Cell(40, 6, $cellData, 1);
+            }
+            $pdf->Ln();
+        }
+
+        $pdf->Output('D', $filename . '.pdf');
     }
 
     public function showImportAction() {
@@ -125,28 +185,65 @@ class GeoCodeController extends BaseController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csvFile']) && $_FILES['csvFile']['error'] == UPLOAD_ERR_OK) {
             $csvFile = $_FILES['csvFile']['tmp_name'];
             $fileHandle = fopen($csvFile, 'r');
+            
             $header = fgetcsv($fileHandle, 0, ';');
-            $codesToInsert = [];
+            $allRows = [];
+            $codesToCheck = [];
 
             while (($row = fgetcsv($fileHandle, 0, ';')) !== false) {
                 $data = array_combine($header, $row);
-                $codesToInsert[] = [
-                    'code_geo' => $data['code_geo'] ?? '',
-                    'libelle' => $data['libelle'] ?? '',
-                    'univers' => $data['univers'] ?? 'Indéfini',
-                    'zone' => $data['zone'] ?? 'vente',
-                    'commentaire' => $data['commentaire'] ?? null
-                ];
+                if (!empty(trim($data['code_geo']))) {
+                    $allRows[] = $data;
+                    $codesToCheck[] = trim($data['code_geo']);
+                }
             }
             fclose($fileHandle);
+
+            $existingCodes = $this->geoCodeManager->getExistingCodes($codesToCheck);
+            
+            $codesToInsert = [];
+            $duplicateCodes = [];
+
+            foreach ($allRows as $rowData) {
+                $currentCode = trim($rowData['code_geo']);
+                if (in_array($currentCode, $existingCodes)) {
+                    $duplicateCodes[] = $currentCode;
+                } else {
+                    $codesToInsert[] = [
+                        'code_geo'    => $currentCode,
+                        'libelle'     => $rowData['libelle'] ?? '',
+                        'univers'     => $rowData['univers'] ?? 'Indéfini',
+                        'zone'        => $rowData['zone'] ?? 'vente',
+                        'commentaire' => $rowData['commentaire'] ?? null
+                    ];
+                    $existingCodes[] = $currentCode;
+                }
+            }
             
             if (!empty($codesToInsert)) {
                 $this->geoCodeManager->createMultipleGeoCodes($codesToInsert, $this->universManager);
             }
+
+            $message = "<strong>Rapport d'importation :</strong><br>"
+                     . count($codesToInsert) . " nouveau(x) code(s) importé(s).<br>";
+            
+            if (!empty($duplicateCodes)) {
+                $message .= "<strong>" . count(array_unique($duplicateCodes)) . " code(s) existai(en)t déjà et ont été ignoré(s) :</strong><br><ul>";
+                foreach(array_unique($duplicateCodes) as $dup) {
+                    $message .= "<li>" . htmlspecialchars($dup) . "</li>";
+                }
+                $message .= "</ul>";
+            }
+            
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => $message];
+        } else {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => "Erreur lors de l'envoi du fichier."];
         }
+        
         header('Location: index.php?action=list');
         exit();
     }
+
 
     public function showPrintOptionsAction() {
         $universList = $this->universManager->getAllUnivers();

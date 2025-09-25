@@ -52,6 +52,53 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+/**
+ * Récupère les codes géo en fonction de plusieurs filtres.
+ * @param array $filters Les filtres à appliquer (clés: 'zones', 'univers_ids')
+ * @return array La liste des codes géo filtrés.
+ */
+public function getFilteredGeoCodes(array $filters): array {
+    $sql = "
+        SELECT 
+            gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire
+        FROM 
+            geo_codes gc
+        JOIN 
+            univers u ON gc.univers_id = u.id
+    ";
+
+    $where = [];
+    $params = [];
+
+    // Filtre par zone
+    if (!empty($filters['zones']) && is_array($filters['zones'])) {
+        $placeholders = implode(',', array_fill(0, count($filters['zones']), '?'));
+        $where[] = "gc.zone IN ($placeholders)";
+        foreach ($filters['zones'] as $zone) {
+            $params[] = $zone;
+        }
+    }
+    
+    // Filtre par univers
+    if (!empty($filters['univers_ids']) && is_array($filters['univers_ids'])) {
+        $placeholders = implode(',', array_fill(0, count($filters['univers_ids']), '?'));
+        $where[] = "gc.univers_id IN ($placeholders)";
+        foreach ($filters['univers_ids'] as $id) {
+            $params[] = (int)$id;
+        }
+    }
+
+    if (!empty($where)) {
+        $sql .= " WHERE " . implode(' AND ', $where);
+    }
+    
+    $sql .= " ORDER BY u.nom, gc.code_geo";
+    
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
     /**
      * CORRECTION : La requête a été simplifiée et corrigée pour se baser
      * uniquement sur les univers associés au plan.
@@ -142,6 +189,24 @@ class GeoCodeManager {
     public function countPlacedCodes(): int {
         return (int)$this->db->query("SELECT COUNT(DISTINCT geo_code_id) FROM geo_positions")->fetchColumn();
     }
+
+/**
+ * Vérifie lesquels des codes géographiques fournis existent déjà dans la base de données.
+ * @param array $codes Une liste de chaînes de caractères code_geo à vérifier.
+ * @return array Une liste des code_geo qui existent déjà.
+ */
+public function getExistingCodes(array $codes): array {
+    if (empty($codes)) {
+        return [];
+    }
+    // Crée des placeholders (?) pour la requête SQL
+    $placeholders = implode(',', array_fill(0, count($codes), '?'));
+    $sql = "SELECT code_geo FROM geo_codes WHERE code_geo IN ($placeholders)";
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute($codes);
+    // Retourne une simple liste des codes trouvés
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
 
     public function getLatestCodes(int $limit = 5): array {
         $sql = "

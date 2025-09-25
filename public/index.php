@@ -35,7 +35,7 @@ $universController = new UniversController($db);
 // La page par défaut est maintenant 'dashboard'
 $action = $_GET['action'] ?? 'dashboard';
 
-// Routage (le switch...case reste inchangé)
+// Routage
 switch ($action) {
     // Dashboard
     case 'dashboard': $dashboardController->indexAction(); break;
@@ -49,10 +49,12 @@ switch ($action) {
     case 'delete': $geoCodeController->deleteAction(); break;
     case 'showBatchCreate': $geoCodeController->showBatchCreateAction(); break;
     case 'handleBatchCreate': $geoCodeController->handleBatchCreateAction(); break;
-    case 'getAllCodesJson': $geoCodeController->getAllCodesJsonAction(); break; // NOUVELLE ROUTE
+    case 'getAllCodesJson': $geoCodeController->getAllCodesJsonAction(); break;
     
     // Import/Export et Impression
     case 'export': $geoCodeController->exportAction(); break;
+    case 'showExport': $geoCodeController->showExportAction(); break;
+    case 'handleExport': $geoCodeController->handleExportAction(); break;
     case 'showImport': $geoCodeController->showImportAction(); break;
     case 'handleImport': $geoCodeController->handleImportAction(); break;
     case 'printLabels': $geoCodeController->showPrintOptionsAction(); break;

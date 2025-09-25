@@ -51,10 +51,10 @@ $data_actions = ['showImport', 'export'];
                     <a class="nav-link dropdown-toggle <?= in_array($current_action, $data_actions) ? 'active' : '' ?>" href="#" id="dataDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Données
                     </a>
-                    <ul class="dropdown-menu" aria-labelledby="dataDropdown">
-                        <li><a class="dropdown-item" href="index.php?action=showImport">Importer</a></li>
-                        <li><a class="dropdown-item" href="index.php?action=export">Exporter</a></li>
-                    </ul>
+		 <ul class="dropdown-menu" aria-labelledby="dataDropdown">
+    			<li><a class="dropdown-item" href="index.php?action=showImport">Importer</a></li>
+    			<li><a class="dropdown-item" href="index.php?action=showExport">Exporter</a></li>
+		 </ul>
                 </li>
             </ul>
 
