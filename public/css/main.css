@@ -21,3 +21,4 @@
 @import url('pages/_plans-list.css'); /* <--- AJOUTEZ CETTE LIGNE */
 @import url('pages/_dashboard.css');
 @import url('pages/_print-options.css');
+@import url('pages/_export.css');
