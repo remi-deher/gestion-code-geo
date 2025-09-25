@@ -9,13 +9,37 @@ class GeoCodeManager {
         $this->db = $db;
     }
 
+    /**
+     * Enregistre une action dans l'historique des codes géo.
+     */
+    private function logHistory(int $geo_code_id, string $action, ?string $details = null) {
+        $sql = "INSERT INTO geo_codes_history (geo_code_id, action_type, details) VALUES (?, ?, ?)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$geo_code_id, $action, $details]);
+    }
+
+    /**
+     * Récupère l'historique pour un code géo spécifique.
+     */
+    public function getHistoryForGeoCode(int $id) {
+        $stmt = $this->db->prepare("SELECT * FROM geo_codes_history WHERE geo_code_id = ? ORDER BY action_timestamp DESC");
+        $stmt->execute([$id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Récupère un code géo par son ID (uniquement s'il n'est pas supprimé).
+     */
     public function getGeoCodeById(int $id) {
-        $sql = "SELECT * FROM geo_codes WHERE id = ?";
+        $sql = "SELECT * FROM geo_codes WHERE id = ? AND deleted_at IS NULL";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Récupère tous les codes géo actifs avec leurs positions sur les plans.
+     */
     public function getAllGeoCodesWithPositions() {
         $sql = "
             SELECT 
@@ -27,6 +51,8 @@ class GeoCodeManager {
                 geo_positions gp ON gc.id = gp.geo_code_id
             LEFT JOIN 
                 univers u ON gc.univers_id = u.id
+            WHERE 
+                gc.deleted_at IS NULL
             ORDER BY 
                 u.nom, gc.code_geo
         ";
@@ -35,184 +61,105 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
-    public function getGeoCodesByUniversIds(array $ids): array {
-        if (empty($ids)) {
-            return [];
-        }
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $sql = "
-            SELECT gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.commentaire
-            FROM geo_codes gc
-            JOIN univers u ON gc.univers_id = u.id
-            WHERE gc.univers_id IN ($placeholders)
-            ORDER BY u.nom, gc.code_geo
-        ";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($ids);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-/**
- * Récupère les codes géo en fonction de plusieurs filtres.
- * @param array $filters Les filtres à appliquer (clés: 'zones', 'univers_ids')
- * @return array La liste des codes géo filtrés.
- */
-public function getFilteredGeoCodes(array $filters): array {
-    $sql = "
-        SELECT 
-            gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire
-        FROM 
-            geo_codes gc
-        JOIN 
-            univers u ON gc.univers_id = u.id
-    ";
-
-    $where = [];
-    $params = [];
-
-    // Filtre par zone
-    if (!empty($filters['zones']) && is_array($filters['zones'])) {
-        $placeholders = implode(',', array_fill(0, count($filters['zones']), '?'));
-        $where[] = "gc.zone IN ($placeholders)";
-        foreach ($filters['zones'] as $zone) {
-            $params[] = $zone;
-        }
-    }
-    
-    // Filtre par univers
-    if (!empty($filters['univers_ids']) && is_array($filters['univers_ids'])) {
-        $placeholders = implode(',', array_fill(0, count($filters['univers_ids']), '?'));
-        $where[] = "gc.univers_id IN ($placeholders)";
-        foreach ($filters['univers_ids'] as $id) {
-            $params[] = (int)$id;
-        }
-    }
-
-    if (!empty($where)) {
-        $sql .= " WHERE " . implode(' AND ', $where);
-    }
-    
-    $sql .= " ORDER BY u.nom, gc.code_geo";
-    
-    $stmt = $this->db->prepare($sql);
-    $stmt->execute($params);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
     /**
-     * CORRECTION : La requête a été simplifiée et corrigée pour se baser
-     * uniquement sur les univers associés au plan.
+     * Crée un nouveau code géo et enregistre l'action dans l'historique.
      */
-    public function getAvailableCodesForPlan(int $planId): array {
-        $sql = "
-            SELECT gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone
-            FROM geo_codes gc
-            JOIN univers u ON gc.univers_id = u.id
-            -- Le code doit appartenir à un univers lié à ce plan
-            WHERE gc.univers_id IN (SELECT univers_id FROM plan_univers WHERE plan_id = :plan_id)
-            -- Et le code ne doit pas déjà être placé sur un plan
-            AND gc.id NOT IN (SELECT geo_code_id FROM geo_positions WHERE geo_code_id IS NOT NULL)
-            ORDER BY gc.code_geo
-        ";
-        
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([':plan_id' => $planId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
     public function createGeoCode(string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
         $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire]);
+        $success = $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire]);
+        if ($success) {
+            $this->logHistory($this->db->lastInsertId(), 'created');
+        }
+        return $success;
     }
 
+    /**
+     * Met à jour un code géo et enregistre les modifications dans l'historique.
+     */
     public function updateGeoCode(int $id, string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
+        $oldData = $this->getGeoCodeById($id);
+
         $sql = "UPDATE geo_codes SET code_geo = ?, libelle = ?, univers_id = ?, zone = ?, commentaire = ? WHERE id = ?";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire, $id]);
+        $success = $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire, $id]);
+        
+        if ($success) {
+            $details = [];
+            if ($oldData['code_geo'] !== $code_geo) $details[] = "code_geo: '{$oldData['code_geo']}' -> '$code_geo'";
+            if ($oldData['libelle'] !== $libelle) $details[] = "libelle: '{$oldData['libelle']}' -> '$libelle'";
+            if ($oldData['univers_id'] != $univers_id) $details[] = "univers_id: '{$oldData['univers_id']}' -> '$univers_id'";
+            if ($oldData['zone'] !== $zone) $details[] = "zone: '{$oldData['zone']}' -> '$zone'";
+            if ($oldData['commentaire'] !== $commentaire) $details[] = "commentaire: '{$oldData['commentaire']}' -> '$commentaire'";
+
+            if (!empty($details)) {
+                $this->logHistory($id, 'updated', implode(' | ', $details));
+            }
+        }
+        return $success;
     }
-    
+
+    /**
+     * "Supprime" un code géo en définissant la date de suppression (soft delete).
+     */
     public function deleteGeoCode(int $id): bool {
-        $sql = "DELETE FROM geo_codes WHERE id = ?";
+        $sql = "UPDATE geo_codes SET deleted_at = NOW() WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        $success = $stmt->execute([$id]);
+        if ($success) {
+            $this->logHistory($id, 'deleted');
+        }
+        return $success;
+    }
+
+    // --- Nouvelles méthodes pour la corbeille ---
+
+    /**
+     * Récupère tous les codes géo qui ont été supprimés (soft delete).
+     */
+    public function getDeletedGeoCodes() {
+        $sql = "SELECT gc.*, u.nom as univers FROM geo_codes gc LEFT JOIN univers u ON gc.univers_id = u.id WHERE gc.deleted_at IS NOT NULL ORDER BY gc.deleted_at DESC";
+        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Restaure un code géo qui était dans la corbeille.
+     */
+    public function restoreGeoCode(int $id): bool {
+        $sql = "UPDATE geo_codes SET deleted_at = NULL WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        $success = $stmt->execute([$id]);
+        if ($success) {
+            $this->logHistory($id, 'restored');
+        }
+        return $success;
+    }
+
+    /**
+     * Supprime définitivement un code géo de la base de données.
+     */
+    public function forceDeleteGeoCode(int $id): bool {
+        $sql = "DELETE FROM geo_codes WHERE id = ? AND deleted_at IS NOT NULL";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$id]);
     }
     
-    public function createMultipleGeoCodes(array $codes, UniversManager $universManager) {
-        $this->db->beginTransaction();
-        try {
-            $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) 
-                    VALUES (?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE 
-                    libelle = VALUES(libelle), 
-                    univers_id = VALUES(univers_id), 
-                    zone = VALUES(zone), 
-                    commentaire = VALUES(commentaire)";
-            $stmt = $this->db->prepare($sql);
-
-            foreach ($codes as $code) {
-                $zone = in_array(strtolower($code['zone']), ['vente', 'reserve']) ? strtolower($code['zone']) : 'vente';
-                $univers_id = $universManager->getOrCreateUniversId($code['univers'], $zone);
-                
-                $stmt->execute([ $code['code_geo'], $code['libelle'], $univers_id, $zone, $code['commentaire'] ]);
-            }
-            $this->db->commit();
-            return true;
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            error_log("Erreur lors de l'importation multiple : " . $e->getMessage());
-            return false;
-        }
-    }
-
-    public function createBatchGeoCodes(array $codes): bool {
-        $this->db->beginTransaction();
-        try {
-            $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
-            $stmt = $this->db->prepare($sql);
-            foreach ($codes as $code) {
-                $stmt->execute([ $code['code_geo'], $code['libelle'], $code['univers_id'], $code['zone'], $code['commentaire'] ]);
-            }
-            $this->db->commit();
-            return true;
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            error_log($e->getMessage());
-            return false;
-        }
-    }
-
+    // --- Méthodes pour le Dashboard ---
+    
     public function countTotalCodes(): int {
-        return (int)$this->db->query("SELECT COUNT(*) FROM geo_codes")->fetchColumn();
+        return (int)$this->db->query("SELECT COUNT(*) FROM geo_codes WHERE deleted_at IS NULL")->fetchColumn();
     }
 
     public function countPlacedCodes(): int {
-        return (int)$this->db->query("SELECT COUNT(DISTINCT geo_code_id) FROM geo_positions")->fetchColumn();
+        return (int)$this->db->query("SELECT COUNT(DISTINCT geo_code_id) FROM geo_positions gp JOIN geo_codes gc ON gp.geo_code_id = gc.id WHERE gc.deleted_at IS NULL")->fetchColumn();
     }
-
-/**
- * Vérifie lesquels des codes géographiques fournis existent déjà dans la base de données.
- * @param array $codes Une liste de chaînes de caractères code_geo à vérifier.
- * @return array Une liste des code_geo qui existent déjà.
- */
-public function getExistingCodes(array $codes): array {
-    if (empty($codes)) {
-        return [];
-    }
-    // Crée des placeholders (?) pour la requête SQL
-    $placeholders = implode(',', array_fill(0, count($codes), '?'));
-    $sql = "SELECT code_geo FROM geo_codes WHERE code_geo IN ($placeholders)";
-    $stmt = $this->db->prepare($sql);
-    $stmt->execute($codes);
-    // Retourne une simple liste des codes trouvés
-    return $stmt->fetchAll(PDO::FETCH_COLUMN);
-}
-
+    
     public function getLatestCodes(int $limit = 5): array {
         $sql = "
             SELECT gc.code_geo, gc.libelle, u.nom as univers
             FROM geo_codes gc
             JOIN univers u ON gc.univers_id = u.id
+            WHERE gc.deleted_at IS NULL
             ORDER BY gc.id DESC
             LIMIT :limit
         ";
@@ -256,4 +203,5 @@ public function getExistingCodes(array $codes): array {
         ";
         return $this->db->query($sql)->fetchAll(PDO::FETCH_KEY_PAIR);
     }
+    
 }

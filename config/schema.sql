@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS `geo_codes` (
   `univers_id` INT NOT NULL,
   `zone` ENUM('reserve', 'vente') NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (univers_id) REFERENCES univers(id) ON DELETE RESTRICT
 );
@@ -70,4 +72,13 @@ CREATE TABLE IF NOT EXISTS `geo_positions_history` (
   `action_timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   KEY `geo_code_id_idx` (`geo_code_id`),
   KEY `plan_id_idx` (`plan_id`)
+);
+
+-- NOUVELLE TABLE pour l'historique des codes géo
+CREATE TABLE IF NOT EXISTS `geo_codes_history` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `geo_code_id` INT NOT NULL,
+  `action_type` ENUM('created', 'updated', 'deleted', 'restored') NOT NULL,
+  `details` TEXT,
+  `action_timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

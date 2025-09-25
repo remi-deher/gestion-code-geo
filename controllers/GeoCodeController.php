@@ -4,7 +4,7 @@
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/GeoCodeManager.php';
 require_once __DIR__ . '/../models/UniversManager.php';
-require_once __DIR__ . '/../helpers/PdfGenerator.php'; // Assurez-vous que ce chemin est correct
+require_once __DIR__ . '/../helpers/PdfGenerator.php';
 
 class GeoCodeController extends BaseController {
     
@@ -75,6 +75,40 @@ class GeoCodeController extends BaseController {
         exit();
     }
     
+    public function trashAction() {
+        $deletedGeoCodes = $this->geoCodeManager->getDeletedGeoCodes();
+        $this->render('trash_view', ['deletedGeoCodes' => $deletedGeoCodes]);
+    }
+
+    public function restoreAction() {
+        $id = (int)($_GET['id'] ?? 0);
+        if ($id > 0) {
+            $this->geoCodeManager->restoreGeoCode($id);
+        }
+        header('Location: index.php?action=trash');
+        exit();
+    }
+
+    public function forceDeleteAction() {
+        $id = (int)($_GET['id'] ?? 0);
+        if ($id > 0) {
+            $this->geoCodeManager->forceDeleteGeoCode($id);
+        }
+        header('Location: index.php?action=trash');
+        exit();
+    }
+
+    public function historyAction() {
+        $id = (int)($_GET['id'] ?? 0);
+        $geoCode = $this->geoCodeManager->getGeoCodeById($id);
+        if (!$geoCode) {
+            header('Location: index.php?action=list');
+            exit();
+        }
+        $history = $this->geoCodeManager->getHistoryForGeoCode($id);
+        $this->render('history_view', ['geoCode' => $geoCode, 'history' => $history]);
+    }
+
     public function showBatchCreateAction() {
         $universList = $this->universManager->getAllUnivers();
         $this->render('batch_create_view', ['universList' => $universList]);
@@ -326,4 +360,5 @@ class GeoCodeController extends BaseController {
         echo json_encode($geoCodes);
         exit();
     }
+
 }

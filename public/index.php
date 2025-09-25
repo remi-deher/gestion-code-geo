@@ -51,6 +51,12 @@ switch ($action) {
     case 'handleBatchCreate': $geoCodeController->handleBatchCreateAction(); break;
     case 'getAllCodesJson': $geoCodeController->getAllCodesJsonAction(); break;
     
+    // Corbeille & Historique
+    case 'trash': $geoCodeController->trashAction(); break;
+    case 'restore': $geoCodeController->restoreAction(); break;
+    case 'forceDelete': $geoCodeController->forceDeleteAction(); break;
+    case 'history': $geoCodeController->historyAction(); break;
+
     // Import/Export et Impression
     case 'export': $geoCodeController->exportAction(); break;
     case 'showExport': $geoCodeController->showExportAction(); break;
