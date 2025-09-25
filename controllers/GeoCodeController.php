@@ -109,6 +109,14 @@ class GeoCodeController extends BaseController {
         $this->render('history_view', ['geoCode' => $geoCode, 'history' => $history]);
     }
 
+/**
+     * Affiche une page avec l'historique global de toutes les modifications.
+     */
+    public function fullHistoryAction() {
+        $fullHistory = $this->geoCodeManager->getFullHistory();
+        $this->render('full_history_view', ['history' => $fullHistory]);
+    }
+
     public function showBatchCreateAction() {
         $universList = $this->universManager->getAllUnivers();
         $this->render('batch_create_view', ['universList' => $universList]);

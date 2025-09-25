@@ -56,6 +56,7 @@ switch ($action) {
     case 'restore': $geoCodeController->restoreAction(); break;
     case 'forceDelete': $geoCodeController->forceDeleteAction(); break;
     case 'history': $geoCodeController->historyAction(); break;
+    case 'fullHistory': $geoCodeController->fullHistoryAction(); break;
 
     // Import/Export et Impression
     case 'export': $geoCodeController->exportAction(); break;

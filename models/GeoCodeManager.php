@@ -27,6 +27,33 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+/**
+     * Récupère un historique complet de toutes les modifications sur les codes géo.
+     * @param int $limit Le nombre d'entrées à récupérer.
+     * @return array
+     */
+    public function getFullHistory(int $limit = 50): array {
+        $sql = "
+            SELECT 
+                h.action_type,
+                h.details,
+                h.action_timestamp,
+                gc.code_geo,
+                gc.id as geo_code_id
+            FROM 
+                geo_codes_history h
+            JOIN 
+                geo_codes gc ON h.geo_code_id = gc.id
+            ORDER BY 
+                h.action_timestamp DESC
+            LIMIT ?
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(1, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     /**
      * Récupère un code géo par son ID (uniquement s'il n'est pas supprimé).
      */

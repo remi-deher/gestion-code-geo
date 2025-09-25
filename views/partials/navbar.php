@@ -44,6 +44,8 @@ $data_actions = ['showImport', 'export'];
                     <ul class="dropdown-menu" aria-labelledby="managementDropdown">
                         <li><a class="dropdown-item" href="index.php?action=listUnivers">Gérer les univers</a></li>
                         <li><a class="dropdown-item" href="index.php?action=listPlans">Gérer les plans</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="index.php?action=fullHistory">Historique global</a></li>
                     </ul>
                 </li>
 
