@@ -19,6 +19,12 @@
     .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .legend-color-box { width: 15px; height: 15px; border: 1px solid #ccc; border-radius: 3px; }
     #history-list .history-item { font-size: 0.85rem; padding: 0.5rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    
+    /* Style pour le nouveau bouton d'ajout */
+    .add-code-section {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
 </style>
 <?php $head_styles = ob_get_clean(); ?>
 
@@ -36,6 +42,11 @@
 
 <div class="plan-page-container">
     <div id="unplaced-codes-sidebar" class="no-print">
+        <div class="add-code-section">
+            <button id="add-code-btn" class="btn btn-primary w-100">
+                <i class="bi bi-plus-circle-fill"></i> Ajouter un code
+            </button>
+        </div>
         <div class="sidebar-accordion">
             <div class="accordion-item open">
                 <div class="accordion-header"><h3>Filtres</h3><span class="accordion-arrow">▶</span></div>
@@ -48,7 +59,6 @@
                 <div class="accordion-header"><h3>Codes à placer <span id="unplaced-counter">(0)</span></h3><span class="accordion-arrow">▶</span></div>
                 <div class="accordion-content" id="unplaced-list-container">
                     <div id="unplaced-list"><p class="text-muted small">Veuillez sélectionner un plan.</p></div>
-                    <button id="add-code-btn" class="btn btn-primary btn-sm mt-2">Ajouter un code</button>
                 </div>
             </div>
              <div class="accordion-item">
