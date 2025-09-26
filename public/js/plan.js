@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addCodeModal = new bootstrap.Modal(document.getElementById('add-code-modal'));
     const saveNewCodeBtn = document.getElementById('save-new-code-btn');
     const newUniversIdSelect = document.getElementById('new-univers-id');
+    const executePrintBtn = document.getElementById('execute-print-btn');
 
     // --- ÉTAT DE L'APPLICATION ---
     let allCodesData = [...placedGeoCodes];
@@ -62,7 +63,7 @@ function draw() {
     ctx.translate(panX, panY);
     ctx.scale(scale, scale);
     ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
-    drawTags();
+    drawTags(ctx, scale);
     ctx.restore();
 
     // Logique de positionnement de la barre d'outils
@@ -83,27 +84,29 @@ function draw() {
         tagToolbar.classList.remove('visible'); // Cache la barre d'outils avec une transition
     }
 }
-    function drawTags() {
+    function drawTags(targetCtx, currentScale, filterUnivers = null) {
         if (!currentPlanId) return;
         allCodesData.forEach(code => {
             if (code.plan_id != currentPlanId || code.pos_x === null) return;
+            if (filterUnivers && !filterUnivers.includes(code.univers)) return;
+
             const tag = getTagDimensions(code);
 
             if (code.anchor_x != null) {
-                drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs);
+                drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, targetCtx);
             }
 
-            ctx.strokeStyle = (code.id === selectedTagId) ? '#007bff' : 'black';
-            ctx.lineWidth = (code.id === selectedTagId) ? 2 / scale : 1 / scale;
-            ctx.fillStyle = universColors[code.univers] || '#7f8c8d';
-            ctx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
-            ctx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
+            targetCtx.strokeStyle = (code.id === selectedTagId) ? '#007bff' : 'black';
+            targetCtx.lineWidth = (code.id === selectedTagId) ? 2 / currentScale : 1 / currentScale;
+            targetCtx.fillStyle = universColors[code.univers] || '#7f8c8d';
+            targetCtx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
+            targetCtx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
 
-            ctx.font = `bold ${12 / scale}px Arial`;
-            ctx.fillStyle = 'white';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(code.code_geo, tag.x, tag.y);
+            targetCtx.font = `bold ${12 / currentScale}px Arial`;
+            targetCtx.fillStyle = 'white';
+            targetCtx.textAlign = 'center';
+            targetCtx.textBaseline = 'middle';
+            targetCtx.fillText(code.code_geo, tag.x, tag.y);
         });
     }
 
@@ -213,6 +216,7 @@ function draw() {
                 }
             });
         }
+        if (executePrintBtn) executePrintBtn.addEventListener('click', prepareAndPrint);
     }
     
     function zoom(factor) {
@@ -588,6 +592,41 @@ function draw() {
         } else {
             document.exitFullscreen();
         }
+    }
+    
+    function prepareAndPrint() {
+        const title = document.getElementById('print-title').value;
+        const includeLegend = document.getElementById('print-legend-toggle').checked;
+        const selectedUnivers = Array.from(document.querySelectorAll('#print-univers-filter .form-check-input:checked')).map(cb => cb.value);
+
+        const printCanvas = document.createElement('canvas');
+        printCanvas.width = mapImage.naturalWidth;
+        printCanvas.height = mapImage.naturalHeight;
+        const printCtx = printCanvas.getContext('2d');
+
+        printCtx.drawImage(mapImage, 0, 0);
+        drawTags(printCtx, 1, selectedUnivers);
+
+        const printedImage = document.getElementById('printed-canvas');
+        printedImage.src = printCanvas.toDataURL('image/png');
+
+        const headerContainer = document.querySelector('.print-header-container');
+        headerContainer.innerHTML = title ? `<h1>${title}</h1>` : '';
+        
+        const legendContainer = document.querySelector('.print-legend-container');
+        legendContainer.innerHTML = '';
+        if (includeLegend) {
+            let legendHTML = '<h3>Légende</h3>';
+            selectedUnivers.forEach(universName => {
+                const color = universColors[universName] || '#7f8c8d';
+                legendHTML += `<div class="legend-item"><div class="legend-color-box" style="background-color: ${color};"></div><span>${universName}</span></div>`;
+            });
+            legendContainer.innerHTML = legendHTML;
+        }
+
+        setTimeout(() => {
+            window.print();
+        }, 100);
     }
 
     initialize();

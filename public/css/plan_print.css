@@ -1,38 +1,72 @@
 /* public/css/plan_print.css */
 
 @media print {
+    body, html {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
     /* Cache les éléments non désirés */
-    body > :not(.print-container),
-    .no-print {
+    .no-print, body > :not(.print-container) {
         display: none !important;
     }
 
-    /* Force le conteneur d'impression à prendre toute la page */
+    /* Conteneur principal pour l'impression */
     .print-container {
-        display: block !important;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: white;
-        z-index: 9999;
+        display: flex !important; /* Utilise flexbox pour la mise en page */
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
     }
 
-    /* Assure que le canvas imprimé prend toute la place disponible */
-    #printed-canvas {
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
+    .print-header-container {
+        text-align: center;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #ccc;
+        flex-shrink: 0; /* Empêche le header de rétrécir */
     }
     
-    .print-header-container, .print-legend-container {
-        display: block !important;
+    .print-header-container h1 {
+        font-size: 16pt;
+        margin: 0;
     }
 
-    /* Styles pour la mise en page (évite les coupures) */
+    #printed-canvas {
+        flex-grow: 1; /* L'image prend toute la place restante */
+        width: 100%;
+        height: 1px; /* Astuce pour que flex-grow fonctionne correctement en hauteur */
+        object-fit: contain; /* Assure que l'image s'adapte sans être déformée */
+    }
+
+    .print-legend-container {
+        flex-shrink: 0; /* Empêche la légende de rétrécir */
+        padding-top: 10px;
+        page-break-before: auto; /* Laisser le navigateur gérer la coupure */
+    }
+    
+    .print-legend-container h3 {
+        font-size: 12pt;
+        margin-bottom: 5px;
+    }
+
+    .print-legend-container .legend-item {
+        display: inline-flex; /* Afficher les éléments de la légende côte à côte */
+        align-items: center;
+        margin-right: 15px;
+    }
+    
+    .print-legend-container .legend-color-box {
+        width: 12px;
+        height: 12px;
+        margin-right: 5px;
+        border: 1px solid #000;
+    }
+
     @page {
-        size: A4 landscape; /* Par défaut en paysage pour mieux voir les plans */
+        size: A4 landscape;
         margin: 10mm;
     }
 }

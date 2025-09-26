@@ -90,15 +90,18 @@ class GeoCodeManager {
     
     /**
      * Crée un nouveau code géo et enregistre l'action dans l'historique.
+     * @return int|false L'ID du nouvel enregistrement en cas de succès, sinon false.
      */
     public function createGeoCode(string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
         $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
         $success = $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire]);
         if ($success) {
-            $this->logHistory($this->db->lastInsertId(), 'created');
+            $lastId = (int)$this->db->lastInsertId();
+            $this->logHistory($lastId, 'created');
+            return $lastId;
         }
-        return $success;
+        return false;
     }
 
     /**

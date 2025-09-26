@@ -184,3 +184,9 @@
         </div>
     </div>
 </div>
+
+<div id="print-output" class="print-container">
+    <div class="print-header-container"></div>
+    <img id="printed-canvas" src="" alt="Plan à imprimer" />
+    <div class="print-legend-container"></div>
+</div>
