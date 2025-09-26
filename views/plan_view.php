@@ -83,9 +83,9 @@
                 </h3>
             </div>
 
-            <button class="btn btn-primary" id="print-plan-btn" data-bs-toggle="modal" data-bs-target="#print-options-modal">
+            <a href="index.php?action=printPlan&id=<?= $plan['id'] ?>" class="btn btn-primary" target="_blank">
                 <i class="bi bi-printer-fill"></i> Imprimer
-            </button>
+            </a>
             <button class="btn btn-secondary" id="fullscreen-btn" title="Plein écran">
                 <i class="bi bi-arrows-fullscreen"></i>
             </button>
@@ -119,35 +119,6 @@
             <button id="toolbar-delete" class="btn btn-sm btn-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
         </div>
     </div>
-</div>
-
-<div class="modal fade" id="print-options-modal" tabindex="-1" aria-labelledby="printOptionsModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="printOptionsModalLabel">Options d'impression du plan</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-            <label for="print-title" class="form-label">Titre du document (optionnel)</label>
-            <input type="text" class="form-control" id="print-title" placeholder="Ex: Plan d'implantation - Hiver 2025">
-        </div>
-        <div class="form-check form-switch mb-3">
-            <input class="form-check-input" type="checkbox" id="print-legend-toggle" checked>
-            <label class="form-check-label" for="print-legend-toggle">Inclure la légende des univers</label>
-        </div>
-        <hr>
-        <h6>Filtrer les univers à imprimer</h6>
-        <div id="print-univers-filter" class="d-flex flex-wrap gap-2">
-            </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-        <button type="button" class="btn btn-primary" id="execute-print-btn">Imprimer</button>
-      </div>
-    </div>
-  </div>
 </div>
 <div class="modal fade" id="add-code-modal" tabindex="-1" aria-labelledby="addCodeModalLabel" aria-hidden="true">
     <div class="modal-dialog">

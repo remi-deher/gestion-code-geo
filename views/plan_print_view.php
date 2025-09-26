@@ -7,43 +7,50 @@
 </head>
 <body>
     <div class="print-container">
-        <div class="print-header-container">
+        <div class="print-header-container no-print">
             <h1><?= htmlspecialchars($plan['nom']) ?></h1>
+            <p>Aperçu avant impression. Cliquez sur "Imprimer" pour lancer l'impression.</p>
+            <button onclick="window.print()">Imprimer</button>
         </div>
-        <img id="printed-canvas" src="" alt="Plan à imprimer" />
+        
+        <div class="canvas-wrapper">
+            <canvas id="printed-canvas"></canvas>
+        </div>
+
         <div class="print-legend-container"></div>
+        
+        <img id="source-map-image" src="uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>" style="display:none;" alt="Plan source">
     </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const mapImage = new Image();
-            mapImage.src = 'uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>?t=' + new Date().getTime();
+            const sourceMapImage = document.getElementById('source-map-image');
+            const printCanvas = document.getElementById('printed-canvas');
+            if (!printCanvas) return;
+            const printCtx = printCanvas.getContext('2d');
 
-            mapImage.onload = () => {
+            const drawCanvas = () => {
                 const placedGeoCodes = <?= json_encode($geoCodes ?? []); ?>;
                 const universColors = <?= json_encode($universColors ?? []); ?>;
                 const currentPlanId = <?= json_encode($plan['id']); ?>;
-                
-                const printCanvas = document.createElement('canvas');
-                printCanvas.width = mapImage.naturalWidth;
-                printCanvas.height = mapImage.naturalHeight;
-                const printCtx = printCanvas.getContext('2d');
-                
-                printCtx.drawImage(mapImage, 0, 0);
 
-                // --- Fonctions de dessin ---
+                printCanvas.width = sourceMapImage.naturalWidth;
+                printCanvas.height = sourceMapImage.naturalHeight;
+                printCtx.drawImage(sourceMapImage, 0, 0);
+
                 function getTagDimensions(code) {
                     const textMetrics = printCtx.measureText(code.code_geo);
                     const calcWidth = textMetrics.width + 16;
                     return {
-                        x: (code.pos_x / 100) * mapImage.naturalWidth,
-                        y: (code.pos_y / 100) * mapImage.naturalHeight,
+                        x: (code.pos_x / 100) * sourceMapImage.naturalWidth,
+                        y: (code.pos_y / 100) * sourceMapImage.naturalHeight,
                         width: code.width || Math.max(80, calcWidth),
                         height: code.height || 22,
-                        anchor_x_abs: (code.anchor_x / 100) * mapImage.naturalWidth,
-                        anchor_y_abs: (code.anchor_y / 100) * mapImage.naturalHeight
+                        anchor_x_abs: (code.anchor_x / 100) * sourceMapImage.naturalWidth,
+                        anchor_y_abs: (code.anchor_y / 100) * sourceMapImage.naturalHeight
                     };
                 }
-                
+
                 function drawArrow(fromX, fromY, toX, toY) {
                     const headlen = 10;
                     const angle = Math.atan2(toY - fromY, toX - fromX);
@@ -58,22 +65,17 @@
                     printCtx.stroke();
                 }
 
-                // --- Dessin des étiquettes et des flèches ---
                 placedGeoCodes.forEach(code => {
                     if (code.plan_id != currentPlanId || code.pos_x === null) return;
-                    
                     const tag = getTagDimensions(code);
-
                     if (code.anchor_x != null && code.anchor_y != null) {
                         drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs);
                     }
-
                     printCtx.strokeStyle = 'black';
                     printCtx.lineWidth = 1;
                     printCtx.fillStyle = universColors[code.univers] || '#7f8c8d';
                     printCtx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
                     printCtx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
-
                     printCtx.font = `bold 12px Arial`;
                     printCtx.fillStyle = 'white';
                     printCtx.textAlign = 'center';
@@ -81,7 +83,6 @@
                     printCtx.fillText(code.code_geo, tag.x, tag.y);
                 });
 
-                // --- Ajout de la légende ---
                 const legendContainer = document.querySelector('.print-legend-container');
                 let legendHTML = '<h3>Légende</h3>';
                 const placedUnivers = new Set(placedGeoCodes.filter(c => c.plan_id == currentPlanId && c.univers).map(c => c.univers));
@@ -90,11 +91,13 @@
                     legendHTML += `<div class="legend-item"><div class="legend-color-box" style="background-color: ${color};"></div><span>${universName}</span></div>`;
                 });
                 legendContainer.innerHTML = legendHTML;
-
-                // --- Lancement de l'impression ---
-                document.getElementById('printed-canvas').src = printCanvas.toDataURL('image/png');
-                setTimeout(() => window.print(), 500);
             };
+
+            if (sourceMapImage.complete) {
+                drawCanvas();
+            } else {
+                sourceMapImage.onload = drawCanvas;
+            }
         });
     </script>
 </body>

@@ -1,69 +1,92 @@
 /* public/css/plan_print.css */
 
+@media screen {
+    body {
+        background-color: #f0f0f0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 2rem;
+    }
+    .print-container {
+        background-color: white;
+        padding: 2rem;
+        box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        border-radius: 8px;
+        width: 100%;
+        max-width: 1200px;
+    }
+    .print-header-container {
+        text-align: center;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #ccc;
+    }
+    .canvas-wrapper {
+        text-align: center;
+    }
+    #printed-canvas {
+        max-width: 100%;
+        height: auto;
+        border: 1px solid #ddd;
+    }
+    .print-legend-container {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #ccc;
+    }
+}
+
 @media print {
     body, html {
-        width: 100%;
-        height: 100%;
         margin: 0;
         padding: 0;
+        width: 100%;
+        height: 100%;
     }
-
-    /* Masque par défaut tous les éléments non destinés à l'impression */
-    .no-print, 
-    body > :not(.plan-page-container) {
+    .no-print {
         display: none !important;
     }
-
-    /* Affiche uniquement le conteneur principal du plan et le force à prendre toute la page */
-    .plan-page-container,
-    .plan-main-content,
-    #plan-container {
-        display: block !important;
-        width: 100% !important;
-        height: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: none !important;
-        box-shadow: none !important;
+    .print-container {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
-    
-    #plan-canvas {
+    .canvas-wrapper {
+        width: 100%;
+        flex-grow: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+    #printed-canvas {
         max-width: 100%;
         max-height: 100%;
         object-fit: contain;
-        border: none !important;
-        box-shadow: none !important;
     }
-
-    /* Styles pour la page d'impression dédiée (depuis la liste des plans) */
-    .print-container {
-        display: flex !important;
-        flex-direction: column;
+    .print-legend-container {
+        page-break-before: always;
     }
-
-    .print-header-container {
-        text-align: center;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #ccc;
-        flex-shrink: 0;
-    }
-    
-    .print-header-container h1 { font-size: 16pt; margin: 0; }
-
-    #printed-canvas {
-        flex-grow: 1;
-        width: 100%;
-        height: 1px; /* Astuce pour que flex-grow fonctionne en hauteur */
-        object-fit: contain;
-    }
-
-    .print-legend-container { flex-shrink: 0; padding-top: 10px; }
-    .print-legend-container h3 { font-size: 12pt; margin-bottom: 5px; }
-    .print-legend-container .legend-item { display: inline-flex; align-items: center; margin-right: 15px; }
-    .print-legend-container .legend-color-box { width: 12px; height: 12px; margin-right: 5px; border: 1px solid #000; }
-
     @page {
         size: A4 landscape;
         margin: 10mm;
     }
+}
+
+.print-legend-container h3 {
+    font-size: 12pt;
+    margin-bottom: 5px;
+}
+.print-legend-container .legend-item {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 15px;
+}
+.print-legend-container .legend-color-box {
+    width: 12px;
+    height: 12px;
+    margin-right: 5px;
+    border: 1px solid #000;
 }
