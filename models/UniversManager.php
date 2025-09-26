@@ -14,7 +14,7 @@ class UniversManager {
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
+
     public function getUniversByIds(array $ids) {
         if (empty($ids)) {
             return [];

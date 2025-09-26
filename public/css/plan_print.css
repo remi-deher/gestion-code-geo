@@ -8,62 +8,59 @@
         padding: 0;
     }
 
-    /* Cache les éléments non désirés */
-    .no-print, body > :not(.print-container) {
+    /* Masque par défaut tous les éléments non destinés à l'impression */
+    .no-print, 
+    body > :not(.plan-page-container) {
         display: none !important;
     }
 
-    /* Conteneur principal pour l'impression */
+    /* Affiche uniquement le conteneur principal du plan et le force à prendre toute la page */
+    .plan-page-container,
+    .plan-main-content,
+    #plan-container {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    #plan-canvas {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    /* Styles pour la page d'impression dédiée (depuis la liste des plans) */
     .print-container {
-        display: flex !important; /* Utilise flexbox pour la mise en page */
+        display: flex !important;
         flex-direction: column;
-        width: 100%;
-        height: 100%;
-        box-sizing: border-box;
     }
 
     .print-header-container {
         text-align: center;
         padding-bottom: 10px;
         border-bottom: 1px solid #ccc;
-        flex-shrink: 0; /* Empêche le header de rétrécir */
+        flex-shrink: 0;
     }
     
-    .print-header-container h1 {
-        font-size: 16pt;
-        margin: 0;
-    }
+    .print-header-container h1 { font-size: 16pt; margin: 0; }
 
     #printed-canvas {
-        flex-grow: 1; /* L'image prend toute la place restante */
+        flex-grow: 1;
         width: 100%;
-        height: 1px; /* Astuce pour que flex-grow fonctionne correctement en hauteur */
-        object-fit: contain; /* Assure que l'image s'adapte sans être déformée */
+        height: 1px; /* Astuce pour que flex-grow fonctionne en hauteur */
+        object-fit: contain;
     }
 
-    .print-legend-container {
-        flex-shrink: 0; /* Empêche la légende de rétrécir */
-        padding-top: 10px;
-        page-break-before: auto; /* Laisser le navigateur gérer la coupure */
-    }
-    
-    .print-legend-container h3 {
-        font-size: 12pt;
-        margin-bottom: 5px;
-    }
-
-    .print-legend-container .legend-item {
-        display: inline-flex; /* Afficher les éléments de la légende côte à côte */
-        align-items: center;
-        margin-right: 15px;
-    }
-    
-    .print-legend-container .legend-color-box {
-        width: 12px;
-        height: 12px;
-        margin-right: 5px;
-        border: 1px solid #000;
-    }
+    .print-legend-container { flex-shrink: 0; padding-top: 10px; }
+    .print-legend-container h3 { font-size: 12pt; margin-bottom: 5px; }
+    .print-legend-container .legend-item { display: inline-flex; align-items: center; margin-right: 15px; }
+    .print-legend-container .legend-color-box { width: 12px; height: 12px; margin-right: 5px; border: 1px solid #000; }
 
     @page {
         size: A4 landscape;

@@ -66,22 +66,19 @@ function draw() {
     drawTags(ctx, scale);
     ctx.restore();
 
-    // Logique de positionnement de la barre d'outils
     if (tagToolbar && selectedTagId) {
         const code = allCodesData.find(c => c.id === selectedTagId);
         if (code) {
             const tag = getTagDimensions(code);
-            // Calcule la position X (centrée horizontalement sur l'étiquette)
             const toolbarX = (tag.x * scale + panX) - tagToolbar.offsetWidth / 2;
-            // Calcule la position Y (au-dessus de l'étiquette avec une marge de 10px)
             const toolbarY = (tag.y * scale + panY) - (tag.height / 2 * scale) - tagToolbar.offsetHeight - 10;
             
             tagToolbar.style.left = `${toolbarX}px`;
             tagToolbar.style.top = `${toolbarY}px`;
-            tagToolbar.classList.add('visible'); // Utilise la classe pour une transition CSS fluide
+            tagToolbar.classList.add('visible');
         }
     } else if (tagToolbar) {
-        tagToolbar.classList.remove('visible'); // Cache la barre d'outils avec une transition
+        tagToolbar.classList.remove('visible');
     }
 }
     function drawTags(targetCtx, currentScale, filterUnivers = null) {
@@ -93,7 +90,7 @@ function draw() {
             const tag = getTagDimensions(code);
 
             if (code.anchor_x != null) {
-                drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, targetCtx);
+                drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, targetCtx, currentScale);
             }
 
             targetCtx.strokeStyle = (code.id === selectedTagId) ? '#007bff' : 'black';
@@ -110,9 +107,8 @@ function draw() {
         });
     }
 
-    function drawArrow(fromX, fromY, toX, toY, targetCtx = ctx) {
-        const scaleFactor = (targetCtx === ctx) ? scale : 1;
-        const headlen = 10 / scaleFactor;
+    function drawArrow(fromX, fromY, toX, toY, targetCtx = ctx, currentScale = scale) {
+        const headlen = 10 / currentScale;
         const angle = Math.atan2(toY - fromY, toX - fromX);
         targetCtx.beginPath();
         targetCtx.moveTo(fromX, fromY);
@@ -121,7 +117,7 @@ function draw() {
         targetCtx.moveTo(toX, toY);
         targetCtx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
         targetCtx.strokeStyle = '#34495e';
-        targetCtx.lineWidth = 2 / scaleFactor;
+        targetCtx.lineWidth = 2 / currentScale;
         targetCtx.stroke();
     }
 
@@ -181,7 +177,6 @@ function draw() {
         
         if (addCodeBtn) {
             addCodeBtn.addEventListener('click', () => {
-                // Populate univers select
                 newUniversIdSelect.innerHTML = '';
                 planUnivers.forEach(u => {
                     const option = document.createElement('option');
@@ -595,38 +590,24 @@ function draw() {
     }
     
     function prepareAndPrint() {
-        const title = document.getElementById('print-title').value;
-        const includeLegend = document.getElementById('print-legend-toggle').checked;
-        const selectedUnivers = Array.from(document.querySelectorAll('#print-univers-filter .form-check-input:checked')).map(cb => cb.value);
+        // Sauvegarde de l'état actuel pour la restauration
+        const originalScale = scale;
+        const originalPanX = panX;
+        const originalPanY = panY;
 
-        const printCanvas = document.createElement('canvas');
-        printCanvas.width = mapImage.naturalWidth;
-        printCanvas.height = mapImage.naturalHeight;
-        const printCtx = printCanvas.getContext('2d');
-
-        printCtx.drawImage(mapImage, 0, 0);
-        drawTags(printCtx, 1, selectedUnivers);
-
-        const printedImage = document.getElementById('printed-canvas');
-        printedImage.src = printCanvas.toDataURL('image/png');
-
-        const headerContainer = document.querySelector('.print-header-container');
-        headerContainer.innerHTML = title ? `<h1>${title}</h1>` : '';
+        // Réinitialisation de la vue pour l'impression
+        resetView();
         
-        const legendContainer = document.querySelector('.print-legend-container');
-        legendContainer.innerHTML = '';
-        if (includeLegend) {
-            let legendHTML = '<h3>Légende</h3>';
-            selectedUnivers.forEach(universName => {
-                const color = universColors[universName] || '#7f8c8d';
-                legendHTML += `<div class="legend-item"><div class="legend-color-box" style="background-color: ${color};"></div><span>${universName}</span></div>`;
-            });
-            legendContainer.innerHTML = legendHTML;
-        }
-
+        // Timeout pour laisser le temps au navigateur de redessiner le canvas
         setTimeout(() => {
             window.print();
-        }, 100);
+            
+            // Restauration de la vue après l'impression
+            scale = originalScale;
+            panX = originalPanX;
+            panY = originalPanY;
+            draw();
+        }, 250);
     }
 
     initialize();

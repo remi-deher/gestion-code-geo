@@ -16,7 +16,6 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const mapImage = new Image();
-            // Assure que le navigateur ne met pas en cache une ancienne version de l'image
             mapImage.src = 'uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>?t=' + new Date().getTime();
 
             mapImage.onload = () => {
