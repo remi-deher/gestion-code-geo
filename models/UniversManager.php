@@ -14,6 +14,17 @@ class UniversManager {
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
+    
+    public function getUniversByIds(array $ids) {
+        if (empty($ids)) {
+            return [];
+        }
+        $in = str_repeat('?,', count($ids) - 1) . '?';
+        $sql = "SELECT * FROM univers WHERE id IN ($in)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($ids);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
     public function getAllUnivers() {
         return $this->db->query("SELECT id, nom, zone_assignee FROM univers ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);

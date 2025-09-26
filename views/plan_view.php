@@ -29,6 +29,7 @@
     // On passe l'objet complet du plan actuel au JavaScript
     const currentPlan = <?= json_encode($plan); ?>;
     const currentPlanId = currentPlan.id;
+    const planUnivers = <?= json_encode($universList) ?>;
 </script>
 <script src="js/plan.js"></script> 
 <?php $body_scripts = ob_get_clean(); ?>
@@ -47,6 +48,7 @@
                 <div class="accordion-header"><h3>Codes à placer <span id="unplaced-counter">(0)</span></h3><span class="accordion-arrow">▶</span></div>
                 <div class="accordion-content" id="unplaced-list-container">
                     <div id="unplaced-list"><p class="text-muted small">Veuillez sélectionner un plan.</p></div>
+                    <button id="add-code-btn" class="btn btn-primary btn-sm mt-2">Ajouter un code</button>
                 </div>
             </div>
              <div class="accordion-item">
@@ -132,4 +134,39 @@
       </div>
     </div>
   </div>
+</div>
+<div class="modal fade" id="add-code-modal" tabindex="-1" aria-labelledby="addCodeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCodeModalLabel">Ajouter un nouveau code géo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-code-form">
+                    <div class="mb-3">
+                        <label for="new-code-geo" class="form-label">Code Géo</label>
+                        <input type="text" class="form-control" id="new-code-geo" name="code_geo" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-libelle" class="form-label">Libellé</label>
+                        <input type="text" class="form-control" id="new-libelle" name="libelle" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-univers-id" class="form-label">Univers</label>
+                        <select class="form-select" id="new-univers-id" name="univers_id" required>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-commentaire" class="form-label">Commentaire (optionnel)</label>
+                        <textarea class="form-control" id="new-commentaire" name="commentaire"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="save-new-code-btn">Enregistrer</button>
+            </div>
+        </div>
+    </div>
 </div>

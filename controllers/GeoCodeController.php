@@ -40,6 +40,31 @@ class GeoCodeController extends BaseController {
         header('Location: index.php?action=list');
         exit();
     }
+    
+    public function addGeoCodeFromPlanAction() {
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $univers = $this->universManager->getUniversById((int)$input['univers_id']);
+        
+        $newId = $this->geoCodeManager->createGeoCode(
+            $input['code_geo'],
+            $input['libelle'],
+            (int)$input['univers_id'],
+            $univers['zone_assignee'],
+            $input['commentaire']
+        );
+
+        if ($newId) {
+            $newCode = $this->geoCodeManager->getGeoCodeById($newId);
+            $newCode['univers'] = $univers['nom'];
+            echo json_encode($newCode);
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => 'Could not create new geo code.']);
+        }
+        exit();
+    }
 
     public function editAction() {
         $id = (int)($_GET['id'] ?? 0);

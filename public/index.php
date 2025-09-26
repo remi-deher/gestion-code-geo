@@ -44,6 +44,7 @@ switch ($action) {
     case 'list': $geoCodeController->listAction(); break;
     case 'create': $geoCodeController->createAction(); break;
     case 'add': $geoCodeController->addAction(); break;
+    case 'addGeoCodeFromPlan': $geoCodeController->addGeoCodeFromPlanAction(); break;
     case 'edit': $geoCodeController->editAction(); break;
     case 'update': $geoCodeController->updateAction(); break;
     case 'delete': $geoCodeController->deleteAction(); break;

@@ -23,6 +23,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
     const tagToolbar = document.getElementById('tag-edit-toolbar');
     const printBtn = document.getElementById('print-plan-btn');
+    const addCodeBtn = document.getElementById('add-code-btn');
+    const addCodeModal = new bootstrap.Modal(document.getElementById('add-code-modal'));
+    const saveNewCodeBtn = document.getElementById('save-new-code-btn');
+    const newUniversIdSelect = document.getElementById('new-univers-id');
 
     // --- ÉTAT DE L'APPLICATION ---
     let allCodesData = [...placedGeoCodes];
@@ -168,6 +172,44 @@ function draw() {
             document.getElementById('toolbar-delete').addEventListener('click', () => {
                 if (confirm(`Voulez-vous vraiment supprimer l'étiquette ?`)) {
                     removePositionAPI(selectedTagId);
+                }
+            });
+        }
+        
+        if (addCodeBtn) {
+            addCodeBtn.addEventListener('click', () => {
+                // Populate univers select
+                newUniversIdSelect.innerHTML = '';
+                planUnivers.forEach(u => {
+                    const option = document.createElement('option');
+                    option.value = u.id;
+                    option.textContent = u.nom;
+                    newUniversIdSelect.appendChild(option);
+                });
+                addCodeModal.show();
+            });
+        }
+        
+        if (saveNewCodeBtn) {
+            saveNewCodeBtn.addEventListener('click', async () => {
+                const form = document.getElementById('add-code-form');
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
+                
+                const response = await fetch('index.php?action=addGeoCodeFromPlan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    const newCode = await response.json();
+                    allCodesData.push(newCode);
+                    await fetchAndDisplayUnplacedCodes(currentPlanId);
+                    addCodeModal.hide();
+                    form.reset();
+                } else {
+                    alert('Erreur lors de la création du code géo.');
                 }
             });
         }
