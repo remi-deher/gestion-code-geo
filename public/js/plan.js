@@ -14,18 +14,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const planContainer = document.getElementById('plan-container');
     const planPlaceholder = document.getElementById('plan-placeholder');
     
-    const tagActionModal = new bootstrap.Modal(document.getElementById('tag-action-modal'));
-    const modalTitle = document.getElementById('tagActionModalLabel');
-    const modalAddArrowBtn = document.getElementById('modal-add-arrow-btn');
-    const modalDeleteBtn = document.getElementById('modal-delete-btn');
-
     const printOptionsModal = new bootstrap.Modal(document.getElementById('print-options-modal'));
     const printUniversFilterContainer = document.getElementById('print-univers-filter');
     const executePrintBtn = document.getElementById('execute-print-btn');
     const legendContainer = document.getElementById('legend-container');
     
-    // NOUVEAU : Ajout du bouton pour le panneau latéral
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+    const tagToolbar = document.getElementById('tag-edit-toolbar');
 
 
     // --- ÉTAT DE L'APPLICATION ---
@@ -39,6 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let panStart = { x: 0, y: 0 };
     let selectedTagId = null, draggedTagId = null;
     let resizeHandle = null;
+
+    let longPressTimer;
+    let touchMoved = false;
+    let initialPinchDistance = null;
 
     const DEFAULT_TAG_WIDTH = 80;
     const DEFAULT_TAG_HEIGHT = 22;
@@ -59,6 +58,20 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
         drawTags();
         ctx.restore();
+
+        if (selectedTagId) {
+            const code = allCodesData.find(c => c.id === selectedTagId);
+            if (code) {
+                const tag = getTagDimensions(code);
+                const toolbarX = (tag.x * scale + panX) - tagToolbar.offsetWidth / 2;
+                const toolbarY = (tag.y * scale + panY) - (tag.height / 2 * scale) - tagToolbar.offsetHeight - 10;
+                tagToolbar.style.left = `${toolbarX}px`;
+                tagToolbar.style.top = `${toolbarY}px`;
+                tagToolbar.style.display = 'flex';
+            }
+        } else {
+            tagToolbar.style.display = 'none';
+        }
     }
 
     function drawTags() {
@@ -121,32 +134,49 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseUp);
         canvas.addEventListener('wheel', handleWheel);
-        canvas.addEventListener('contextmenu', handleContextMenu);
+
+        // Événements tactiles
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd);
         
-        modalAddArrowBtn.addEventListener('click', () => {
-            isDrawingArrow = true;
-            draggedTagId = selectedTagId;
-            tagActionModal.hide();
-            alert("Cliquez sur le plan pour définir la pointe de la flèche.");
-        });
-
-        modalDeleteBtn.addEventListener('click', () => {
-            if (confirm(`Voulez-vous vraiment supprimer l'étiquette ?`)) {
-                removePositionAPI(selectedTagId);
-            }
-            tagActionModal.hide();
-        });
-
         executePrintBtn.addEventListener('click', handlePrintExecution);
         
-        // NOUVEAU : Ajout de l'écouteur d'événement pour le bouton du panneau
         if (toggleSidebarBtn) {
             toggleSidebarBtn.addEventListener('click', () => {
                 planPageContainer.classList.toggle('sidebar-hidden');
             });
         }
+        
+        document.getElementById('toolbar-arrow').addEventListener('click', () => {
+            isDrawingArrow = true;
+            draggedTagId = selectedTagId;
+            alert("Touchez le plan pour définir la pointe de la flèche.");
+        });
+
+        document.getElementById('toolbar-resize').addEventListener('click', () => {
+            isResizing = true;
+            draggedTagId = selectedTagId;
+            alert("Faites glisser depuis le coin inférieur droit de l'étiquette pour la redimensionner.");
+        });
+
+        document.getElementById('toolbar-delete').addEventListener('click', () => {
+            if (confirm(`Voulez-vous vraiment supprimer l'étiquette ?`)) {
+                removePositionAPI(selectedTagId);
+            }
+        });
     }
     
+    // CORRECTION : Ajout de la fonction manquante
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX;
+        const clientY = e.clientY;
+        const mouseX = clientX - rect.left;
+        const mouseY = clientY - rect.top;
+        return { x: (mouseX - panX) / scale, y: (mouseY - panY) / scale, clientX, clientY };
+    }
+
     function handleMouseDown(e) {
         if (e.button !== 0) return;
 
@@ -167,6 +197,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (clickedTag) {
             isDraggingTag = true;
             draggedTagId = selectedTagId;
+            touchMoved = false; 
+            longPressTimer = setTimeout(() => {
+                if (!touchMoved) { 
+                    isDraggingTag = false;
+                }
+            }, 500);
         } else {
             isPanning = true;
             panStart = { x: e.clientX - panX, y: e.clientY - panY };
@@ -177,6 +213,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleMouseMove(e) {
+        touchMoved = true;
+        clearTimeout(longPressTimer);
         const coords = getCanvasCoords(e);
         
         if (isDraggingTag && draggedTagId) {
@@ -203,6 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleMouseUp(e) {
+        clearTimeout(longPressTimer);
         if (e.button !== 0) return;
         const code = allCodesData.find(c => c.id === draggedTagId);
         if ((isDraggingTag || isResizing || isDrawingArrow) && code) {
@@ -223,23 +262,62 @@ document.addEventListener('DOMContentLoaded', () => {
              draw();
         }
     }
-    
-    function handleContextMenu(e) {
-        e.preventDefault();
-        const coords = getCanvasCoords(e);
-        const clickedTag = getTagAt(coords.x, coords.y);
-        if (clickedTag) {
-            selectedTagId = clickedTag.id;
-            modalTitle.textContent = `Actions pour ${clickedTag.code_geo}`;
-            tagActionModal.show();
-            draw();
-        }
-    }
-    
+        
     function handleUnplacedItemClick(e) {
         const item = e.target.closest('.unplaced-item');
         if (item) enterPlacementMode(item);
     }
+
+    // --- Événements tactiles ---
+    function getTouchCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const clientX = touch.clientX;
+        const clientY = touch.clientY;
+        const mouseX = clientX - rect.left;
+        const mouseY = clientY - rect.top;
+        return { x: (mouseX - panX) / scale, y: (mouseY - panY) / scale, clientX, clientY };
+    }
+    
+    function handleTouchStart(e) {
+        if (e.touches.length === 1) {
+            e.preventDefault();
+            handleMouseDown({ button: 0, clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+        } else if (e.touches.length === 2) {
+            e.preventDefault();
+            isPanning = false; 
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
+        }
+    }
+    
+    function handleTouchMove(e) {
+        if (e.touches.length === 1) {
+            e.preventDefault();
+            handleMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+        } else if (e.touches.length === 2 && initialPinchDistance) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const currentPinchDistance = Math.sqrt(dx * dx + dy * dy);
+            
+            const zoomFactor = currentPinchDistance / initialPinchDistance;
+            const newScale = scale * zoomFactor;
+    
+            if(newScale > 0.2 && newScale < 10) {
+                scale = newScale;
+                draw();
+            }
+            initialPinchDistance = currentPinchDistance;
+        }
+    }
+    
+    function handleTouchEnd(e) {
+        handleMouseUp({ button: 0 });
+        initialPinchDistance = null;
+    }
+
 
     function enterPlacementMode(item) {
         isPlacementMode = true;
@@ -342,13 +420,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isVisible) count++;
         });
         unplacedCounter.textContent = `(${count})`;
-    }
-
-    function getCanvasCoords(e) {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        return { x: (mouseX - panX) / scale, y: (mouseY - panY) / scale };
     }
 
     function getTagDimensions(code) {
