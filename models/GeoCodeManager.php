@@ -27,11 +27,6 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-/**
-     * Récupère un historique complet de toutes les modifications sur les codes géo.
-     * @param int $limit Le nombre d'entrées à récupérer.
-     * @return array
-     */
     public function getFullHistory(int $limit = 50): array {
         $sql = "
             SELECT 
@@ -54,9 +49,6 @@ class GeoCodeManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Récupère un code géo par son ID (uniquement s'il n'est pas supprimé).
-     */
     public function getGeoCodeById(int $id) {
         $sql = "SELECT * FROM geo_codes WHERE id = ? AND deleted_at IS NULL";
         $stmt = $this->db->prepare($sql);
@@ -64,9 +56,6 @@ class GeoCodeManager {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Récupère tous les codes géo actifs avec leurs positions sur les plans.
-     */
     public function getAllGeoCodesWithPositions() {
         $sql = "
             SELECT 
@@ -89,14 +78,13 @@ class GeoCodeManager {
     }
     
     /**
-     * Crée un nouveau code géo et enregistre l'action dans l'historique.
-     * @return int|false L'ID du nouvel enregistrement en cas de succès, sinon false.
+     * Crée un nouveau code géo et retourne son ID.
+     * @return int|false L'ID du nouvel enregistrement ou false si échec.
      */
     public function createGeoCode(string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
         $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
-        $success = $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire]);
-        if ($success) {
+        if ($stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire])) {
             $lastId = (int)$this->db->lastInsertId();
             $this->logHistory($lastId, 'created');
             return $lastId;
@@ -104,12 +92,8 @@ class GeoCodeManager {
         return false;
     }
 
-    /**
-     * Met à jour un code géo et enregistre les modifications dans l'historique.
-     */
     public function updateGeoCode(int $id, string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
         $oldData = $this->getGeoCodeById($id);
-
         $sql = "UPDATE geo_codes SET code_geo = ?, libelle = ?, univers_id = ?, zone = ?, commentaire = ? WHERE id = ?";
         $stmt = $this->db->prepare($sql);
         $success = $stmt->execute([$code_geo, $libelle, $univers_id, $zone, $commentaire, $id]);
@@ -129,9 +113,6 @@ class GeoCodeManager {
         return $success;
     }
 
-    /**
-     * "Supprime" un code géo en définissant la date de suppression (soft delete).
-     */
     public function deleteGeoCode(int $id): bool {
         $sql = "UPDATE geo_codes SET deleted_at = NOW() WHERE id = ?";
         $stmt = $this->db->prepare($sql);
@@ -142,19 +123,11 @@ class GeoCodeManager {
         return $success;
     }
 
-    // --- Nouvelles méthodes pour la corbeille ---
-
-    /**
-     * Récupère tous les codes géo qui ont été supprimés (soft delete).
-     */
     public function getDeletedGeoCodes() {
         $sql = "SELECT gc.*, u.nom as univers FROM geo_codes gc LEFT JOIN univers u ON gc.univers_id = u.id WHERE gc.deleted_at IS NOT NULL ORDER BY gc.deleted_at DESC";
         return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Restaure un code géo qui était dans la corbeille.
-     */
     public function restoreGeoCode(int $id): bool {
         $sql = "UPDATE geo_codes SET deleted_at = NULL WHERE id = ?";
         $stmt = $this->db->prepare($sql);
@@ -165,16 +138,11 @@ class GeoCodeManager {
         return $success;
     }
 
-    /**
-     * Supprime définitivement un code géo de la base de données.
-     */
     public function forceDeleteGeoCode(int $id): bool {
         $sql = "DELETE FROM geo_codes WHERE id = ? AND deleted_at IS NOT NULL";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$id]);
     }
-    
-    // --- Méthodes pour le Dashboard ---
     
     public function countTotalCodes(): int {
         return (int)$this->db->query("SELECT COUNT(*) FROM geo_codes WHERE deleted_at IS NULL")->fetchColumn();
@@ -253,5 +221,4 @@ class GeoCodeManager {
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
 }

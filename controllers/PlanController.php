@@ -42,7 +42,7 @@ class PlanController extends BaseController {
         $this->render('plan_view', [
             'placedGeoCodes' => $geoCodes,
             'plan' => $plan, // On passe le plan spécifique à la vue
-            'universList' => $universList,
+            'universList' => $this->universManager->getUniversByIds(array_column($this->planManager->getPlanWithUnivers($planId)['univers_ids'], 'univers_id')),
             'universColors' => $universColors
         ]);
     }
@@ -71,6 +71,27 @@ class PlanController extends BaseController {
             'placedGeoCodes' => $geoCodes,
             'universColors' => $universColors
         ]);
+    }
+
+    public function printPlanAction() {
+        $planId = (int)($_GET['id'] ?? 0);
+        $plan = $this->planManager->getPlanById($planId);
+        if (!$plan) {
+            header('Location: index.php?action=listPlans');
+            exit();
+        }
+        $universList = $this->universManager->getAllUnivers();
+        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
+
+        $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+        $universColors = [];
+        $colorIndex = 0;
+        foreach ($universList as $univers) {
+            $universColors[$univers['nom']] = $colors[$colorIndex % count($colors)];
+            $colorIndex++;
+        }
+        
+        require __DIR__ . '/../views/plan_print_view.php';
     }
 
     public function getAvailableCodesForPlanAction() {

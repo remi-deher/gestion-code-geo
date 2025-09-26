@@ -41,7 +41,10 @@
                             </div>
                              <div class="card-footer text-center">
                                  <a href="index.php?action=editPlan&id=<?= $plan['id'] ?>" class="btn btn-sm btn-warning">
-                                     <i class="bi bi-pencil-fill"></i> Modifier les informations
+                                     <i class="bi bi-pencil-fill"></i> Modifier
+                                 </a>
+                                 <a href="index.php?action=printPlan&id=<?= $plan['id'] ?>" class="btn btn-sm btn-info" target="_blank">
+                                     <i class="bi bi-printer-fill"></i> Imprimer
                                  </a>
                                  <a href="index.php?action=deletePlan&id=<?= $plan['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Sûr de vouloir supprimer ce plan ?');">
                                      <i class="bi bi-trash-fill"></i>
