@@ -26,11 +26,12 @@
 <script>
     let placedGeoCodes = <?= json_encode($placedGeoCodes ?? []); ?>;
     const universColors = <?= json_encode($universColors ?? []); ?>;
-    const currentPlanId = <?= json_encode($plan['id']); ?>;
+    // On passe l'objet complet du plan actuel au JavaScript
+    const currentPlan = <?= json_encode($plan); ?>;
+    const currentPlanId = currentPlan.id;
 </script>
 <script src="js/plan.js"></script> 
 <?php $body_scripts = ob_get_clean(); ?>
-
 
 <div class="plan-page-container">
     <div id="unplaced-codes-sidebar" class="no-print">
@@ -83,9 +84,7 @@
                 <span class="visually-hidden">Loading...</span>
             </div>
             
-            <div id="canvas-wrapper">
-                <canvas id="plan-canvas"></canvas>
-            </div>
+            <canvas id="plan-canvas"></canvas>
             
             <img src="uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>" alt="Plan du magasin" id="map-image" style="display: none;">
             

@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const ctx = canvas.getContext('2d');
     const mapImage = document.getElementById('map-image');
     const planContainer = document.getElementById('plan-container');
-    const canvasWrapper = document.getElementById('canvas-wrapper');
     const planLoader = document.getElementById('plan-loader');
     const planPlaceholder = document.getElementById('plan-placeholder');
     
@@ -34,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPanning = false, isDraggingTag = false, isResizing = false, isDrawingArrow = false;
     let panStart = { x: 0, y: 0 };
     let selectedTagId = null, draggedTagId = null;
-    let resizeHandle = null;
 
     let longPressTimer;
     let touchMoved = false;
@@ -46,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialize() {
         resizeCanvas();
         addEventListeners();
-        updateDisplayForPlan(currentPlanId);
+        updateDisplayForPlan();
     }
 
     // --- LOGIQUE DE DESSIN ---
@@ -54,11 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mapImage.complete || mapImage.naturalWidth === 0) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
-        
-        // Appliquer le pan et le zoom directement sur le canvas
         ctx.translate(panX, panY);
         ctx.scale(scale, scale);
-
         ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
         drawTags();
         ctx.restore();
@@ -127,12 +122,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(tag.x + tag.width/2 - handleSize/2, tag.y + tag.height/2 - handleSize/2, handleSize, handleSize);
     }
 
-    // --- GESTION DES ÉVÉNEMENTS ---
     function addEventListeners() {
         window.addEventListener('resize', resizeCanvas);
         
-        // On vérifie que les éléments existent avant d'ajouter les écouteurs
-        if (planSelector) planSelector.addEventListener('change', (e) => updateDisplayForPlan(e.target.value));
         if (unplacedList) unplacedList.addEventListener('click', handleUnplacedItemClick);
         if (searchInput) searchInput.addEventListener('input', applyFilters);
         
@@ -151,7 +143,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetView);
         if (fullscreenBtn) fullscreenBtn.addEventListener('click', toggleFullScreen);
         if (toggleSidebarBtn) toggleSidebarBtn.addEventListener('click', () => planPageContainer.classList.toggle('sidebar-hidden'));
-        if (printBtn) printBtn.addEventListener('click', () => new bootstrap.Modal(document.getElementById('print-options-modal')).show());
+        
+        if (printBtn) {
+            const printModal = new bootstrap.Modal(document.getElementById('print-options-modal'));
+            printBtn.addEventListener('click', () => printModal.show());
+        }
 
         if (tagToolbar) {
             document.getElementById('toolbar-arrow').addEventListener('click', () => {
@@ -174,12 +170,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // ... (le reste du fichier JavaScript reste identique à la version précédente) ...
+    function zoom(factor) {
+        const newScale = scale * factor;
+        if (newScale > 0.2 && newScale < 10) {
+            scale = newScale;
+            draw();
+        }
+    }
 
+    function resetView() {
+        scale = 1;
+        panX = 0;
+        panY = 0;
+        draw();
+    }
+    
     function getCanvasCoords(e) {
         const rect = canvas.getBoundingClientRect();
-        const clientX = e.clientX;
-        const clientY = e.clientY;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         const mouseX = clientX - rect.left;
         const mouseY = clientY - rect.top;
         return { x: (mouseX - panX) / scale, y: (mouseY - panY) / scale, clientX, clientY };
@@ -187,27 +196,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleMouseDown(e) {
         if (e.button !== 0) return;
-
         const coords = getCanvasCoords(e);
         if (isPlacementMode) {
             placeItemAt(coords.x, coords.y);
             return;
         }
-
         const clickedTag = getTagAt(coords.x, coords.y);
         const handle = clickedTag ? getResizeHandleAt(coords.x, coords.y, clickedTag) : null;
-        
         selectedTagId = clickedTag ? clickedTag.id : null;
-
         if (handle) {
             isResizing = true;
             draggedTagId = selectedTagId;
         } else if (clickedTag) {
             isDraggingTag = true;
             draggedTagId = selectedTagId;
-            touchMoved = false; 
+            touchMoved = false;
             longPressTimer = setTimeout(() => {
-                if (!touchMoved) { 
+                if (!touchMoved) {
                     isDraggingTag = false;
                 }
             }, 500);
@@ -215,7 +220,6 @@ document.addEventListener('DOMContentLoaded', () => {
             isPanning = true;
             panStart = { x: e.clientX - panX, y: e.clientY - panY };
         }
-        
         draw();
         updateCursor(coords);
     }
@@ -224,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
         touchMoved = true;
         clearTimeout(longPressTimer);
         const coords = getCanvasCoords(e);
-        
         if (isDraggingTag && draggedTagId) {
             const code = allCodesData.find(c => c.id === draggedTagId);
             code.pos_x = (coords.x / mapImage.naturalWidth) * 100;
@@ -244,19 +247,17 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             updateCursor(coords);
         }
-        
         draw();
     }
     
-    function handleMouseUp(e) {
+    function handleMouseUp() {
         clearTimeout(longPressTimer);
-        if (e.button !== 0) return;
         const code = allCodesData.find(c => c.id === draggedTagId);
         if ((isDraggingTag || isResizing || isDrawingArrow) && code) {
             savePositionAPI(code);
         }
         isPanning = isDraggingTag = isResizing = isDrawingArrow = false;
-        draggedTagId = resizeHandle = null;
+        draggedTagId = null;
         updateCursor();
     }
 
@@ -270,16 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleUnplacedItemClick(e) {
         const item = e.target.closest('.unplaced-item');
         if (item) enterPlacementMode(item);
-    }
-
-    function getTouchCoords(e) {
-        const rect = canvas.getBoundingClientRect();
-        const touch = e.touches[0];
-        const clientX = touch.clientX;
-        const clientY = touch.clientY;
-        const mouseX = clientX - rect.left;
-        const mouseY = clientY - rect.top;
-        return { x: (mouseX - panX) / scale, y: (mouseY - panY) / scale, clientX, clientY };
     }
     
     function handleTouchStart(e) {
@@ -304,10 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             const currentPinchDistance = Math.sqrt(dx * dx + dy * dy);
-            
             const zoomFactor = currentPinchDistance / initialPinchDistance;
             const newScale = scale * zoomFactor;
-    
             if(newScale > 0.2 && newScale < 10) {
                 scale = newScale;
                 draw();
@@ -316,11 +305,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function handleTouchEnd(e) {
-        handleMouseUp({ button: 0 });
+    function handleTouchEnd() {
+        handleMouseUp();
         initialPinchDistance = null;
     }
-
 
     function enterPlacementMode(item) {
         isPlacementMode = true;
@@ -356,23 +344,22 @@ document.addEventListener('DOMContentLoaded', () => {
         draw();
     }
     
-    async function updateDisplayForPlan(planId) {
-        if (!planId) { // Gère le cas où aucun plan n'est sélectionné
+    async function updateDisplayForPlan() {
+        if (!currentPlanId) {
              if (planPlaceholder) planPlaceholder.style.display = 'block';
-             if (canvas) canvas.style.display = 'none';
+             canvas.style.display = 'none';
              if (planLoader) planLoader.style.display = 'none';
              return;
         }
-    
+        
         resetView();
         selectedTagId = null;
 
         if (planPlaceholder) planPlaceholder.style.display = 'none';
-        if (canvas) canvas.style.display = 'block';
+        canvas.style.display = 'block';
         if (planLoader) planLoader.style.display = 'block';
         
-        const selectedOption = document.querySelector(`#plan-selector option[value="${planId}"]`) || { dataset: { filename: plan.nom_fichier } };
-        mapImage.src = `uploads/plans/${selectedOption.dataset.filename}`;
+        mapImage.src = `uploads/plans/${currentPlan.nom_fichier}`;
         
         mapImage.onload = () => {
             if (planLoader) planLoader.style.display = 'none';
@@ -381,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
             populatePrintModalFilters();
             draw();
         };
-        await fetchAndDisplayUnplacedCodes(planId);
+        await fetchAndDisplayUnplacedCodes(currentPlanId);
         draw();
     }
 
@@ -401,10 +388,11 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.width = containerRect.width;
             canvas.height = containerRect.height;
         }
+        draw();
     }
     
     async function fetchAndDisplayUnplacedCodes(planId) {
-        if (!unplacedList) return; // Ne fait rien si on n'est pas en mode édition
+        if (!unplacedList) return;
         const codes = await fetchAvailableCodes(planId);
         unplacedList.innerHTML = codes.length === 0 ? '<p class="text-muted small">Aucun code disponible.</p>' : '';
         codes.forEach(code => {
@@ -546,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const legendContainer = document.getElementById('legend-container');
         if (!legendContainer) return;
         legendContainer.innerHTML = '';
-        const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId).map(c => c.univers));
+        const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId && c.univers).map(c => c.univers));
         placedUnivers.forEach(universName => {
             const color = universColors[universName] || '#7f8c8d';
             const legendItem = document.createElement('div');
@@ -560,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const printUniversFilterContainer = document.getElementById('print-univers-filter');
         if (!printUniversFilterContainer) return;
         printUniversFilterContainer.innerHTML = '';
-        const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId).map(c => c.univers));
+        const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId && c.univers).map(c => c.univers));
         placedUnivers.forEach(universName => {
             const filterItem = document.createElement('div');
             filterItem.className = 'form-check';
@@ -573,76 +561,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function handlePrintExecution() {
-        printOptionsModal.hide();
-    
-        const printCanvas = document.createElement('canvas');
-        printCanvas.width = mapImage.naturalWidth;
-        printCanvas.height = mapImage.naturalHeight;
-        const printCtx = printCanvas.getContext('2d');
-    
-        const printTitle = document.getElementById('print-title').value;
-        const includeLegend = document.getElementById('print-legend-toggle').checked;
-        const activeFilters = Array.from(document.querySelectorAll('#print-univers-filter input:checked')).map(cb => cb.value);
-    
-        printCtx.drawImage(mapImage, 0, 0);
-    
-        allCodesData.forEach(code => {
-            if (code.plan_id == currentPlanId && code.pos_x !== null && activeFilters.includes(code.univers)) {
-                const tag = getTagDimensions(code);
-    
-                if (code.anchor_x != null) {
-                    drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, printCtx);
-                }
-    
-                printCtx.strokeStyle = 'black';
-                printCtx.lineWidth = 2;
-                printCtx.fillStyle = universColors[code.univers] || '#7f8c8d';
-                printCtx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
-                printCtx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
-                
-                printCtx.font = `bold 16px Arial`;
-                printCtx.fillStyle = 'white';
-                printCtx.textAlign = 'center';
-                printCtx.textBaseline = 'middle';
-                printCtx.fillText(code.code_geo, tag.x, tag.y);
-            }
-        });
-    
-        const printContainer = document.createElement('div');
-        printContainer.className = 'print-container';
-    
-        if (printTitle) {
-            const header = document.createElement('div');
-            header.className = 'print-header-container';
-            header.innerHTML = `<h1>${printTitle}</h1><p>Généré le ${new Date().toLocaleDateString()}</p>`;
-            printContainer.appendChild(header);
-        }
-    
-        const imageContainer = document.createElement('div');
-        const img = document.createElement('img');
-        img.style.width = '100%';
-        imageContainer.appendChild(img);
-        printContainer.appendChild(imageContainer);
-    
-        if (includeLegend) {
-            const legend = document.createElement('div');
-            legend.className = 'print-legend-container';
-            legend.innerHTML = '<h2>Légende</h2>';
-            const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId && activeFilters.includes(c.univers)).map(c => c.univers));
-            placedUnivers.forEach(universName => {
-                const color = universColors[universName] || '#7f8c8d';
-                legend.innerHTML += `<div class="legend-item"><div class="legend-color-box" style="background-color: ${color};"></div><span>${universName}</span></div>`;
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            planPageContainer.requestFullscreen().catch(err => {
+                alert(`Erreur lors du passage en plein écran : ${err.message} (${err.name})`);
             });
-            printContainer.appendChild(legend);
+        } else {
+            document.exitFullscreen();
         }
-        
-        img.onload = () => {
-            document.body.appendChild(printContainer);
-            window.print();
-            document.body.removeChild(printContainer);
-        };
-        img.src = printCanvas.toDataURL('image/png');
     }
 
     initialize();

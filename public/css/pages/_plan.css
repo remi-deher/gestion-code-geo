@@ -1,4 +1,4 @@
-	/* public/css/pages/_plan.css */
+/* public/css/pages/_plan.css */
 
 .plan-page-container {
     display: flex;
@@ -85,7 +85,8 @@
 
 #plan-container {
     flex-grow: 1;
-    background-color: var(--light-gray);
+    /* MODIFICATION : Le fond est maintenant blanc pour se fondre avec le canvas */
+    background-color: #ffffff; 
     overflow: hidden;
     position: relative;
     display: flex;
@@ -93,11 +94,10 @@
     justify-content: center;
 }
 
-/* NOUVEAU : Style pour délimiter le canvas du plan */
 #plan-canvas {
-    border: 2px dashed #adb5bd; /* Bordure en pointillés pour marquer la zone */
-    box-shadow: 0 0 15px rgba(0,0,0,0.1); /* Ombre douce pour le détacher du fond */
-    background-color: #ffffff; /* Fond blanc pour le canvas lui-même */
+    border: 2px dashed #adb5bd; /* La bordure reste pour délimiter le plan */
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    background-color: #ffffff;
     box-sizing: border-box;
 }
 
