@@ -202,7 +202,7 @@ class PlanController extends BaseController {
                         header('Location: index.php?action=listPlans');
                         exit();
                     }
-                } else if (in_array($extension, ['png', 'jpg', 'jpeg'])) {
+                } else if (in_array($extension, ['png', 'jpg', 'jpeg', 'svg'])) {
                     $finalFilename = $newFilenameBase . '.' . $extension;
                     $destination = $uploadDir . $finalFilename;
                     move_uploaded_file($file['tmp_name'], $destination);

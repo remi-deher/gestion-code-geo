@@ -11,7 +11,7 @@
 
         <div class="card">
             <div class="card-body">
-                <p class="card-text small text-muted">Formats de fichier acceptés : PNG, JPG, JPEG. Les PDF seront automatiquement convertis en PNG si l'extension Imagick est installée sur votre serveur.</p>
+                <p class="card-text small text-muted">Formats de fichier acceptés : SVG, PNG, JPG, JPEG. Les PDF seront automatiquement convertis en PNG si l'extension Imagick est installée sur votre serveur.</p>
                 <form action="index.php?action=addPlan" method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="nom" class="form-label">Nom du plan</label>
@@ -19,7 +19,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="planFile" class="form-label">Fichier du plan</label>
-                        <input type="file" id="planFile" name="planFile" class="form-control" accept=".png,.jpg,.jpeg,.pdf" required>
+                        <input type="file" id="planFile" name="planFile" class="form-control" accept=".svg,.png,.jpg,.jpeg,.pdf" required>
                     </div>
                     <div class="d-flex justify-content-end gap-2 mt-4">
                         <button type="submit" class="btn btn-primary">
