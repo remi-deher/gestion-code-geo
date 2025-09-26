@@ -23,26 +23,28 @@ class PlanController extends BaseController {
         $planId = (int)($_GET['id'] ?? 0);
         $plan = $this->planManager->getPlanById($planId);
         if (!$plan) {
-            // Si le plan n'existe pas, on redirige vers la liste
             header('Location: index.php?action=listPlans');
             exit();
         }
 
-        $universList = $this->universManager->getAllUnivers();
+        $allUnivers = $this->universManager->getAllUnivers();
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
+        $planWithUniversIds = $this->planManager->getPlanWithUnivers($planId);
+        $universForPlan = $this->universManager->getUniversByIds($planWithUniversIds['univers_ids']);
+
 
         $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
         $universColors = [];
         $colorIndex = 0;
-        foreach ($universList as $u) {
+        foreach ($allUnivers as $u) {
             $universColors[$u['nom']] = $colors[$colorIndex % count($colors)];
             $colorIndex++;
         }
 
         $this->render('plan_view', [
             'placedGeoCodes' => $geoCodes,
-            'plan' => $plan, // On passe le plan spécifique à la vue
-            'universList' => $this->universManager->getUniversByIds(array_column($this->planManager->getPlanWithUnivers($planId)['univers_ids'], 'univers_id')),
+            'plan' => $plan,
+            'universList' => $universForPlan,
             'universColors' => $universColors
         ]);
     }
@@ -115,12 +117,12 @@ class PlanController extends BaseController {
             $success = $this->planManager->savePosition(
                 (int)$input['id'], 
                 (int)$input['plan_id'], 
-                (int)round($input['x']), 
-                (int)round($input['y']),
+                (float)$input['x'], 
+                (float)$input['y'],
                 isset($input['width']) ? (int)$input['width'] : null,
                 isset($input['height']) ? (int)$input['height'] : null,
-                isset($input['anchor_x']) ? (int)round($input['anchor_x']) : null,
-                isset($input['anchor_y']) ? (int)round($input['anchor_y']) : null
+                isset($input['anchor_x']) ? (float)$input['anchor_x'] : null,
+                isset($input['anchor_y']) ? (float)$input['anchor_y'] : null
             );
             echo json_encode(['status' => $success ? 'success' : 'error']);
         } else {

@@ -16,7 +16,8 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const mapImage = new Image();
-            mapImage.src = 'uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>';
+            // Assure que le navigateur ne met pas en cache une ancienne version de l'image
+            mapImage.src = 'uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>?t=' + new Date().getTime();
 
             mapImage.onload = () => {
                 const placedGeoCodes = <?= json_encode($geoCodes ?? []); ?>;
@@ -30,7 +31,7 @@
                 
                 printCtx.drawImage(mapImage, 0, 0);
 
-                // --- Fonctions de dessin (simplifiées) ---
+                // --- Fonctions de dessin ---
                 function getTagDimensions(code) {
                     const textMetrics = printCtx.measureText(code.code_geo);
                     const calcWidth = textMetrics.width + 16;
@@ -39,14 +40,34 @@
                         y: (code.pos_y / 100) * mapImage.naturalHeight,
                         width: code.width || Math.max(80, calcWidth),
                         height: code.height || 22,
+                        anchor_x_abs: (code.anchor_x / 100) * mapImage.naturalWidth,
+                        anchor_y_abs: (code.anchor_y / 100) * mapImage.naturalHeight
                     };
                 }
+                
+                function drawArrow(fromX, fromY, toX, toY) {
+                    const headlen = 10;
+                    const angle = Math.atan2(toY - fromY, toX - fromX);
+                    printCtx.beginPath();
+                    printCtx.moveTo(fromX, fromY);
+                    printCtx.lineTo(toX, toY);
+                    printCtx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+                    printCtx.moveTo(toX, toY);
+                    printCtx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+                    printCtx.strokeStyle = '#34495e';
+                    printCtx.lineWidth = 2;
+                    printCtx.stroke();
+                }
 
-                // --- Dessin des étiquettes ---
+                // --- Dessin des étiquettes et des flèches ---
                 placedGeoCodes.forEach(code => {
                     if (code.plan_id != currentPlanId || code.pos_x === null) return;
                     
                     const tag = getTagDimensions(code);
+
+                    if (code.anchor_x != null && code.anchor_y != null) {
+                        drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs);
+                    }
 
                     printCtx.strokeStyle = 'black';
                     printCtx.lineWidth = 1;
@@ -73,7 +94,7 @@
 
                 // --- Lancement de l'impression ---
                 document.getElementById('printed-canvas').src = printCanvas.toDataURL('image/png');
-                setTimeout(() => window.print(), 200);
+                setTimeout(() => window.print(), 500);
             };
         });
     </script>

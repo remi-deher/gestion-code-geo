@@ -78,7 +78,7 @@ class PlanManager {
         }
     }
 
-    private function _logHistory(int $geo_code_id, int $plan_id, ?int $pos_x, ?int $pos_y, string $action_type) {
+    private function _logHistory(int $geo_code_id, int $plan_id, ?float $pos_x, ?float $pos_y, string $action_type) {
         $sql = "INSERT INTO geo_positions_history (geo_code_id, plan_id, pos_x, pos_y, action_type) VALUES (?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y, $action_type]);
@@ -90,7 +90,7 @@ class PlanManager {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function savePosition(int $geo_code_id, int $plan_id, int $pos_x, int $pos_y, ?int $width = null, ?int $height = null, ?int $anchor_x = null, ?int $anchor_y = null) {
+    public function savePosition(int $geo_code_id, int $plan_id, float $pos_x, float $pos_y, ?int $width = null, ?int $height = null, ?float $anchor_x = null, ?float $anchor_y = null) {
         $existingPosition = $this->getPositionByCodeId($geo_code_id);
         $action = $existingPosition ? 'moved' : 'placed';
 
@@ -149,14 +149,14 @@ class PlanManager {
                 $stmt->execute([
                     ':geo_code_id' => $pos['id'],
                     ':plan_id'     => $plan_id,
-                    ':pos_x'       => round($pos['x']),
-                    ':pos_y'       => round($pos['y']),
+                    ':pos_x'       => $pos['x'],
+                    ':pos_y'       => $pos['y'],
                     ':width'       => $pos['width'] ?? null,
                     ':height'      => $pos['height'] ?? null,
                     ':anchor_x'    => $pos['anchor_x'] ?? null,
                     ':anchor_y'    => $pos['anchor_y'] ?? null
                 ]);
-                $this->_logHistory($pos['id'], $plan_id, round($pos['x']), round($pos['y']), $action);
+                $this->_logHistory($pos['id'], $plan_id, $pos['x'], $pos['y'], $action);
             }
             $this->db->commit();
             return true;
