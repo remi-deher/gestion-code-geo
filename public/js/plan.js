@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const printUniversFilterContainer = document.getElementById('print-univers-filter');
     const executePrintBtn = document.getElementById('execute-print-btn');
     const legendContainer = document.getElementById('legend-container');
+    
+    // NOUVEAU : Ajout du bouton pour le panneau latéral
+    const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
 
 
     // --- ÉTAT DE L'APPLICATION ---
@@ -135,6 +138,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         executePrintBtn.addEventListener('click', handlePrintExecution);
+        
+        // NOUVEAU : Ajout de l'écouteur d'événement pour le bouton du panneau
+        if (toggleSidebarBtn) {
+            toggleSidebarBtn.addEventListener('click', () => {
+                planPageContainer.classList.toggle('sidebar-hidden');
+            });
+        }
     }
     
     function handleMouseDown(e) {
