@@ -217,3 +217,36 @@
         display: none;
     }
 }
+
+#tag-edit-toolbar {
+    position: absolute; /* Crucial pour le positionnement en JavaScript */
+    background-color: rgba(44, 62, 80, 0.9);
+    padding: 8px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    display: flex;
+    gap: 6px;
+    z-index: 1100; /* Assure que la barre est au-dessus des autres éléments */
+
+    /* Styles pour l'animation */
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none; /* Empêche l'interaction lorsque masqué */
+}
+
+#tag-edit-toolbar.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto; /* Autorise l'interaction lorsque visible */
+}
+
+#tag-edit-toolbar button {
+    background-color: #566573;
+    border: none;
+    color: white;
+}
+
+#tag-edit-toolbar button:hover {
+    background-color: #7f8c8d;
+}

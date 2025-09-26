@@ -97,7 +97,7 @@
             </div>
         </div>
         
-        <div id="tag-edit-toolbar" class="tag-toolbar no-print" style="display:none;">
+        <div id="tag-edit-toolbar" class="tag-toolbar no-print">
             <button id="toolbar-arrow" class="btn btn-sm btn-secondary" title="Ajouter/Modifier la flèche"><i class="bi bi-arrow-up-right"></i></button>
             <button id="toolbar-resize" class="btn btn-sm btn-secondary" title="Redimensionner"><i class="bi bi-arrows-fullscreen"></i></button>
             <button id="toolbar-delete" class="btn btn-sm btn-danger" title="Supprimer"><i class="bi bi-trash"></i></button>

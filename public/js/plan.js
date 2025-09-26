@@ -48,31 +48,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- LOGIQUE DE DESSIN ---
-    function draw() {
-        if (!mapImage.complete || mapImage.naturalWidth === 0) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.translate(panX, panY);
-        ctx.scale(scale, scale);
-        ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
-        drawTags();
-        ctx.restore();
+function draw() {
+    if (!mapImage.complete || mapImage.naturalWidth === 0) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(scale, scale);
+    ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
+    drawTags();
+    ctx.restore();
 
-        if (tagToolbar && selectedTagId) {
-            const code = allCodesData.find(c => c.id === selectedTagId);
-            if (code) {
-                const tag = getTagDimensions(code);
-                const toolbarX = (tag.x * scale + panX) - tagToolbar.offsetWidth / 2;
-                const toolbarY = (tag.y * scale + panY) - (tag.height / 2 * scale) - tagToolbar.offsetHeight - 10;
-                tagToolbar.style.left = `${toolbarX}px`;
-                tagToolbar.style.top = `${toolbarY}px`;
-                tagToolbar.style.display = 'flex';
-            }
-        } else if (tagToolbar) {
-            tagToolbar.style.display = 'none';
+    // Logique de positionnement de la barre d'outils
+    if (tagToolbar && selectedTagId) {
+        const code = allCodesData.find(c => c.id === selectedTagId);
+        if (code) {
+            const tag = getTagDimensions(code);
+            // Calcule la position X (centrée horizontalement sur l'étiquette)
+            const toolbarX = (tag.x * scale + panX) - tagToolbar.offsetWidth / 2;
+            // Calcule la position Y (au-dessus de l'étiquette avec une marge de 10px)
+            const toolbarY = (tag.y * scale + panY) - (tag.height / 2 * scale) - tagToolbar.offsetHeight - 10;
+            
+            tagToolbar.style.left = `${toolbarX}px`;
+            tagToolbar.style.top = `${toolbarY}px`;
+            tagToolbar.classList.add('visible'); // Utilise la classe pour une transition CSS fluide
         }
+    } else if (tagToolbar) {
+        tagToolbar.classList.remove('visible'); // Cache la barre d'outils avec une transition
     }
-
+}
     function drawTags() {
         if (!currentPlanId) return;
         allCodesData.forEach(code => {
