@@ -85,7 +85,6 @@
 
 #plan-container {
     flex-grow: 1;
-    /* MODIFICATION : Le fond est maintenant blanc pour se fondre avec le canvas */
     background-color: #ffffff; 
     overflow: hidden;
     position: relative;
@@ -95,7 +94,7 @@
 }
 
 #plan-canvas {
-    border: 2px dashed #adb5bd; /* La bordure reste pour délimiter le plan */
+    border: 2px dashed #adb5bd;
     box-shadow: 0 0 15px rgba(0,0,0,0.1);
     background-color: #ffffff;
     box-sizing: border-box;
@@ -219,34 +218,38 @@
 }
 
 #tag-edit-toolbar {
-    position: absolute; /* Crucial pour le positionnement en JavaScript */
+    position: absolute;
     background-color: rgba(44, 62, 80, 0.9);
     padding: 8px;
     border-radius: 6px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     display: flex;
     gap: 6px;
-    z-index: 1100; /* Assure que la barre est au-dessus des autres éléments */
-
-    /* Styles pour l'animation */
+    z-index: 1100;
     transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
     opacity: 0;
     transform: translateY(10px);
-    pointer-events: none; /* Empêche l'interaction lorsque masqué */
+    pointer-events: none;
 }
 
 #tag-edit-toolbar.visible {
     opacity: 1;
     transform: translateY(0);
-    pointer-events: auto; /* Autorise l'interaction lorsque visible */
+    pointer-events: auto;
 }
 
-#tag-edit-toolbar button {
+/* Correction pour les boutons de la barre d'outils */
+#tag-edit-toolbar .btn {
     background-color: #566573;
-    border: none;
+    border-color: #4a5562; /* Ajout d'une bordure pour la séparation visuelle */
     color: white;
 }
 
-#tag-edit-toolbar button:hover {
+#tag-edit-toolbar .btn:hover {
     background-color: #7f8c8d;
+}
+
+/* Assure que les boutons dans le btn-group n'ont pas de marge superflue */
+#tag-edit-toolbar .btn-group .btn {
+    margin: 0;
 }

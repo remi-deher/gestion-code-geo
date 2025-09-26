@@ -34,16 +34,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let placementCodeId = null;
 
     let scale = 1, panX = 0, panY = 0;
-    let isPanning = false, isDraggingTag = false, isResizing = false, isDrawingArrow = false;
+    let isPanning = false, isDraggingTag = false, isDrawingArrow = false;
     let panStart = { x: 0, y: 0 };
     let selectedTagId = null, draggedTagId = null;
 
     let longPressTimer;
     let touchMoved = false;
     let initialPinchDistance = null;
-
-    const DEFAULT_TAG_WIDTH = 80;
-    const DEFAULT_TAG_HEIGHT = 22;
+    
+    const sizePresets = {
+        small: { width: 60, height: 20 },
+        medium: { width: 80, height: 22 },
+        large: { width: 100, height: 24 }
+    };
 
     function initialize() {
         resizeCanvas();
@@ -101,10 +104,6 @@ function draw() {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(code.code_geo, tag.x, tag.y);
-
-            if (code.id === selectedTagId) {
-                drawResizeHandles(tag);
-            }
         });
     }
 
@@ -121,12 +120,6 @@ function draw() {
         targetCtx.strokeStyle = '#34495e';
         targetCtx.lineWidth = 2 / scaleFactor;
         targetCtx.stroke();
-    }
-    
-    function drawResizeHandles(tag) {
-        const handleSize = 8 / scale;
-        ctx.fillStyle = '#007bff';
-        ctx.fillRect(tag.x + tag.width/2 - handleSize/2, tag.y + tag.height/2 - handleSize/2, handleSize, handleSize);
     }
 
     function addEventListeners() {
@@ -162,11 +155,18 @@ function draw() {
                 draggedTagId = selectedTagId;
                 alert("Touchez le plan pour définir la pointe de la flèche.");
             });
-
-            document.getElementById('toolbar-resize').addEventListener('click', () => {
-                isResizing = true;
-                draggedTagId = selectedTagId;
-                alert("Faites glisser depuis le coin inférieur droit de l'étiquette pour la redimensionner.");
+            
+            document.querySelectorAll('.size-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const size = e.currentTarget.dataset.size;
+                    const code = allCodesData.find(c => c.id === selectedTagId);
+                    if (code && sizePresets[size]) {
+                        code.width = sizePresets[size].width;
+                        code.height = sizePresets[size].height;
+                        savePositionAPI(code);
+                        draw();
+                    }
+                });
             });
 
             document.getElementById('toolbar-delete').addEventListener('click', () => {
@@ -247,12 +247,8 @@ function draw() {
             return;
         }
         const clickedTag = getTagAt(coords.x, coords.y);
-        const handle = clickedTag ? getResizeHandleAt(coords.x, coords.y, clickedTag) : null;
         selectedTagId = clickedTag ? clickedTag.id : null;
-        if (handle) {
-            isResizing = true;
-            draggedTagId = selectedTagId;
-        } else if (clickedTag) {
+        if (clickedTag) {
             isDraggingTag = true;
             draggedTagId = selectedTagId;
             touchMoved = false;
@@ -277,11 +273,6 @@ function draw() {
             const code = allCodesData.find(c => c.id === draggedTagId);
             code.pos_x = (coords.x / mapImage.naturalWidth) * 100;
             code.pos_y = (coords.y / mapImage.naturalHeight) * 100;
-        } else if (isResizing && draggedTagId) {
-            const code = allCodesData.find(c => c.id === draggedTagId);
-            const tag = getTagDimensions(code);
-            code.width = Math.max(20, (coords.x - tag.x + tag.width / 2) * 2);
-            code.height = Math.max(15, (coords.y - tag.y + tag.height / 2) * 2);
         } else if (isPanning) {
             panX = e.clientX - panStart.x;
             panY = e.clientY - panStart.y;
@@ -298,10 +289,10 @@ function draw() {
     function handleMouseUp() {
         clearTimeout(longPressTimer);
         const code = allCodesData.find(c => c.id === draggedTagId);
-        if ((isDraggingTag || isResizing || isDrawingArrow) && code) {
+        if ((isDraggingTag || isDrawingArrow) && code) {
             savePositionAPI(code);
         }
-        isPanning = isDraggingTag = isResizing = isDrawingArrow = false;
+        isPanning = isDraggingTag = isDrawingArrow = false;
         draggedTagId = null;
         updateCursor();
     }
@@ -472,8 +463,8 @@ function draw() {
         return {
             x: (code.pos_x / 100) * mapImage.naturalWidth,
             y: (code.pos_y / 100) * mapImage.naturalHeight,
-            width: code.width || Math.max(80, calcWidth),
-            height: code.height || 22,
+            width: code.width || sizePresets.medium.width,
+            height: code.height || sizePresets.medium.height,
             anchor_x_abs: (code.anchor_x / 100) * mapImage.naturalWidth,
             anchor_y_abs: (code.anchor_y / 100) * mapImage.naturalHeight
         };
@@ -487,31 +478,14 @@ function draw() {
                    y >= tag.y - tag.height / 2 && y <= tag.y + tag.height / 2;
         });
     }
-    
-    function getResizeHandleAt(x, y, code) {
-        const tag = getTagDimensions(code);
-        const handleSize = 8 / scale;
-        if (x >= tag.x + tag.width/2 - handleSize && x <= tag.x + tag.width/2 + handleSize &&
-            y >= tag.y + tag.height/2 - handleSize && y <= tag.y + tag.height/2 + handleSize) {
-            return 'se';
-        }
-        return null;
-    }
 
     function updateCursor(coords) {
         let newCursor = 'grab';
         if (isPanning || isDraggingTag) newCursor = 'grabbing';
-        else if (isResizing) newCursor = 'se-resize';
         else if (isPlacementMode) newCursor = 'crosshair';
         else if(coords) {
             const hoveredTag = getTagAt(coords.x, coords.y);
-            if (hoveredTag && selectedTagId === hoveredTag.id) {
-                if (getResizeHandleAt(coords.x, coords.y, hoveredTag)) {
-                    newCursor = 'se-resize';
-                } else {
-                    newCursor = 'move';
-                }
-            } else if (hoveredTag) {
+            if (hoveredTag) {
                 newCursor = 'pointer';
             }
         }

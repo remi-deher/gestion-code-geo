@@ -111,7 +111,11 @@
         
         <div id="tag-edit-toolbar" class="tag-toolbar no-print">
             <button id="toolbar-arrow" class="btn btn-sm btn-secondary" title="Ajouter/Modifier la flèche"><i class="bi bi-arrow-up-right"></i></button>
-            <button id="toolbar-resize" class="btn btn-sm btn-secondary" title="Redimensionner"><i class="bi bi-arrows-fullscreen"></i></button>
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn btn-secondary size-btn" data-size="small">S</button>
+                <button type="button" class="btn btn-secondary size-btn" data-size="medium">M</button>
+                <button type="button" class="btn btn-secondary size-btn" data-size="large">L</button>
+            </div>
             <button id="toolbar-delete" class="btn btn-sm btn-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
         </div>
     </div>
