@@ -18,41 +18,43 @@ class PlanController extends BaseController {
         $this->universManager = new UniversManager($db);
     }
 
-    // Nouvelle page d'édition des codes sur un plan spécifique
+    // Affiche la page pour gérer les codes sur un plan spécifique
     public function manageCodesAction() {
         $planId = (int)($_GET['id'] ?? 0);
-        if ($planId <= 0) {
+        $plan = $this->planManager->getPlanById($planId);
+        if (!$plan) {
+            // Si le plan n'existe pas, on redirige vers la liste
             header('Location: index.php?action=listPlans');
             exit();
         }
-        $plan = $this->planManager->getPlanById($planId);
+
         $universList = $this->universManager->getAllUnivers();
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
 
         $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
         $universColors = [];
         $colorIndex = 0;
-        foreach ($universList as $univers) {
-            $universColors[$univers['nom']] = $colors[$colorIndex % count($colors)];
+        foreach ($universList as $u) {
+            $universColors[$u['nom']] = $colors[$colorIndex % count($colors)];
             $colorIndex++;
         }
 
         $this->render('plan_view', [
             'placedGeoCodes' => $geoCodes,
-            'plan' => $plan, // Passer le plan spécifique à la vue
+            'plan' => $plan, // On passe le plan spécifique à la vue
             'universList' => $universList,
             'universColors' => $universColors
         ]);
     }
     
-    // NOUVELLE ACTION: Afficher un plan en lecture seule
+    // Affiche un plan en lecture seule
     public function viewPlanAction() {
         $planId = (int)($_GET['id'] ?? 0);
-        if ($planId <= 0) {
+        $plan = $this->planManager->getPlanById($planId);
+        if (!$plan) {
             header('Location: index.php?action=listPlans');
             exit();
         }
-        $plan = $this->planManager->getPlanById($planId);
         $universList = $this->universManager->getAllUnivers();
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
 
@@ -165,7 +167,6 @@ class PlanController extends BaseController {
         exit();
     }
     
-    // NOUVELLE ACTION: Afficher le formulaire d'ajout
     public function addPlanFormAction() {
         $this->render('plan_add_view');
     }

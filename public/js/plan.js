@@ -7,25 +7,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const mapImage = document.getElementById('map-image');
+    const planContainer = document.getElementById('plan-container');
+    const canvasWrapper = document.getElementById('canvas-wrapper');
+    const planLoader = document.getElementById('plan-loader');
+    const planPlaceholder = document.getElementById('plan-placeholder');
+    
+    // Éléments optionnels
     const planSelector = document.getElementById('plan-selector');
+    const zoomInBtn = document.getElementById('zoom-in-btn');
+    const zoomOutBtn = document.getElementById('zoom-out-btn');
+    const zoomResetBtn = document.getElementById('zoom-reset-btn');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
     const unplacedList = document.getElementById('unplaced-list');
     const searchInput = document.getElementById('tag-search-input');
     const unplacedCounter = document.getElementById('unplaced-counter');
-    const planContainer = document.getElementById('plan-container');
-    const planPlaceholder = document.getElementById('plan-placeholder');
-    
-    const printOptionsModal = new bootstrap.Modal(document.getElementById('print-options-modal'));
-    const printUniversFilterContainer = document.getElementById('print-univers-filter');
-    const executePrintBtn = document.getElementById('execute-print-btn');
-    const legendContainer = document.getElementById('legend-container');
-    
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
     const tagToolbar = document.getElementById('tag-edit-toolbar');
-
+    const printBtn = document.getElementById('print-plan-btn');
 
     // --- ÉTAT DE L'APPLICATION ---
     let allCodesData = [...placedGeoCodes];
-    let currentPlanId = null;
     let isPlacementMode = false;
     let placementCodeId = null;
 
@@ -45,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialize() {
         resizeCanvas();
         addEventListeners();
-        updateDisplayForPlan(planSelector.value || null);
+        updateDisplayForPlan(currentPlanId);
     }
 
     // --- LOGIQUE DE DESSIN ---
@@ -53,13 +54,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mapImage.complete || mapImage.naturalWidth === 0) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
+        
+        // Appliquer le pan et le zoom directement sur le canvas
         ctx.translate(panX, panY);
         ctx.scale(scale, scale);
+
         ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
         drawTags();
         ctx.restore();
 
-        if (selectedTagId) {
+        if (tagToolbar && selectedTagId) {
             const code = allCodesData.find(c => c.id === selectedTagId);
             if (code) {
                 const tag = getTagDimensions(code);
@@ -69,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tagToolbar.style.top = `${toolbarY}px`;
                 tagToolbar.style.display = 'flex';
             }
-        } else {
+        } else if (tagToolbar) {
             tagToolbar.style.display = 'none';
         }
     }
@@ -126,48 +130,52 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- GESTION DES ÉVÉNEMENTS ---
     function addEventListeners() {
         window.addEventListener('resize', resizeCanvas);
-        planSelector.addEventListener('change', (e) => updateDisplayForPlan(e.target.value));
-        unplacedList.addEventListener('click', handleUnplacedItemClick);
-        searchInput.addEventListener('input', applyFilters);
+        
+        // On vérifie que les éléments existent avant d'ajouter les écouteurs
+        if (planSelector) planSelector.addEventListener('change', (e) => updateDisplayForPlan(e.target.value));
+        if (unplacedList) unplacedList.addEventListener('click', handleUnplacedItemClick);
+        if (searchInput) searchInput.addEventListener('input', applyFilters);
+        
         canvas.addEventListener('mousedown', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseUp);
-        canvas.addEventListener('wheel', handleWheel);
+        canvas.addEventListener('wheel', handleWheel, { passive: false });
 
-        // Événements tactiles
         canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
         canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
         canvas.addEventListener('touchend', handleTouchEnd);
         
-        executePrintBtn.addEventListener('click', handlePrintExecution);
-        
-        if (toggleSidebarBtn) {
-            toggleSidebarBtn.addEventListener('click', () => {
-                planPageContainer.classList.toggle('sidebar-hidden');
+        if (zoomInBtn) zoomInBtn.addEventListener('click', () => zoom(1.2));
+        if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => zoom(0.8));
+        if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetView);
+        if (fullscreenBtn) fullscreenBtn.addEventListener('click', toggleFullScreen);
+        if (toggleSidebarBtn) toggleSidebarBtn.addEventListener('click', () => planPageContainer.classList.toggle('sidebar-hidden'));
+        if (printBtn) printBtn.addEventListener('click', () => new bootstrap.Modal(document.getElementById('print-options-modal')).show());
+
+        if (tagToolbar) {
+            document.getElementById('toolbar-arrow').addEventListener('click', () => {
+                isDrawingArrow = true;
+                draggedTagId = selectedTagId;
+                alert("Touchez le plan pour définir la pointe de la flèche.");
+            });
+
+            document.getElementById('toolbar-resize').addEventListener('click', () => {
+                isResizing = true;
+                draggedTagId = selectedTagId;
+                alert("Faites glisser depuis le coin inférieur droit de l'étiquette pour la redimensionner.");
+            });
+
+            document.getElementById('toolbar-delete').addEventListener('click', () => {
+                if (confirm(`Voulez-vous vraiment supprimer l'étiquette ?`)) {
+                    removePositionAPI(selectedTagId);
+                }
             });
         }
-        
-        document.getElementById('toolbar-arrow').addEventListener('click', () => {
-            isDrawingArrow = true;
-            draggedTagId = selectedTagId;
-            alert("Touchez le plan pour définir la pointe de la flèche.");
-        });
-
-        document.getElementById('toolbar-resize').addEventListener('click', () => {
-            isResizing = true;
-            draggedTagId = selectedTagId;
-            alert("Faites glisser depuis le coin inférieur droit de l'étiquette pour la redimensionner.");
-        });
-
-        document.getElementById('toolbar-delete').addEventListener('click', () => {
-            if (confirm(`Voulez-vous vraiment supprimer l'étiquette ?`)) {
-                removePositionAPI(selectedTagId);
-            }
-        });
     }
     
-    // CORRECTION : Ajout de la fonction manquante
+    // ... (le reste du fichier JavaScript reste identique à la version précédente) ...
+
     function getCanvasCoords(e) {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.clientX;
@@ -256,11 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const zoomIntensity = 0.1;
         const direction = e.deltaY > 0 ? -1 : 1;
-        const newScale = scale + direction * zoomIntensity;
-        if(newScale > 0.2 && newScale < 10) {
-             scale = newScale;
-             draw();
-        }
+        zoom(1 + direction * zoomIntensity);
     }
         
     function handleUnplacedItemClick(e) {
@@ -268,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (item) enterPlacementMode(item);
     }
 
-    // --- Événements tactiles ---
     function getTouchCoords(e) {
         const rect = canvas.getBoundingClientRect();
         const touch = e.touches[0];
@@ -354,22 +357,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function updateDisplayForPlan(planId) {
-        currentPlanId = planId;
-        scale = 1; panX = 0; panY = 0; selectedTagId = null;
-        if (!planId) {
-            mapImage.src = '';
-            planPlaceholder.style.display = 'block';
-            canvas.style.display = 'none';
-        } else {
-            const selectedOption = planSelector.querySelector(`option[value="${planId}"]`);
-            mapImage.src = `uploads/plans/${selectedOption.dataset.filename}`;
-            planPlaceholder.style.display = 'none';
-            canvas.style.display = 'block';
+        if (!planId) { // Gère le cas où aucun plan n'est sélectionné
+             if (planPlaceholder) planPlaceholder.style.display = 'block';
+             if (canvas) canvas.style.display = 'none';
+             if (planLoader) planLoader.style.display = 'none';
+             return;
         }
+    
+        resetView();
+        selectedTagId = null;
+
+        if (planPlaceholder) planPlaceholder.style.display = 'none';
+        if (canvas) canvas.style.display = 'block';
+        if (planLoader) planLoader.style.display = 'block';
+        
+        const selectedOption = document.querySelector(`#plan-selector option[value="${planId}"]`) || { dataset: { filename: plan.nom_fichier } };
+        mapImage.src = `uploads/plans/${selectedOption.dataset.filename}`;
+        
         mapImage.onload = () => {
+            if (planLoader) planLoader.style.display = 'none';
             resizeCanvas();
             updateLegend();
             populatePrintModalFilters();
+            draw();
         };
         await fetchAndDisplayUnplacedCodes(planId);
         draw();
@@ -391,10 +401,10 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.width = containerRect.width;
             canvas.height = containerRect.height;
         }
-        draw();
     }
     
     async function fetchAndDisplayUnplacedCodes(planId) {
+        if (!unplacedList) return; // Ne fait rien si on n'est pas en mode édition
         const codes = await fetchAvailableCodes(planId);
         unplacedList.innerHTML = codes.length === 0 ? '<p class="text-muted small">Aucun code disponible.</p>' : '';
         codes.forEach(code => {
@@ -411,6 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applyFilters() {
+        if (!searchInput) return;
         const searchTerm = searchInput.value.toLowerCase();
         let count = 0;
         document.querySelectorAll('#unplaced-list .unplaced-item').forEach(item => {
@@ -419,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
             item.style.display = isVisible ? 'block' : 'none';
             if (isVisible) count++;
         });
-        unplacedCounter.textContent = `(${count})`;
+        if (unplacedCounter) unplacedCounter.textContent = `(${count})`;
     }
 
     function getTagDimensions(code) {
@@ -428,8 +439,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
             x: (code.pos_x / 100) * mapImage.naturalWidth,
             y: (code.pos_y / 100) * mapImage.naturalHeight,
-            width: code.width || Math.max(DEFAULT_TAG_WIDTH, calcWidth),
-            height: code.height || DEFAULT_TAG_HEIGHT,
+            width: code.width || Math.max(80, calcWidth),
+            height: code.height || 22,
             anchor_x_abs: (code.anchor_x / 100) * mapImage.naturalWidth,
             anchor_y_abs: (code.anchor_y / 100) * mapImage.naturalHeight
         };
@@ -532,6 +543,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateLegend() {
+        const legendContainer = document.getElementById('legend-container');
+        if (!legendContainer) return;
         legendContainer.innerHTML = '';
         const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId).map(c => c.univers));
         placedUnivers.forEach(universName => {
@@ -544,6 +557,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populatePrintModalFilters() {
+        const printUniversFilterContainer = document.getElementById('print-univers-filter');
+        if (!printUniversFilterContainer) return;
         printUniversFilterContainer.innerHTML = '';
         const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId).map(c => c.univers));
         placedUnivers.forEach(universName => {

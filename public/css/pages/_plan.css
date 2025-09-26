@@ -1,4 +1,4 @@
-/* public/css/pages/_plan.css */
+	/* public/css/pages/_plan.css */
 
 .plan-page-container {
     display: flex;
@@ -91,6 +91,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* NOUVEAU : Style pour délimiter le canvas du plan */
+#plan-canvas {
+    border: 2px dashed #adb5bd; /* Bordure en pointillés pour marquer la zone */
+    box-shadow: 0 0 15px rgba(0,0,0,0.1); /* Ombre douce pour le détacher du fond */
+    background-color: #ffffff; /* Fond blanc pour le canvas lui-même */
+    box-sizing: border-box;
 }
 
 #placement-mode-banner {
@@ -189,19 +197,6 @@
     bottom: 1rem;
     right: 1rem;
 }
-
-/* Barre d'outils contextuelle pour le tactile */
-.tag-toolbar {
-    position: absolute;
-    z-index: 1100;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    display: flex;
-    gap: 5px;
-    padding: 5px;
-}
-
 
 @media (max-width: 991.98px) {
     .plan-page-container {

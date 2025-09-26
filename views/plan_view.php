@@ -1,4 +1,4 @@
-<?php $title = 'Plan du Magasin'; ?>
+<?php $title = 'Édition du Plan : ' . htmlspecialchars($plan['nom']); ?>
 
 <?php ob_start(); ?>
 <link rel="stylesheet" href="css/plan_print.css" media="print">
@@ -24,9 +24,9 @@
 
 <?php ob_start(); ?>
 <script>
-    // Ces données PHP sont utilisées par plan.js
     let placedGeoCodes = <?= json_encode($placedGeoCodes ?? []); ?>;
     const universColors = <?= json_encode($universColors ?? []); ?>;
+    const currentPlanId = <?= json_encode($plan['id']); ?>;
 </script>
 <script src="js/plan.js"></script> 
 <?php $body_scripts = ob_get_clean(); ?>
@@ -62,24 +62,40 @@
 
     <div class="plan-main-content">
         <div class="plan-toolbar no-print">
-            <div class="form-group">
-                <label for="plan-selector">Choisir un plan :</label>
-                <select id="plan-selector" class="form-select">
-                    <option value="">-- Sélectionnez un plan --</option>
-                    <?php if (!empty($plans)): foreach ($plans as $plan): ?>
-                        <option value="<?= $plan['id'] ?>" data-filename="<?= htmlspecialchars($plan['nom_fichier']) ?>"><?= htmlspecialchars($plan['nom']) ?></option>
-                    <?php endforeach; endif; ?>
-                </select>
+            <a href="index.php?action=listPlans" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Retour aux plans</a>
+            
+            <div class="mx-auto">
+                <h3 class="mb-0 text-center">
+                    <i class="bi bi-pencil-square"></i> Mode Édition : <strong><?= htmlspecialchars($plan['nom']) ?></strong>
+                </h3>
             </div>
+
             <button class="btn btn-primary" id="print-plan-btn" data-bs-toggle="modal" data-bs-target="#print-options-modal">
-                <i class="bi bi-printer-fill"></i> Imprimer le plan
+                <i class="bi bi-printer-fill"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" id="fullscreen-btn" title="Plein écran">
+                <i class="bi bi-arrows-fullscreen"></i>
             </button>
         </div>
 
         <div id="plan-container">
-            <canvas id="plan-canvas" style="cursor: grab;"></canvas>
-            <img src="" alt="Plan du magasin" id="map-image" style="display: none;">
-            <div id="plan-placeholder" class="no-print"><p>Veuillez sélectionner un plan pour commencer.</p></div>
+            <div id="plan-loader" class="spinner-border text-primary" role="status" style="display: none;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            
+            <div id="canvas-wrapper">
+                <canvas id="plan-canvas"></canvas>
+            </div>
+            
+            <img src="uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>" alt="Plan du magasin" id="map-image" style="display: none;">
+            
+            <div id="plan-placeholder" class="no-print" style="display: none;"><p>Veuillez sélectionner un plan pour commencer.</p></div>
+
+            <div id="zoom-controls" class="no-print">
+                <button class="btn btn-light" id="zoom-in-btn" title="Zoomer"><i class="bi bi-zoom-in"></i></button>
+                <button class="btn btn-light" id="zoom-out-btn" title="Dézoomer"><i class="bi bi-zoom-out"></i></button>
+                <button class="btn btn-light" id="zoom-reset-btn" title="Réinitialiser le zoom"><i class="bi bi-aspect-ratio"></i></button>
+            </div>
         </div>
         
         <div id="tag-edit-toolbar" class="tag-toolbar no-print" style="display:none;">
