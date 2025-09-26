@@ -18,8 +18,14 @@ class PlanController extends BaseController {
         $this->universManager = new UniversManager($db);
     }
 
-    public function planAction() {
-        $plans = $this->planManager->getAllPlans();
+    // Nouvelle page d'édition des codes sur un plan spécifique
+    public function manageCodesAction() {
+        $planId = (int)($_GET['id'] ?? 0);
+        if ($planId <= 0) {
+            header('Location: index.php?action=listPlans');
+            exit();
+        }
+        $plan = $this->planManager->getPlanById($planId);
         $universList = $this->universManager->getAllUnivers();
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
 
@@ -33,8 +39,34 @@ class PlanController extends BaseController {
 
         $this->render('plan_view', [
             'placedGeoCodes' => $geoCodes,
-            'plans' => $plans,
+            'plan' => $plan, // Passer le plan spécifique à la vue
             'universList' => $universList,
+            'universColors' => $universColors
+        ]);
+    }
+    
+    // NOUVELLE ACTION: Afficher un plan en lecture seule
+    public function viewPlanAction() {
+        $planId = (int)($_GET['id'] ?? 0);
+        if ($planId <= 0) {
+            header('Location: index.php?action=listPlans');
+            exit();
+        }
+        $plan = $this->planManager->getPlanById($planId);
+        $universList = $this->universManager->getAllUnivers();
+        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
+
+        $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+        $universColors = [];
+        $colorIndex = 0;
+        foreach ($universList as $univers) {
+            $universColors[$univers['nom']] = $colors[$colorIndex % count($colors)];
+            $colorIndex++;
+        }
+        
+        $this->render('plan_viewer_view', [
+            'plan' => $plan,
+            'placedGeoCodes' => $geoCodes,
             'universColors' => $universColors
         ]);
     }
@@ -132,6 +164,11 @@ class PlanController extends BaseController {
         header('Location: index.php?action=listPlans');
         exit();
     }
+    
+    // NOUVELLE ACTION: Afficher le formulaire d'ajout
+    public function addPlanFormAction() {
+        $this->render('plan_add_view');
+    }
 
     public function addPlanAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['planFile'])) {
@@ -164,7 +201,7 @@ class PlanController extends BaseController {
                         header('Location: index.php?action=listPlans');
                         exit();
                     }
-                } else if (in_array($extension, ['svg', 'png', 'jpg', 'jpeg'])) {
+                } else if (in_array($extension, ['png', 'jpg', 'jpeg'])) {
                     $finalFilename = $newFilenameBase . '.' . $extension;
                     $destination = $uploadDir . $finalFilename;
                     move_uploaded_file($file['tmp_name'], $destination);

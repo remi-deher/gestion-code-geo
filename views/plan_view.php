@@ -81,25 +81,13 @@
             <img src="" alt="Plan du magasin" id="map-image" style="display: none;">
             <div id="plan-placeholder" class="no-print"><p>Veuillez sélectionner un plan pour commencer.</p></div>
         </div>
-    </div>
-</div>
-
-<div class="modal fade" id="tag-action-modal" tabindex="-1" aria-labelledby="tagActionModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="tagActionModalLabel">Actions pour </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p>Que souhaitez-vous faire avec cette étiquette ?</p>
-        <div class="d-grid gap-2">
-            <button type="button" class="btn btn-primary" id="modal-add-arrow-btn"><i class="bi bi-arrow-up-right"></i> Ajouter / Modifier la flèche</button>
-            <button type="button" class="btn btn-danger" id="modal-delete-btn"><i class="bi bi-trash"></i> Supprimer l'étiquette</button>
+        
+        <div id="tag-edit-toolbar" class="tag-toolbar no-print" style="display:none;">
+            <button id="toolbar-arrow" class="btn btn-sm btn-secondary" title="Ajouter/Modifier la flèche"><i class="bi bi-arrow-up-right"></i></button>
+            <button id="toolbar-resize" class="btn btn-sm btn-secondary" title="Redimensionner"><i class="bi bi-arrows-fullscreen"></i></button>
+            <button id="toolbar-delete" class="btn btn-sm btn-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
         </div>
-      </div>
     </div>
-  </div>
 </div>
 
 <div class="modal fade" id="print-options-modal" tabindex="-1" aria-labelledby="printOptionsModalLabel" aria-hidden="true">

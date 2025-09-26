@@ -70,12 +70,14 @@ switch ($action) {
     case 'generatePdf': $geoCodeController->generatePdfAction(); break; 
 
     // Plans
-    case 'plan': $planController->planAction(); break;
+    case 'listPlans': $planController->listPlansAction(); break; // Nouvelle page principale des plans
+    case 'addPlanForm': $planController->addPlanFormAction(); break; // Afficher le formulaire
+    case 'addPlan': $planController->addPlanAction(); break;
+    case 'viewPlan': $planController->viewPlanAction(); break; // Consulter un plan
+    case 'manageCodes': $planController->manageCodesAction(); break; // Gérer les codes sur un plan
     case 'savePosition': $planController->savePositionAction(); break;
     case 'removePosition': $planController->removePositionAction(); break;
     case 'saveMultiplePositions': $planController->saveMultiplePositionsAction(); break;
-    case 'listPlans': $planController->listPlansAction(); break;
-    case 'addPlan': $planController->addPlanAction(); break;
     case 'deletePlan': $planController->deletePlanAction(); break;
     case 'editPlan': $planController->editPlanAction(); break; 
     case 'updatePlan': $planController->updatePlanAction(); break; 
