@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS `geo_codes` (
   `zone` ENUM('reserve', 'vente') NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `deleted_at` TIMESTAMP NULL DEFAULT NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (univers_id) REFERENCES univers(id) ON DELETE RESTRICT
 );
@@ -44,22 +43,23 @@ CREATE TABLE IF NOT EXISTS `plan_univers` (
 -- Table pour les positions des codes géo sur les plans
 CREATE TABLE IF NOT EXISTS `geo_positions` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `geo_code_id` INT NOT NULL UNIQUE,
+    `geo_code_id` INT NOT NULL,
     `plan_id` INT NOT NULL,
     `pos_x` INT NOT NULL,
     `pos_y` INT NOT NULL,
     `width` INT NULL, -- NOUVEAU: Largeur de l'étiquette en pixels
-    `height` INT NULL, -- NOUVEAU: Hauteur de l'étiquette en pixels
+    `height` INT NULL, -- NOUVEAU: Hauteur de l'étiquette en pixels,
+    `anchor_x` float DEFAULT NULL,
+    `anchor_y` float DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (geo_code_id) REFERENCES geo_codes(id) ON DELETE CASCADE,
     FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
 );
 
--- Si la table existe déjà, exécutez cette commande :
-ALTER TABLE `geo_positions` 
-ADD COLUMN `width` INT NULL DEFAULT NULL AFTER `pos_y`,
-ADD COLUMN `height` INT NULL DEFAULT NULL AFTER `width`;
+-- Si la table existe déjà, exécutez cette commande pour supprimer la contrainte UNIQUE :
+-- ALTER TABLE `geo_positions` DROP INDEX `geo_code_id`;
+
 
 -- NOUVELLE TABLE pour l'historique des positions des codes géo
 CREATE TABLE IF NOT EXISTS `geo_positions_history` (

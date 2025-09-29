@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let scale = 1, panX = 0, panY = 0;
     let isPanning = false, isDraggingTag = false, isDrawingArrow = false;
     let panStart = { x: 0, y: 0 };
-    let selectedTagId = null, draggedTagId = null;
+    let selectedPositionId = null, draggedPositionId = null;
 
     let longPressTimer;
     let touchMoved = false;
@@ -66,8 +66,8 @@ function draw() {
     drawTags(ctx, scale);
     ctx.restore();
 
-    if (tagToolbar && selectedTagId) {
-        const code = allCodesData.find(c => c.id === selectedTagId);
+    if (tagToolbar && selectedPositionId) {
+        const code = allCodesData.find(c => c.position_id === selectedPositionId);
         if (code) {
             const tag = getTagDimensions(code);
             const toolbarX = (tag.x * scale + panX) - tagToolbar.offsetWidth / 2;
@@ -93,8 +93,8 @@ function draw() {
                 drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, targetCtx, currentScale);
             }
 
-            targetCtx.strokeStyle = (code.id === selectedTagId) ? '#007bff' : 'black';
-            targetCtx.lineWidth = (code.id === selectedTagId) ? 2 / currentScale : 1 / currentScale;
+            targetCtx.strokeStyle = (code.position_id === selectedPositionId) ? '#007bff' : 'black';
+            targetCtx.lineWidth = (code.position_id === selectedPositionId) ? 2 / currentScale : 1 / currentScale;
             targetCtx.fillStyle = universColors[code.univers] || '#7f8c8d';
             targetCtx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
             targetCtx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
@@ -151,14 +151,14 @@ function draw() {
         if (tagToolbar) {
             document.getElementById('toolbar-arrow').addEventListener('click', () => {
                 isDrawingArrow = true;
-                draggedTagId = selectedTagId;
+                draggedPositionId = selectedPositionId;
                 alert("Touchez le plan pour définir la pointe de la flèche.");
             });
             
             document.querySelectorAll('.size-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const size = e.currentTarget.dataset.size;
-                    const code = allCodesData.find(c => c.id === selectedTagId);
+                    const code = allCodesData.find(c => c.position_id === selectedPositionId);
                     if (code && sizePresets[size]) {
                         code.width = sizePresets[size].width;
                         code.height = sizePresets[size].height;
@@ -170,7 +170,7 @@ function draw() {
 
             document.getElementById('toolbar-delete').addEventListener('click', () => {
                 if (confirm(`Voulez-vous vraiment supprimer l'étiquette ?`)) {
-                    removePositionAPI(selectedTagId);
+                    removePositionAPI(selectedPositionId);
                 }
             });
         }
@@ -246,10 +246,10 @@ function draw() {
             return;
         }
         const clickedTag = getTagAt(coords.x, coords.y);
-        selectedTagId = clickedTag ? clickedTag.id : null;
+        selectedPositionId = clickedTag ? clickedTag.position_id : null;
         if (clickedTag) {
             isDraggingTag = true;
-            draggedTagId = selectedTagId;
+            draggedPositionId = selectedPositionId;
             touchMoved = false;
             longPressTimer = setTimeout(() => {
                 if (!touchMoved) {
@@ -268,17 +268,21 @@ function draw() {
         touchMoved = true;
         clearTimeout(longPressTimer);
         const coords = getCanvasCoords(e);
-        if (isDraggingTag && draggedTagId) {
-            const code = allCodesData.find(c => c.id === draggedTagId);
-            code.pos_x = (coords.x / mapImage.naturalWidth) * 100;
-            code.pos_y = (coords.y / mapImage.naturalHeight) * 100;
+        if (isDraggingTag && draggedPositionId) {
+            const code = allCodesData.find(c => c.position_id === draggedPositionId);
+            if(code) {
+                code.pos_x = (coords.x / mapImage.naturalWidth) * 100;
+                code.pos_y = (coords.y / mapImage.naturalHeight) * 100;
+            }
         } else if (isPanning) {
             panX = e.clientX - panStart.x;
             panY = e.clientY - panStart.y;
-        } else if (isDrawingArrow && draggedTagId) {
-             const code = allCodesData.find(c => c.id === draggedTagId);
-             code.anchor_x = (coords.x / mapImage.naturalWidth) * 100;
-             code.anchor_y = (coords.y / mapImage.naturalHeight) * 100;
+        } else if (isDrawingArrow && draggedPositionId) {
+             const code = allCodesData.find(c => c.position_id === draggedPositionId);
+             if(code) {
+                code.anchor_x = (coords.x / mapImage.naturalWidth) * 100;
+                code.anchor_y = (coords.y / mapImage.naturalHeight) * 100;
+             }
         } else {
             updateCursor(coords);
         }
@@ -287,12 +291,12 @@ function draw() {
     
     function handleMouseUp() {
         clearTimeout(longPressTimer);
-        const code = allCodesData.find(c => c.id === draggedTagId);
+        const code = allCodesData.find(c => c.position_id === draggedPositionId);
         if ((isDraggingTag || isDrawingArrow) && code) {
             savePositionAPI(code);
         }
         isPanning = isDraggingTag = isDrawingArrow = false;
-        draggedTagId = null;
+        draggedPositionId = null;
         updateCursor();
     }
 
@@ -347,7 +351,7 @@ function draw() {
 
     function enterPlacementMode(item) {
         isPlacementMode = true;
-        selectedTagId = null;
+        selectedPositionId = null;
         placementCodeId = item.dataset.id;
         document.querySelectorAll('.unplaced-item.placement-active').forEach(el => el.classList.remove('placement-active'));
         item.classList.add('placement-active');
@@ -371,9 +375,9 @@ function draw() {
             pos_y: (canvasY / mapImage.naturalHeight) * 100,
             width: null, height: null, anchor_x: null, anchor_y: null
         };
-        const code = allCodesData.find(c => c.id == placementCodeId);
-        if (await savePositionAPI(Object.assign(code, newCodeData))) {
-            await fetchAndDisplayUnplacedCodes(currentPlanId);
+        if (await savePositionAPI(newCodeData)) {
+            const response = await fetch('index.php?action=getAllCodesJson');
+            allCodesData = await response.json();
         }
         cancelPlacementMode();
         draw();
@@ -388,7 +392,7 @@ function draw() {
         }
         
         resetView();
-        selectedTagId = null;
+        selectedPositionId = null;
 
         if (planPlaceholder) planPlaceholder.style.display = 'none';
         canvas.style.display = 'block';
@@ -497,7 +501,8 @@ function draw() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    id: code.id,
+                    id: code.id, // geo_code_id
+                    position_id: code.position_id,
                     plan_id: parseInt(currentPlanId),
                     x: code.pos_x,
                     y: code.pos_y,
@@ -514,22 +519,17 @@ function draw() {
         }
     }
 
-    async function removePositionAPI(codeId) {
+    async function removePositionAPI(positionId) {
         try {
             const response = await fetch('index.php?action=removePosition', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: parseInt(codeId) })
+                body: JSON.stringify({ id: parseInt(positionId) })
             });
             const result = await response.json();
             if (result.status === 'success') {
-                const codeToUpdate = allCodesData.find(c => c.id == codeId);
-                if (codeToUpdate) {
-                    codeToUpdate.plan_id = null;
-                    ['pos_x', 'pos_y', 'width', 'height', 'anchor_x', 'anchor_y'].forEach(prop => codeToUpdate[prop] = null);
-                }
-                selectedTagId = null;
-                await fetchAndDisplayUnplacedCodes(currentPlanId);
+                allCodesData = allCodesData.filter(c => c.position_id != positionId);
+                selectedPositionId = null;
                 draw();
             }
         } catch (error) {

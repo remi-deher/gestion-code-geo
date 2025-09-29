@@ -60,7 +60,7 @@ class GeoCodeManager {
         $sql = "
             SELECT 
                 gc.id, gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire,
-                gp.plan_id, gp.pos_x, gp.pos_y, gp.width, gp.height, gp.anchor_x, gp.anchor_y
+                gp.id as position_id, gp.plan_id, gp.pos_x, gp.pos_y, gp.width, gp.height, gp.anchor_x, gp.anchor_y
             FROM 
                 geo_codes gc
             LEFT JOIN 
@@ -205,14 +205,12 @@ class GeoCodeManager {
     public function getAvailableCodesForPlan(int $planId): array
     {
         $sql = "
-            SELECT gc.id, gc.code_geo, gc.libelle, u.nom AS univers
+            SELECT DISTINCT gc.id, gc.code_geo, gc.libelle, u.nom AS univers
             FROM geo_codes gc
             JOIN univers u ON gc.univers_id = u.id
-            LEFT JOIN plan_univers pu ON u.id = pu.univers_id
-            LEFT JOIN geo_positions gp ON gc.id = gp.geo_code_id
+            JOIN plan_univers pu ON u.id = pu.univers_id
             WHERE gc.deleted_at IS NULL
             AND pu.plan_id = ?
-            AND gp.id IS NULL
             ORDER BY gc.code_geo
         ";
 

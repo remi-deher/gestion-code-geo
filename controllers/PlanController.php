@@ -122,7 +122,8 @@ class PlanController extends BaseController {
                 isset($input['width']) ? (int)$input['width'] : null,
                 isset($input['height']) ? (int)$input['height'] : null,
                 isset($input['anchor_x']) ? (float)$input['anchor_x'] : null,
-                isset($input['anchor_y']) ? (float)$input['anchor_y'] : null
+                isset($input['anchor_y']) ? (float)$input['anchor_y'] : null,
+                isset($input['position_id']) ? (int)$input['position_id'] : null
             );
             echo json_encode(['status' => $success ? 'success' : 'error']);
         } else {

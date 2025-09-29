@@ -84,43 +84,47 @@ class PlanManager {
         $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y, $action_type]);
     }
     
-    public function getPositionByCodeId(int $geo_code_id) {
+    public function getPositionsByCodeId(int $geo_code_id) {
         $stmt = $this->db->prepare("SELECT * FROM geo_positions WHERE geo_code_id = ?");
         $stmt->execute([$geo_code_id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function savePosition(int $geo_code_id, int $plan_id, float $pos_x, float $pos_y, ?int $width = null, ?int $height = null, ?float $anchor_x = null, ?float $anchor_y = null) {
-        $existingPosition = $this->getPositionByCodeId($geo_code_id);
-        $action = $existingPosition ? 'moved' : 'placed';
-
-        $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE 
-                    plan_id = VALUES(plan_id), 
-                    pos_x = VALUES(pos_x), 
-                    pos_y = VALUES(pos_y),
-                    width = VALUES(width),
-                    height = VALUES(height),
-                    anchor_x = VALUES(anchor_x),
-                    anchor_y = VALUES(anchor_y)";
-        $stmt = $this->db->prepare($sql);
-        $success = $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y, $width, $height, $anchor_x, $anchor_y]);
-
-        if ($success) {
-            $this->_logHistory($geo_code_id, $plan_id, $pos_x, $pos_y, $action);
-        }
-        return $success;
-    }
-
-    public function removePosition(int $geo_code_id): bool {
-        $existingPosition = $this->getPositionByCodeId($geo_code_id);
-        if ($existingPosition) {
-            $sql = "DELETE FROM geo_positions WHERE geo_code_id = ?";
+    public function savePosition(int $geo_code_id, int $plan_id, float $pos_x, float $pos_y, ?int $width = null, ?int $height = null, ?float $anchor_x = null, ?float $anchor_y = null, ?int $position_id = null) {
+        if ($position_id) {
+            // Update
+            $sql = "UPDATE geo_positions SET pos_x = ?, pos_y = ?, width = ?, height = ?, anchor_x = ?, anchor_y = ? WHERE id = ?";
             $stmt = $this->db->prepare($sql);
-            $success = $stmt->execute([$geo_code_id]);
+            $success = $stmt->execute([$pos_x, $pos_y, $width, $height, $anchor_x, $anchor_y, $position_id]);
             if ($success) {
-                $this->_logHistory($geo_code_id, $existingPosition['plan_id'], null, null, 'removed');
+                $this->_logHistory($geo_code_id, $plan_id, $pos_x, $pos_y, 'moved');
+            }
+            return $success;
+        } else {
+            // Insert
+            $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            $stmt = $this->db->prepare($sql);
+            $success = $stmt->execute([$geo_code_id, $plan_id, $pos_x, $pos_y, $width, $height, $anchor_x, $anchor_y]);
+
+            if ($success) {
+                $this->_logHistory($geo_code_id, $plan_id, $pos_x, $pos_y, 'placed');
+            }
+            return $success;
+        }
+    }
+
+    public function removePosition(int $position_id): bool {
+        $stmt = $this->db->prepare("SELECT * FROM geo_positions WHERE id = ?");
+        $stmt->execute([$position_id]);
+        $existingPosition = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($existingPosition) {
+            $sql = "DELETE FROM geo_positions WHERE id = ?";
+            $stmt = $this->db->prepare($sql);
+            $success = $stmt->execute([$position_id]);
+            if ($success) {
+                $this->_logHistory($existingPosition['geo_code_id'], $existingPosition['plan_id'], null, null, 'removed');
             }
             return $success;
         }
@@ -132,20 +136,9 @@ class PlanManager {
         $this->db->beginTransaction();
         try {
             $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y) 
-                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y, :width, :height, :anchor_x, :anchor_y)
-                    ON DUPLICATE KEY UPDATE 
-                        plan_id = VALUES(plan_id), 
-                        pos_x = VALUES(pos_x), 
-                        pos_y = VALUES(pos_y),
-                        width = VALUES(width),
-                        height = VALUES(height),
-                        anchor_x = VALUES(anchor_x),
-                        anchor_y = VALUES(anchor_y)";
+                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y, :width, :height, :anchor_x, :anchor_y)";
             $stmt = $this->db->prepare($sql);
             foreach ($positions as $pos) {
-                $existingPosition = $this->getPositionByCodeId($pos['id']);
-                $action = $existingPosition ? 'moved' : 'placed';
-                
                 $stmt->execute([
                     ':geo_code_id' => $pos['id'],
                     ':plan_id'     => $plan_id,
@@ -156,7 +149,7 @@ class PlanManager {
                     ':anchor_x'    => $pos['anchor_x'] ?? null,
                     ':anchor_y'    => $pos['anchor_y'] ?? null
                 ]);
-                $this->_logHistory($pos['id'], $plan_id, $pos['x'], $pos['y'], $action);
+                $this->_logHistory($pos['id'], $plan_id, $pos['x'], $pos['y'], 'placed');
             }
             $this->db->commit();
             return true;
