@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const addCodeModal = new bootstrap.Modal(document.getElementById('add-code-modal'));
     const saveNewCodeBtn = document.getElementById('save-new-code-btn');
     const newUniversIdSelect = document.getElementById('new-univers-id');
-    const executePrintBtn = document.getElementById('execute-print-btn');
 
     // --- ÉTAT DE L'APPLICATION ---
     let allCodesData = [...placedGeoCodes];
@@ -80,39 +79,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function drawTags(targetCtx, currentScale, filterUnivers = null) {
+    function drawTags(targetCtx, currentScale) {
         if (!currentPlanId) return;
-        allCodesData.forEach(code => {
-            if (code.plan_id != currentPlanId || code.pos_x === null) return;
-            if (filterUnivers && !filterUnivers.includes(code.univers)) return;
-
-            const tag = getTagDimensions(code);
-
-            if (code.anchor_x != null) {
-                drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, targetCtx, currentScale);
-            }
-            
-            if (highlightedCodeGeo && code.code_geo === highlightedCodeGeo) {
-                targetCtx.strokeStyle = '#ffc107';
-                targetCtx.lineWidth = 3 / currentScale;
-                targetCtx.globalAlpha = 1.0;
-            } else {
-                targetCtx.strokeStyle = (code.position_id === selectedPositionId) ? '#007bff' : 'black';
-                targetCtx.lineWidth = (code.position_id === selectedPositionId) ? 2 / currentScale : 1 / currentScale;
-                targetCtx.globalAlpha = (highlightedCodeGeo && code.code_geo !== highlightedCodeGeo) ? 0.3 : 1.0;
-            }
-
-            targetCtx.fillStyle = universColors[code.univers] || '#7f8c8d';
-            targetCtx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
-            targetCtx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
-
-            targetCtx.font = `bold ${12 / currentScale}px Arial`;
-            targetCtx.fillStyle = 'white';
-            targetCtx.textAlign = 'center';
-            targetCtx.textBaseline = 'middle';
-            targetCtx.fillText(code.code_geo, tag.x, tag.y);
-        });
         targetCtx.globalAlpha = 1.0;
+        
+        const codesToDraw = allCodesData.filter(c => c.plan_id == currentPlanId && c.pos_x !== null);
+
+        if (highlightedCodeGeo) {
+            targetCtx.globalAlpha = 0.3;
+            codesToDraw.forEach(code => {
+                if (code.code_geo !== highlightedCodeGeo) {
+                    drawSingleTag(code, targetCtx, currentScale);
+                }
+            });
+            targetCtx.globalAlpha = 1.0;
+        }
+
+        codesToDraw.forEach(code => {
+            if (!highlightedCodeGeo || code.code_geo === highlightedCodeGeo) {
+                drawSingleTag(code, targetCtx, currentScale);
+            }
+        });
+    }
+
+    function drawSingleTag(code, targetCtx, currentScale) {
+        const tag = getTagDimensions(code);
+
+        if (code.anchor_x != null) {
+            drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, targetCtx, currentScale);
+        }
+
+        if (highlightedCodeGeo && code.code_geo === highlightedCodeGeo) {
+            targetCtx.strokeStyle = '#ffc107';
+            targetCtx.lineWidth = 3 / currentScale;
+        } else {
+            targetCtx.strokeStyle = (code.position_id === selectedPositionId) ? '#007bff' : 'black';
+            targetCtx.lineWidth = (code.position_id === selectedPositionId) ? 2 / currentScale : 1 / currentScale;
+        }
+
+        targetCtx.fillStyle = universColors[code.univers] || '#7f8c8d';
+        targetCtx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
+        targetCtx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
+
+        targetCtx.font = `bold ${12 / currentScale}px Arial`;
+        targetCtx.fillStyle = 'white';
+        targetCtx.textAlign = 'center';
+        targetCtx.textBaseline = 'middle';
+        targetCtx.fillText(code.code_geo, tag.x, tag.y);
     }
 
     function drawArrow(fromX, fromY, toX, toY, targetCtx = ctx, currentScale = scale) {
@@ -179,24 +192,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            document.getElementById('toolbar-delete').addEventListener('click', () => {
+            document.getElementById('toolbar-delete').addEventListener('click', async () => {
                 const code = allCodesData.find(c => c.position_id === selectedPositionId);
                 if (code) {
-                    const instanceCount = allCodesData.filter(c => c.code_geo === code.code_geo && c.plan_id == currentPlanId).length;
-                    let confirmationMessage = `Voulez-vous vraiment supprimer l'étiquette ${code.code_geo} ?`;
+                    const instanceCount = allCodesData.filter(c => c.id === code.id && c.plan_id == currentPlanId).length;
+                    
                     if (instanceCount > 1) {
                         let choice = prompt(
                             `${code.code_geo} est placé ${instanceCount} fois.\n` +
                             `Tapez 'cette' pour supprimer cette instance, ou 'tout' pour supprimer toutes les instances sur ce plan.`
                         );
                         if (choice && choice.toLowerCase() === 'tout') {
-                            alert("Fonctionnalité de suppression multiple à implémenter.");
+                            if (confirm(`Êtes-vous sûr de vouloir supprimer les ${instanceCount} instances de ${code.code_geo} de ce plan ?`)) {
+                                await removeMultiplePositionsAPI(code.id, currentPlanId);
+                            }
                         } else if (choice && choice.toLowerCase() === 'cette') {
-                            removePositionAPI(selectedPositionId);
+                            await removePositionAPI(selectedPositionId);
                         }
                     } else {
-                        if(confirm(confirmationMessage)) {
-                            removePositionAPI(selectedPositionId);
+                        if(confirm(`Voulez-vous vraiment supprimer l'étiquette ${code.code_geo} ?`)) {
+                            await removePositionAPI(selectedPositionId);
                         }
                     }
                 }
@@ -405,6 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isPlacementMode || !placementCodeId) return;
         const newCodeData = {
             id: parseInt(placementCodeId),
+            position_id: null,
             plan_id: parseInt(currentPlanId),
             pos_x: (canvasX / mapImage.naturalWidth) * 100,
             pos_y: (canvasY / mapImage.naturalHeight) * 100,
@@ -507,7 +523,8 @@ document.addEventListener('DOMContentLoaded', () => {
             item.style.display = isVisible ? 'block' : 'none';
             if (isVisible) count++;
         });
-        if (unplacedCounter) unplacedCounter.textContent = `(${count})`;
+        const unplacedCounterElement = document.getElementById('unplaced-counter');
+        if (unplacedCounterElement) unplacedCounterElement.textContent = `(${count})`;
     }
 
     function getTagDimensions(code) {
@@ -578,7 +595,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const result = await response.json();
             if (result.status === 'success') {
-                allCodesData = allCodesData.filter(c => c.position_id != positionId);
+                const index = allCodesData.findIndex(c => c.position_id == positionId);
+                if (index > -1) {
+                    allCodesData.splice(index, 1);
+                }
                 selectedPositionId = null;
                 await fetchAndDisplayUnplacedCodes(currentPlanId);
                 draw();
@@ -588,10 +608,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function removeMultiplePositionsAPI(geoCodeId, planId) {
+        try {
+            const response = await fetch('index.php?action=removeMultiplePositions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ geo_code_id: parseInt(geoCodeId), plan_id: parseInt(planId) })
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                allCodesData = allCodesData.filter(c => !(c.id == geoCodeId && c.plan_id == planId));
+                selectedPositionId = null;
+                highlightedCodeGeo = null;
+                await fetchAndDisplayUnplacedCodes(currentPlanId);
+                draw();
+            }
+        } catch (error) {
+            console.error('Erreur API removeMultiplePositions:', error);
+        }
+    }
+
     async function fetchAvailableCodes(planId) {
         if (!planId) return [];
         try {
             const response = await fetch(`index.php?action=getAvailableCodesForPlan&id=${planId}`);
+            if (!response.ok) {
+                console.error("Erreur de l'API :", response.statusText);
+                return [];
+            }
             return await response.json();
         } catch (error) {
             console.error("Erreur API fetchAvailableCodes:", error);

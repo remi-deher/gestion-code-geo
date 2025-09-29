@@ -130,6 +130,16 @@ class PlanManager {
         }
         return false;
     }
+    
+    public function removeMultiplePositionsByCodeId(int $geo_code_id, int $plan_id): bool {
+        $sql = "DELETE FROM geo_positions WHERE geo_code_id = ? AND plan_id = ?";
+        $stmt = $this->db->prepare($sql);
+        $success = $stmt->execute([$geo_code_id, $plan_id]);
+        if ($success) {
+            $this->_logHistory($geo_code_id, $plan_id, null, null, 'removed');
+        }
+        return $success;
+    }
 
     public function saveMultiplePositions(array $positions, int $plan_id): bool {
         if (empty($positions)) return true;

@@ -244,18 +244,29 @@ class GeoCodeManager {
 
     public function getAvailableCodesForPlan(int $planId): array
     {
+        // REQUÊTE CORRIGÉE pour fiabiliser le comptage
         $sql = "
-            SELECT DISTINCT gc.id, gc.code_geo, gc.libelle, u.nom AS univers
-            FROM geo_codes gc
-            JOIN univers u ON gc.univers_id = u.id
-            JOIN plan_univers pu ON u.id = pu.univers_id
-            WHERE gc.deleted_at IS NULL
-            AND pu.plan_id = ?
-            ORDER BY gc.code_geo
+            SELECT 
+                gc.id, 
+                gc.code_geo, 
+                gc.libelle, 
+                u.nom AS univers,
+                (SELECT COUNT(*) FROM geo_positions gp WHERE gp.geo_code_id = gc.id AND gp.plan_id = ?) as placement_count
+            FROM 
+                geo_codes gc
+            JOIN 
+                univers u ON gc.univers_id = u.id
+            JOIN 
+                plan_univers pu ON u.id = pu.univers_id
+            WHERE 
+                gc.deleted_at IS NULL
+                AND pu.plan_id = ?
+            ORDER BY 
+                gc.code_geo
         ";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$planId]);
+        $stmt->execute([$planId, $planId]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

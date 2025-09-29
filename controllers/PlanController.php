@@ -18,7 +18,6 @@ class PlanController extends BaseController {
         $this->universManager = new UniversManager($db);
     }
 
-    // Affiche la page pour gérer les codes sur un plan spécifique
     public function manageCodesAction() {
         $planId = (int)($_GET['id'] ?? 0);
         $plan = $this->planManager->getPlanById($planId);
@@ -49,7 +48,6 @@ class PlanController extends BaseController {
         ]);
     }
     
-    // Affiche un plan en lecture seule
     public function viewPlanAction() {
         $planId = (int)($_GET['id'] ?? 0);
         $plan = $this->planManager->getPlanById($planId);
@@ -140,6 +138,18 @@ class PlanController extends BaseController {
             echo json_encode(['status' => $success ? 'success' : 'error']);
         } else {
             echo json_encode(['status' => 'error', 'message' => 'Invalid data']);
+        }
+        exit();
+    }
+
+    public function removeMultiplePositionsAction() {
+        header('Content-Type: application/json');
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (isset($input['geo_code_id'], $input['plan_id'])) {
+            $success = $this->planManager->removeMultiplePositionsByCodeId((int)$input['geo_code_id'], (int)$input['plan_id']);
+            echo json_encode(['status' => $success ? 'success' : 'error']);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Données invalides pour la suppression multiple.']);
         }
         exit();
     }

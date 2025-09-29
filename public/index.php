@@ -79,6 +79,7 @@ switch ($action) {
     case 'manageCodes': $planController->manageCodesAction(); break; 
     case 'savePosition': $planController->savePositionAction(); break;
     case 'removePosition': $planController->removePositionAction(); break;
+    case 'removeMultiplePositions': $planController->removeMultiplePositionsAction(); break; // <-- NOUVELLE ROUTE
     case 'saveMultiplePositions': $planController->saveMultiplePositionsAction(); break;
     case 'deletePlan': $planController->deletePlanAction(); break;
     case 'editPlan': $planController->editPlanAction(); break; 
