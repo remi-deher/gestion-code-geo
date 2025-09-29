@@ -11,8 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const planLoader = document.getElementById('plan-loader');
     const planPlaceholder = document.getElementById('plan-placeholder');
     
-    // Éléments optionnels
-    const planSelector = document.getElementById('plan-selector');
     const zoomInBtn = document.getElementById('zoom-in-btn');
     const zoomOutBtn = document.getElementById('zoom-out-btn');
     const zoomResetBtn = document.getElementById('zoom-reset-btn');
@@ -22,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const unplacedCounter = document.getElementById('unplaced-counter');
     const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
     const tagToolbar = document.getElementById('tag-edit-toolbar');
-    const printBtn = document.getElementById('print-plan-btn');
     const addCodeBtn = document.getElementById('add-code-btn');
     const addCodeModal = new bootstrap.Modal(document.getElementById('add-code-modal'));
     const saveNewCodeBtn = document.getElementById('save-new-code-btn');
@@ -38,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPanning = false, isDraggingTag = false, isDrawingArrow = false;
     let panStart = { x: 0, y: 0 };
     let selectedPositionId = null, draggedPositionId = null;
+    let highlightedCodeGeo = null;
 
     let longPressTimer;
     let touchMoved = false;
@@ -56,31 +54,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- LOGIQUE DE DESSIN ---
-function draw() {
-    if (!mapImage.complete || mapImage.naturalWidth === 0) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.translate(panX, panY);
-    ctx.scale(scale, scale);
-    ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
-    drawTags(ctx, scale);
-    ctx.restore();
+    function draw() {
+        if (!mapImage.complete || mapImage.naturalWidth === 0) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(panX, panY);
+        ctx.scale(scale, scale);
+        ctx.drawImage(mapImage, 0, 0, mapImage.naturalWidth, mapImage.naturalHeight);
+        drawTags(ctx, scale);
+        ctx.restore();
 
-    if (tagToolbar && selectedPositionId) {
-        const code = allCodesData.find(c => c.position_id === selectedPositionId);
-        if (code) {
-            const tag = getTagDimensions(code);
-            const toolbarX = (tag.x * scale + panX) - tagToolbar.offsetWidth / 2;
-            const toolbarY = (tag.y * scale + panY) - (tag.height / 2 * scale) - tagToolbar.offsetHeight - 10;
-            
-            tagToolbar.style.left = `${toolbarX}px`;
-            tagToolbar.style.top = `${toolbarY}px`;
-            tagToolbar.classList.add('visible');
+        if (tagToolbar && selectedPositionId) {
+            const code = allCodesData.find(c => c.position_id === selectedPositionId);
+            if (code) {
+                const tag = getTagDimensions(code);
+                const toolbarX = (tag.x * scale + panX) - tagToolbar.offsetWidth / 2;
+                const toolbarY = (tag.y * scale + panY) - (tag.height / 2 * scale) - tagToolbar.offsetHeight - 10;
+                
+                tagToolbar.style.left = `${toolbarX}px`;
+                tagToolbar.style.top = `${toolbarY}px`;
+                tagToolbar.classList.add('visible');
+            }
+        } else if (tagToolbar) {
+            tagToolbar.classList.remove('visible');
         }
-    } else if (tagToolbar) {
-        tagToolbar.classList.remove('visible');
     }
-}
+
     function drawTags(targetCtx, currentScale, filterUnivers = null) {
         if (!currentPlanId) return;
         allCodesData.forEach(code => {
@@ -92,9 +91,17 @@ function draw() {
             if (code.anchor_x != null) {
                 drawArrow(tag.x, tag.y, tag.anchor_x_abs, tag.anchor_y_abs, targetCtx, currentScale);
             }
+            
+            if (highlightedCodeGeo && code.code_geo === highlightedCodeGeo) {
+                targetCtx.strokeStyle = '#ffc107';
+                targetCtx.lineWidth = 3 / currentScale;
+                targetCtx.globalAlpha = 1.0;
+            } else {
+                targetCtx.strokeStyle = (code.position_id === selectedPositionId) ? '#007bff' : 'black';
+                targetCtx.lineWidth = (code.position_id === selectedPositionId) ? 2 / currentScale : 1 / currentScale;
+                targetCtx.globalAlpha = (highlightedCodeGeo && code.code_geo !== highlightedCodeGeo) ? 0.3 : 1.0;
+            }
 
-            targetCtx.strokeStyle = (code.position_id === selectedPositionId) ? '#007bff' : 'black';
-            targetCtx.lineWidth = (code.position_id === selectedPositionId) ? 2 / currentScale : 1 / currentScale;
             targetCtx.fillStyle = universColors[code.univers] || '#7f8c8d';
             targetCtx.fillRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
             targetCtx.strokeRect(tag.x - tag.width / 2, tag.y - tag.height / 2, tag.width, tag.height);
@@ -105,6 +112,7 @@ function draw() {
             targetCtx.textBaseline = 'middle';
             targetCtx.fillText(code.code_geo, tag.x, tag.y);
         });
+        targetCtx.globalAlpha = 1.0;
     }
 
     function drawArrow(fromX, fromY, toX, toY, targetCtx = ctx, currentScale = scale) {
@@ -143,12 +151,15 @@ function draw() {
         if (fullscreenBtn) fullscreenBtn.addEventListener('click', toggleFullScreen);
         if (toggleSidebarBtn) toggleSidebarBtn.addEventListener('click', () => planPageContainer.classList.toggle('sidebar-hidden'));
         
-        if (printBtn) {
-            const printModal = new bootstrap.Modal(document.getElementById('print-options-modal'));
-            printBtn.addEventListener('click', () => printModal.show());
-        }
-
         if (tagToolbar) {
+            document.getElementById('toolbar-highlight').addEventListener('click', () => {
+                const code = allCodesData.find(c => c.position_id === selectedPositionId);
+                if(code) {
+                     highlightedCodeGeo = (highlightedCodeGeo === code.code_geo) ? null : code.code_geo;
+                     draw();
+                }
+            });
+
             document.getElementById('toolbar-arrow').addEventListener('click', () => {
                 isDrawingArrow = true;
                 draggedPositionId = selectedPositionId;
@@ -169,8 +180,25 @@ function draw() {
             });
 
             document.getElementById('toolbar-delete').addEventListener('click', () => {
-                if (confirm(`Voulez-vous vraiment supprimer l'étiquette ?`)) {
-                    removePositionAPI(selectedPositionId);
+                const code = allCodesData.find(c => c.position_id === selectedPositionId);
+                if (code) {
+                    const instanceCount = allCodesData.filter(c => c.code_geo === code.code_geo && c.plan_id == currentPlanId).length;
+                    let confirmationMessage = `Voulez-vous vraiment supprimer l'étiquette ${code.code_geo} ?`;
+                    if (instanceCount > 1) {
+                        let choice = prompt(
+                            `${code.code_geo} est placé ${instanceCount} fois.\n` +
+                            `Tapez 'cette' pour supprimer cette instance, ou 'tout' pour supprimer toutes les instances sur ce plan.`
+                        );
+                        if (choice && choice.toLowerCase() === 'tout') {
+                            alert("Fonctionnalité de suppression multiple à implémenter.");
+                        } else if (choice && choice.toLowerCase() === 'cette') {
+                            removePositionAPI(selectedPositionId);
+                        }
+                    } else {
+                        if(confirm(confirmationMessage)) {
+                            removePositionAPI(selectedPositionId);
+                        }
+                    }
                 }
             });
         }
@@ -211,7 +239,6 @@ function draw() {
                 }
             });
         }
-        if (executePrintBtn) executePrintBtn.addEventListener('click', prepareAndPrint);
     }
     
     function zoom(factor) {
@@ -245,20 +272,28 @@ function draw() {
             placeItemAt(coords.x, coords.y);
             return;
         }
+
         const clickedTag = getTagAt(coords.x, coords.y);
-        selectedPositionId = clickedTag ? clickedTag.position_id : null;
-        if (clickedTag) {
-            isDraggingTag = true;
-            draggedPositionId = selectedPositionId;
-            touchMoved = false;
-            longPressTimer = setTimeout(() => {
-                if (!touchMoved) {
-                    isDraggingTag = false;
-                }
-            }, 500);
+
+        if (e.ctrlKey && clickedTag) {
+            highlightedCodeGeo = (highlightedCodeGeo === clickedTag.code_geo) ? null : clickedTag.code_geo;
+            isPanning = false;
+            isDraggingTag = false;
         } else {
-            isPanning = true;
-            panStart = { x: e.clientX - panX, y: e.clientY - panY };
+            selectedPositionId = clickedTag ? clickedTag.position_id : null;
+            if (clickedTag) {
+                isDraggingTag = true;
+                draggedPositionId = selectedPositionId;
+                touchMoved = false;
+                longPressTimer = setTimeout(() => {
+                    if (!touchMoved) {
+                        isDraggingTag = false;
+                    }
+                }, 500);
+            } else {
+                isPanning = true;
+                panStart = { x: e.clientX - panX, y: e.clientY - panY };
+            }
         }
         draw();
         updateCursor(coords);
@@ -380,6 +415,7 @@ function draw() {
             allCodesData = await response.json();
         }
         cancelPlacementMode();
+        await fetchAndDisplayUnplacedCodes(currentPlanId);
         draw();
     }
     
@@ -404,7 +440,6 @@ function draw() {
             if (planLoader) planLoader.style.display = 'none';
             resizeCanvas();
             updateLegend();
-            populatePrintModalFilters();
             draw();
         };
         await fetchAndDisplayUnplacedCodes(currentPlanId);
@@ -433,15 +468,30 @@ function draw() {
     async function fetchAndDisplayUnplacedCodes(planId) {
         if (!unplacedList) return;
         const codes = await fetchAvailableCodes(planId);
-        unplacedList.innerHTML = codes.length === 0 ? '<p class="text-muted small">Aucun code disponible.</p>' : '';
+        
+        const accordionHeader = document.querySelector('#unplaced-list-container').closest('.accordion-item').querySelector('h3');
+        if(accordionHeader) accordionHeader.innerHTML = 'Codes disponibles <span id="unplaced-counter">(0)</span>';
+
+        unplacedList.innerHTML = codes.length === 0 ? '<p class="text-muted small">Aucun code disponible pour ce plan.</p>' : '';
+        
         codes.forEach(code => {
              const item = document.createElement('div');
              item.className = 'unplaced-item';
+             if (code.placement_count > 0) {
+                 item.classList.add('is-placed');
+             }
              item.dataset.id = code.id;
              item.dataset.code = code.code_geo;
              item.dataset.libelle = code.libelle;
              item.dataset.univers = code.univers;
-             item.innerHTML = `<span class="item-code" style="color: ${universColors[code.univers] || '#7f8c8d'}">${code.code_geo}</span> <span class="item-libelle">${code.libelle}</span>`;
+             
+             item.innerHTML = `
+                <div>
+                    <span class="item-code" style="color: ${universColors[code.univers] || '#7f8c8d'}">${code.code_geo}</span> 
+                    <span class="item-libelle d-block">${code.libelle}</span>
+                </div>
+                <span class="placement-counter">${code.placement_count}x</span>
+             `;
              unplacedList.appendChild(item);
         });
         applyFilters();
@@ -501,7 +551,7 @@ function draw() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    id: code.id, // geo_code_id
+                    id: code.id,
                     position_id: code.position_id,
                     plan_id: parseInt(currentPlanId),
                     x: code.pos_x,
@@ -530,6 +580,7 @@ function draw() {
             if (result.status === 'success') {
                 allCodesData = allCodesData.filter(c => c.position_id != positionId);
                 selectedPositionId = null;
+                await fetchAndDisplayUnplacedCodes(currentPlanId);
                 draw();
             }
         } catch (error) {
@@ -562,23 +613,6 @@ function draw() {
         });
     }
 
-    function populatePrintModalFilters() {
-        const printUniversFilterContainer = document.getElementById('print-univers-filter');
-        if (!printUniversFilterContainer) return;
-        printUniversFilterContainer.innerHTML = '';
-        const placedUnivers = new Set(allCodesData.filter(c => c.plan_id == currentPlanId && c.univers).map(c => c.univers));
-        placedUnivers.forEach(universName => {
-            const filterItem = document.createElement('div');
-            filterItem.className = 'form-check';
-            filterItem.innerHTML = `
-                <input class="form-check-input" type="checkbox" value="${universName}" id="print-filter-${universName.replace(/\s+/g, '')}" checked>
-                <label class="form-check-label" for="print-filter-${universName.replace(/\s+/g, '')}">
-                    ${universName}
-                </label>`;
-            printUniversFilterContainer.appendChild(filterItem);
-        });
-    }
-
     function toggleFullScreen() {
         if (!document.fullscreenElement) {
             planPageContainer.requestFullscreen().catch(err => {
@@ -589,26 +623,5 @@ function draw() {
         }
     }
     
-    function prepareAndPrint() {
-        // Sauvegarde de l'état actuel pour la restauration
-        const originalScale = scale;
-        const originalPanX = panX;
-        const originalPanY = panY;
-
-        // Réinitialisation de la vue pour l'impression
-        resetView();
-        
-        // Timeout pour laisser le temps au navigateur de redessiner le canvas
-        setTimeout(() => {
-            window.print();
-            
-            // Restauration de la vue après l'impression
-            scale = originalScale;
-            panX = originalPanX;
-            panY = originalPanY;
-            draw();
-        }, 250);
-    }
-
     initialize();
 });

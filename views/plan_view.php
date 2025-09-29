@@ -52,11 +52,11 @@
                 <div class="accordion-header"><h3>Filtres</h3><span class="accordion-arrow">▶</span></div>
                 <div class="accordion-content">
                     <input type="search" id="tag-search-input" placeholder="Rechercher un code..." class="form-control mb-3">
-                    <p class="small text-muted">Filtre la liste des codes à placer.</p>
+                    <p class="small text-muted">Filtre la liste des codes disponibles.</p>
                 </div>
             </div>
             <div class="accordion-item open">
-                <div class="accordion-header"><h3>Codes à placer <span id="unplaced-counter">(0)</span></h3><span class="accordion-arrow">▶</span></div>
+                <div class="accordion-header"><h3>Codes disponibles <span id="unplaced-counter">(0)</span></h3><span class="accordion-arrow">▶</span></div>
                 <div class="accordion-content" id="unplaced-list-container">
                     <div id="unplaced-list"><p class="text-muted small">Veuillez sélectionner un plan.</p></div>
                 </div>
@@ -110,6 +110,7 @@
         </div>
         
         <div id="tag-edit-toolbar" class="tag-toolbar no-print">
+            <button id="toolbar-highlight" class="btn btn-sm btn-info" title="Surligner toutes les instances"><i class="bi bi-search"></i></button>
             <button id="toolbar-arrow" class="btn btn-sm btn-secondary" title="Ajouter/Modifier la flèche"><i class="bi bi-arrow-up-right"></i></button>
             <div class="btn-group btn-group-sm" role="group">
                 <button type="button" class="btn btn-secondary size-btn" data-size="small">S</button>
