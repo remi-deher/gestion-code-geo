@@ -17,7 +17,7 @@ class GeoCodeController extends BaseController {
     }
 
     public function listAction() {
-        $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
+        $geoCodes = $this->geoCodeManager->getGeoCodesWithPlacementDetails();
         $univers = $this->universManager->getAllUnivers();
         $this->render('geo_codes_list_view', [
             'geoCodes' => $geoCodes,
@@ -134,9 +134,6 @@ class GeoCodeController extends BaseController {
         $this->render('history_view', ['geoCode' => $geoCode, 'history' => $history]);
     }
 
-/**
-     * Affiche une page avec l'historique global de toutes les modifications.
-     */
     public function fullHistoryAction() {
         $fullHistory = $this->geoCodeManager->getFullHistory();
         $this->render('full_history_view', ['history' => $fullHistory]);
@@ -170,8 +167,6 @@ class GeoCodeController extends BaseController {
         header('Location: index.php?action=list');
         exit();
     }
-
-    // --- Actions pour l'Import/Export et l'impression ---
 
     public function showExportAction() {
         $universList = $this->universManager->getAllUnivers();
@@ -386,12 +381,10 @@ class GeoCodeController extends BaseController {
         $pdfGenerator->generateLabelsPdf($groupedCodes, $options);
     }
     
-    // NOUVELLE MÉTHODE POUR L'API
     public function getAllCodesJsonAction() {
         header('Content-Type: application/json');
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
         echo json_encode($geoCodes);
         exit();
     }
-
 }

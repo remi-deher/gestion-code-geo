@@ -28,6 +28,12 @@
     border-radius: 4px;
 }
 
+.geo-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
 .info-code .code-badge {
     font-family: var(--monospace-font);
     font-size: 1.4rem;
@@ -48,6 +54,18 @@
 .zone-reserve { 
     background-color: var(--zone-reserve-bg); 
     color: var(--zone-reserve-color); 
+}
+
+.info-placements {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #eee;
+}
+
+.info-placements .badge {
+    margin-right: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
 /* --- Responsive pour les fiches sur mobile --- */

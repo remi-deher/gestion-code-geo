@@ -76,6 +76,19 @@
                             <?php if (!empty($code['commentaire'])): ?>
                                 <div class="info-comment">💬 <?= htmlspecialchars($code['commentaire']) ?></div>
                             <?php endif; ?>
+                            
+                            <?php if (!empty($code['placements'])): ?>
+                                <div class="info-placements">
+                                    <small class="text-muted">
+                                        <i class="bi bi-pin-map-fill"></i> Placé sur :
+                                        <?php foreach ($code['placements'] as $placement): ?>
+                                            <a href="index.php?action=viewPlan&id=<?= $placement['plan_id'] ?>" class="badge bg-secondary text-decoration-none">
+                                                <?= htmlspecialchars($placement['plan_name']) ?> (<?= $placement['placement_count'] ?>x)
+                                            </a>
+                                        <?php endforeach; ?>
+                                    </small>
+                                </div>
+                            <?php endif; ?>
                         </div>
                         <div class="geo-card-actions d-grid gap-2">
                             <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil-fill"></i><span class="btn-text"> Modifier</span></a>
@@ -95,7 +108,7 @@
                         <th data-sort="code_geo">Code Géo</th>
                         <th data-sort="libelle">Libellé</th>
                         <th data-sort="univers">Univers</th>
-                        <th data-sort="zone">Zone</th>
+                        <th>Placements</th>
                         <th class="no-print no-sort text-center">Actions</th>
                     </tr>
                 </thead>
@@ -110,7 +123,17 @@
                                 <td><?= htmlspecialchars($code['code_geo']) ?></td>
                                 <td><?= htmlspecialchars($code['libelle']) ?></td>
                                 <td><?= htmlspecialchars($code['univers']) ?></td>
-                                <td><?= htmlspecialchars($code['zone']) ?></td>
+                                <td>
+                                    <?php if (empty($code['placements'])): ?>
+                                        <span class="text-muted small">Aucun</span>
+                                    <?php else: ?>
+                                        <?php foreach ($code['placements'] as $placement): ?>
+                                            <a href="index.php?action=viewPlan&id=<?= $placement['plan_id'] ?>" class="badge bg-secondary text-decoration-none mb-1 d-inline-block">
+                                                <?= htmlspecialchars($placement['plan_name']) ?> (<?= $placement['placement_count'] ?>x)
+                                            </a>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="item-actions no-print text-center">
                                     <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-warning" title="Modifier"><i class="bi bi-pencil-fill"></i></a>
                                     <a href="index.php?action=history&id=<?= $code['id'] ?>" class="btn btn-info" title="Historique"><i class="bi bi-clock-history"></i></a>
