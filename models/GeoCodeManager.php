@@ -221,4 +221,21 @@ class GeoCodeManager {
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public function getGeoCodesByUniversIds(array $universIds): array
+    {
+        if (empty($universIds)) {
+            return [];
+        }
+        $in = str_repeat('?,', count($universIds) - 1) . '?';
+        $sql = "
+            SELECT gc.*, u.nom as univers
+            FROM geo_codes gc
+            LEFT JOIN univers u ON gc.univers_id = u.id
+            WHERE gc.univers_id IN ($in) AND gc.deleted_at IS NULL
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($universIds);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
