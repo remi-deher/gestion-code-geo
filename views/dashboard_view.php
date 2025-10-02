@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="d-flex gap-2 mt-3 mt-md-0">
             <a href="index.php?action=list" class="btn btn-outline-secondary"><i class="bi bi-list-ul"></i> Voir la liste</a>
             <a href="index.php?action=create" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter</a>
-            <a href="index.php?action=plan" class="btn btn-secondary"><i class="bi bi-map-fill"></i> Plan</a>
+            <a href="index.php?action=listPlans" class="btn btn-secondary"><i class="bi bi-map-fill"></i> Plan</a>
         </div>
     </div>
 
