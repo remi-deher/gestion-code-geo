@@ -287,3 +287,31 @@
 #tag-edit-toolbar .btn-group .btn {
     margin: 0;
 }
+
+/* --- STYLES POUR LE MODE PLEINE FENÊTRE --- */
+.plan-page-container.fullscreen-mode {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 2000; /* Au-dessus de tout, y compris la navbar */
+    background-color: #f8f9fa; /* Un fond pour cacher le reste de la page */
+    padding: 0;
+    margin: 0;
+}
+
+/* On s'assure que la barre d'outils reste bien visible et s'adapte */
+.plan-page-container.fullscreen-mode .plan-toolbar {
+    border-radius: 0;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Le conteneur du canvas prend tout l'espace restant */
+.plan-page-container.fullscreen-mode .plan-main-content {
+    height: 100%;
+}
+.plan-page-container.fullscreen-mode #plan-container {
+    border-radius: 0;
+    border: none;
+}

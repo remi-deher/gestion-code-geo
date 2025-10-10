@@ -15,6 +15,11 @@
         <div class="plan-toolbar no-print">
             <a href="index.php?action=listPlans" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Retour à la liste des plans</a>
             <h3 class="mb-0 mx-auto"><?= htmlspecialchars($plan['nom']) ?></h3>
+            
+            <button class="btn btn-secondary" id="fullscreen-btn" title="Plein écran">
+                <i class="bi bi-arrows-fullscreen"></i>
+            </button>
+            
             <a href="index.php?action=manageCodes&id=<?= $plan['id'] ?>" class="btn btn-primary"><i class="bi bi-pencil-square"></i> Passer en mode édition</a>
         </div>
 
