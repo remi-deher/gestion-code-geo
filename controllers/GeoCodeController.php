@@ -248,11 +248,11 @@ class GeoCodeController extends BaseController {
             $csvFile = $_FILES['csvFile']['tmp_name'];
             $fileHandle = fopen($csvFile, 'r');
             
-            $header = fgetcsv($fileHandle, 0, ';');
+            $header = fgetcsv($fileHandle, 0, ';', '"');
             $allRows = [];
             $codesToCheck = [];
 
-            while (($row = fgetcsv($fileHandle, 0, ';')) !== false) {
+            while (($row = fgetcsv($fileHandle, 0, ';', '"')) !== false) {
                 $data = array_combine($header, $row);
                 if (!empty(trim($data['code_geo']))) {
                     $allRows[] = $data;
@@ -388,3 +388,5 @@ class GeoCodeController extends BaseController {
         exit();
     }
 }
+
+?>
