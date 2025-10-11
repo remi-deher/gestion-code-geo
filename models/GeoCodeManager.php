@@ -132,6 +132,56 @@ class GeoCodeManager {
         return false;
     }
 
+    public function createBatchGeoCodes(array $codes)
+    {
+        $this->db->beginTransaction();
+        try {
+            $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
+            $stmt = $this->db->prepare($sql);
+            foreach ($codes as $code) {
+                $stmt->execute([
+                    $code['code_geo'],
+                    $code['libelle'],
+                    $code['univers_id'],
+                    $code['zone'],
+                    $code['commentaire']
+                ]);
+                $this->logHistory($this->db->lastInsertId(), 'created', 'Batch creation');
+            }
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            // You might want to log the error message: error_log($e->getMessage());
+            return false;
+        }
+    }
+    
+    public function createMultipleGeoCodes(array $codes, UniversManager $universManager)
+    {
+        $this->db->beginTransaction();
+        try {
+            $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire) VALUES (?, ?, ?, ?, ?)";
+            $stmt = $this->db->prepare($sql);
+            foreach ($codes as $code) {
+                $univers_id = $universManager->getOrCreateUniversId($code['univers'], $code['zone']);
+                $stmt->execute([
+                    $code['code_geo'],
+                    $code['libelle'],
+                    $univers_id,
+                    $code['zone'],
+                    $code['commentaire']
+                ]);
+                $this->logHistory($this->db->lastInsertId(), 'created', 'CSV Import');
+            }
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            return false;
+        }
+    }
+
     public function updateGeoCode(int $id, string $code_geo, string $libelle, int $univers_id, string $zone, ?string $commentaire) {
         $oldData = $this->getGeoCodeById($id);
         $sql = "UPDATE geo_codes SET code_geo = ?, libelle = ?, univers_id = ?, zone = ?, commentaire = ? WHERE id = ?";
@@ -286,5 +336,41 @@ class GeoCodeManager {
         $stmt = $this->db->prepare($sql);
         $stmt->execute($universIds);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    public function getFilteredGeoCodes(array $filters): array
+    {
+        $sql = "SELECT gc.code_geo, gc.libelle, u.nom as univers, gc.zone, gc.commentaire
+                FROM geo_codes gc
+                LEFT JOIN univers u ON gc.univers_id = u.id
+                WHERE gc.deleted_at IS NULL";
+
+        $params = [];
+        if (!empty($filters['zones'])) {
+            $in = str_repeat('?,', count($filters['zones']) - 1) . '?';
+            $sql .= " AND gc.zone IN ($in)";
+            $params = array_merge($params, $filters['zones']);
+        }
+        if (!empty($filters['univers_ids'])) {
+            $in = str_repeat('?,', count($filters['univers_ids']) - 1) . '?';
+            $sql .= " AND gc.univers_id IN ($in)";
+            $params = array_merge($params, $filters['univers_ids']);
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    public function getExistingCodes(array $codes): array
+    {
+        if (empty($codes)) {
+            return [];
+        }
+        $in = str_repeat('?,', count($codes) - 1) . '?';
+        $sql = "SELECT code_geo FROM geo_codes WHERE code_geo IN ($in) AND deleted_at IS NULL";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($codes);
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 }

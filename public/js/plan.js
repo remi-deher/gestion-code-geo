@@ -158,6 +158,14 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
         canvas.addEventListener('touchend', handleTouchEnd);
         
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (isPlacementMode) {
+                    cancelPlacementMode();
+                }
+            }
+        });
+
         if (zoomInBtn) zoomInBtn.addEventListener('click', () => zoom(1.2));
         if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => zoom(0.8));
         if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetView);
@@ -430,7 +438,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('index.php?action=getAllCodesJson');
             allCodesData = await response.json();
         }
-        cancelPlacementMode();
+        // Ne quitte pas le mode placement pour permettre de placer à nouveau
+        // Pour quitter, l'utilisateur doit appuyer sur Echap
         await fetchAndDisplayUnplacedCodes(currentPlanId);
         draw();
     }
