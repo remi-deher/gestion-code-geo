@@ -4,8 +4,33 @@
     <meta charset="UTF-8">
     <title><?= htmlspecialchars($options['title'] ?? 'Impression des Étiquettes') ?></title>
     <link rel="stylesheet" href="css/print.css">
+
+    <?php
+        // --- INJECTION DYNAMIQUE DES STYLES ---
+        $pageSize = $options['page_size'] ?? 'A4';
+        $orientation = $options['orientation'] ?? 'portrait';
+        $margins = (int)($options['margins'] ?? 10);
+        $columns = (int)($options['columns'] ?? 2);
+        $gap = (int)($options['gap'] ?? 4);
+    ?>
+    <style>
+        :root {
+            --grid-gap: <?= $gap ?>mm;
+        }
+
+        @media print {
+            @page {
+                size: <?= htmlspecialchars($pageSize) ?> <?= htmlspecialchars($orientation) ?>;
+                margin: <?= $margins ?>mm;
+            }
+
+            .print-grid {
+                grid-template-columns: repeat(<?= $columns ?>, 1fr);
+            }
+        }
+    </style>
 </head>
-<body class="template-<?= htmlspecialchars($options['template']) ?>">
+<body class="template-<?= htmlspecialchars($options['template']) ?> <?= $options['cut_lines'] ? 'with-cut-lines' : '' ?>">
     <div class="page-container">
         <header class="print-header no-print">
             <?php if (!empty($options['title'])): ?>
@@ -66,13 +91,13 @@
             let qrSize;
 
             if (templateClass.includes('template-qr-left')) {
-                qrSize = 130; // ~35mm
+                qrSize = 130;
             } else if (templateClass.includes('template-qr-top')) {
-                qrSize = 130; // ~35mm
+                qrSize = 130;
             } else if (templateClass.includes('template-compact')) {
-                qrSize = 75;  // ~20mm
+                qrSize = 75;
             } else {
-                qrSize = 80;  // Default
+                qrSize = 80;
             }
 
             document.querySelectorAll('.print-qr-code').forEach(container => {

@@ -9,7 +9,7 @@
 <div class="container">
     <section>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Options d'Impression</h1>
+            <h1><i class="bi bi-printer-fill"></i> Options d'Impression</h1>
         </div>
         
         <form action="index.php?action=generatePrint" method="POST" target="_blank" class="print-options-form">
@@ -43,26 +43,11 @@
                     <div class="card">
                         <div class="card-header"><span class="step-number">2</span> Choisir les informations à inclure</div>
                         <div class="card-body field-selection">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="fields[]" value="qrcode" id="field_qrcode" checked>
-                                <label class="form-check-label" for="field_qrcode">QR Code</label>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="fields[]" value="code_geo" id="field_code_geo" checked>
-                                <label class="form-check-label" for="field_code_geo">Code Géo (texte)</label>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="fields[]" value="libelle" id="field_libelle" checked>
-                                <label class="form-check-label" for="field_libelle">Libellé</label>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="fields[]" value="univers" id="field_univers">
-                                <label class="form-check-label" for="field_univers">Univers</label>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="fields[]" value="commentaire" id="field_commentaire">
-                                <label class="form-check-label" for="field_commentaire">Commentaire</label>
-                            </div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="fields[]" value="qrcode" id="field_qrcode" checked><label class="form-check-label" for="field_qrcode">QR Code</label></div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="fields[]" value="code_geo" id="field_code_geo" checked><label class="form-check-label" for="field_code_geo">Code Géo (texte)</label></div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="fields[]" value="libelle" id="field_libelle" checked><label class="form-check-label" for="field_libelle">Libellé</label></div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="fields[]" value="univers" id="field_univers"><label class="form-check-label" for="field_univers">Univers</label></div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="fields[]" value="commentaire" id="field_commentaire"><label class="form-check-label" for="field_commentaire">Commentaire</label></div>
                         </div>
                     </div>
 
@@ -70,7 +55,7 @@
 
                 <div class="col-lg-5">
                     <div class="card sticky-top" style="top: calc(var(--navbar-height) + 1rem);">
-                        <div class="card-header"><span class="step-number">3</span> Choisir la disposition et l'aperçu</div>
+                        <div class="card-header"><span class="step-number">3</span> Aperçu et mise en page</div>
                         <div class="card-body">
                             
                             <div class="mb-4">
@@ -89,14 +74,51 @@
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Format de l'étiquette :</label>
-                                 <select name="template" id="layout_format" class="form-select">
+                                <label class="form-label fw-bold">Disposition des étiquettes</label>
+                                 <select name="template" id="layout_format" class="form-select mb-2">
                                     <option value="qr-left">Classique (85mm x 40mm)</option>
                                     <option value="qr-top">Verticale (60mm x 55mm)</option>
                                     <option value="compact">Compacte (85mm x 25mm)</option>
                                 </select>
+                                <div class="row g-2">
+                                    <div class="col">
+                                        <label for="columns" class="form-label small">Colonnes</label>
+                                        <input type="number" id="columns" name="columns" class="form-control" value="2" min="1" max="5">
+                                    </div>
+                                    <div class="col">
+                                        <label for="gap" class="form-label small">Espace (mm)</label>
+                                        <input type="number" id="gap" name="gap" class="form-control" value="4" min="0">
+                                    </div>
+                                </div>
                             </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Mise en page de la feuille</label>
+                                <div class="row g-2">
+                                    <div class="col">
+                                        <label for="page_size" class="form-label small">Format</label>
+                                        <select name="page_size" id="page_size" class="form-select">
+                                            <option value="A4" selected>A4</option>
+                                            <option value="A5">A5</option>
+                                            <option value="letter">Letter</option>
+                                        </select>
+                                    </div>
+                                    <div class="col">
+                                        <label for="orientation" class="form-label small">Orientation</label>
+                                        <select name="orientation" id="orientation" class="form-select">
+                                            <option value="portrait" selected>Portrait</option>
+                                            <option value="landscape">Paysage</option>
+                                        </select>
+                                    </div>
+                                    <div class="col">
+                                        <label for="margins" class="form-label small">Marges (mm)</label>
+                                        <input type="number" id="margins" name="margins" class="form-control" value="10" min="0">
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <hr>
+
                             <div class="mb-3">
                                 <label for="print_title" class="form-label">Titre de la page (optionnel)</label>
                                 <input type="text" id="print_title" name="print_title" class="form-control" placeholder="Ex: Inventaire 2025">
@@ -104,6 +126,10 @@
                             <div class="mb-3">
                                 <label for="copies" class="form-label">Copies par étiquette</label>
                                 <input type="number" id="copies" name="copies" class="form-control" value="1" min="1">
+                            </div>
+                             <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="cut_lines" value="1" id="cut_lines">
+                                <label class="form-check-label" for="cut_lines">Afficher les traits de coupe</label>
                             </div>
                         </div>
                     </div>

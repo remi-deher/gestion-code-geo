@@ -179,16 +179,12 @@ class GeoCodeController extends BaseController {
         ];
         
         $columns = $_POST['columns'] ?? ['code_geo', 'libelle', 'univers', 'zone', 'commentaire'];
-        $format = $_POST['format'] ?? 'csv';
         $filename = preg_replace('/[^a-zA-Z0-9-_\.]/', '_', $_POST['filename'] ?? 'export');
 
         $data = $this->geoCodeManager->getFilteredGeoCodes($filters);
 
-        if ($format === 'pdf') {
-            $this->generatePdfExport($data, $columns, $filename);
-        } else {
-            $this->generateCsvExport($data, $columns, $filename);
-        }
+        $this->generateCsvExport($data, $columns, $filename);
+        
         exit();
     }
     
@@ -209,36 +205,6 @@ class GeoCodeController extends BaseController {
         }
         
         fclose($output);
-    }
-
-    private function generatePdfExport(array $data, array $columns, string $filename) {
-        // Cette méthode peut maintenant être considérée comme obsolète ou être adaptée
-        // pour utiliser une autre librairie si besoin d'un vrai PDF serveur.
-        // Pour l'instant, on peut laisser ce code, même s'il ne sera plus appelé.
-        $pdf = new FPDF('L', 'mm', 'A4');
-        $pdf->AddPage();
-        $pdf->SetFont('Arial', 'B', 12);
-        
-        $pdf->Cell(0, 10, 'Export des Codes Geo', 0, 1, 'C');
-        $pdf->Ln(5);
-
-        $pdf->SetFont('Arial', 'B', 10);
-        $pdf->SetFillColor(230, 230, 230);
-        foreach ($columns as $header) {
-            $pdf->Cell(40, 7, ucfirst($header), 1, 0, 'C', true);
-        }
-        $pdf->Ln();
-
-        $pdf->SetFont('Arial', '', 10);
-        foreach ($data as $row) {
-            foreach ($columns as $col) {
-                $cellData = mb_convert_encoding($row[$col] ?? '', 'ISO-8859-1', 'UTF-8');
-                $pdf->Cell(40, 6, $cellData, 1);
-            }
-            $pdf->Ln();
-        }
-
-        $pdf->Output('D', $filename . '.pdf');
     }
 
     public function showImportAction() {
@@ -322,10 +288,16 @@ class GeoCodeController extends BaseController {
         }
         
         $options = [
-            'title'    => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
-            'copies'   => (int)($_POST['copies'] ?? 1),
-            'fields'   => $_POST['fields'] ?? ['qrcode', 'code_geo', 'libelle'],
-            'template' => $_POST['template'] ?? 'qr-left'
+            'title'         => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
+            'copies'        => (int)($_POST['copies'] ?? 1),
+            'fields'        => $_POST['fields'] ?? ['qrcode', 'code_geo', 'libelle'],
+            'template'      => $_POST['template'] ?? 'qr-left',
+            'page_size'     => $_POST['page_size'] ?? 'A4',
+            'orientation'   => $_POST['orientation'] ?? 'portrait',
+            'margins'       => (int)($_POST['margins'] ?? 10),
+            'columns'       => (int)($_POST['columns'] ?? 2),
+            'gap'           => (int)($_POST['gap'] ?? 4),
+            'cut_lines'     => isset($_POST['cut_lines'])
         ];
 
         $groupedCodes = [];
