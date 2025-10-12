@@ -17,6 +17,15 @@ class PlanController extends BaseController {
         $this->geoCodeManager = new GeoCodeManager($db);
         $this->universManager = new UniversManager($db);
     }
+    
+    private function getUniversColors() {
+        $allUnivers = $this->universManager->getAllUnivers();
+        $universColors = [];
+        foreach ($allUnivers as $u) {
+            $universColors[$u['nom']] = $u['color'];
+        }
+        return $universColors;
+    }
 
     public function manageCodesAction() {
         $planId = (int)($_GET['id'] ?? 0);
@@ -26,25 +35,15 @@ class PlanController extends BaseController {
             exit();
         }
 
-        $allUnivers = $this->universManager->getAllUnivers();
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
         $planWithUniversIds = $this->planManager->getPlanWithUnivers($planId);
         $universForPlan = $this->universManager->getUniversByIds($planWithUniversIds['univers_ids']);
-
-
-        $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
-        $universColors = [];
-        $colorIndex = 0;
-        foreach ($allUnivers as $u) {
-            $universColors[$u['nom']] = $colors[$colorIndex % count($colors)];
-            $colorIndex++;
-        }
-
+        
         $this->render('plan_view', [
             'placedGeoCodes' => $geoCodes,
             'plan' => $plan,
             'universList' => $universForPlan,
-            'universColors' => $universColors
+            'universColors' => $this->getUniversColors()
         ]);
     }
     
@@ -55,21 +54,12 @@ class PlanController extends BaseController {
             header('Location: index.php?action=listPlans');
             exit();
         }
-        $universList = $this->universManager->getAllUnivers();
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
 
-        $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
-        $universColors = [];
-        $colorIndex = 0;
-        foreach ($universList as $univers) {
-            $universColors[$univers['nom']] = $colors[$colorIndex % count($colors)];
-            $colorIndex++;
-        }
-        
         $this->render('plan_viewer_view', [
             'plan' => $plan,
             'placedGeoCodes' => $geoCodes,
-            'universColors' => $universColors
+            'universColors' => $this->getUniversColors()
         ]);
     }
 
@@ -80,17 +70,8 @@ class PlanController extends BaseController {
             header('Location: index.php?action=listPlans');
             exit();
         }
-        $universList = $this->universManager->getAllUnivers();
         $geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
 
-        $colors = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
-        $universColors = [];
-        $colorIndex = 0;
-        foreach ($universList as $univers) {
-            $universColors[$univers['nom']] = $colors[$colorIndex % count($colors)];
-            $colorIndex++;
-        }
-        
         require __DIR__ . '/../views/plan_print_view.php';
     }
 

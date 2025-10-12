@@ -1,32 +1,21 @@
 <?php $title = 'Gérer les Univers'; ?>
 
 <?php ob_start(); ?>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.zone-assign-select').forEach(select => {
-        select.addEventListener('change', (event) => {
-            const universId = event.target.dataset.id;
-            const newZone = event.target.value;
-            const icon = document.createElement('span');
-            icon.textContent = ' 💾';
-            event.target.parentNode.appendChild(icon);
-
-            fetch('index.php?action=updateUniversZone', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: universId, zone: newZone })
-            })
-            .then(response => response.json())
-            .then(data => {
-                icon.textContent = (data.status === 'success') ? ' ✅' : ' ❌';
-                setTimeout(() => icon.remove(), 2000);
-            });
-        });
-    });
-});
-</script>
-<?php $body_scripts = ob_get_clean(); ?>
-
+<style>
+    .color-picker-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .color-picker-wrapper input[type="color"] {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border: none;
+        background: none;
+    }
+</style>
+<?php $head_styles = ob_get_clean(); ?>
 
 <div class="container">
     <section id="univers-manager">
@@ -46,44 +35,52 @@ document.addEventListener('DOMContentLoaded', () => {
                             <option value="reserve">Réserve</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label for="color">Couleur</label>
+                        <input type="color" id="color" name="color" value="#3498db">
+                    </div>
                     <button type="submit">Ajouter</button>
                 </form>
             </div>
 
             <div class="univers-list">
                 <h3>Liste existante</h3>
-                <p>Changez la zone ou téléchargez un modèle d'import.</p>
                 <table class="geo-table">
                     <thead>
                         <tr>
-                            <th>Nom de l'univers</th>
+                            <th>Nom & Couleur</th>
                             <th>Zone Assignée</th>
-                            <th>Modèle d'Import</th>
-                            <th class="no-sort">Actions</th>
+                            <th class="no-sort text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (!empty($universList)): ?>
                             <?php foreach ($universList as $univers): ?>
                                 <tr>
-                                    <td><?= htmlspecialchars($univers['nom']) ?></td>
-                                    <td>
-                                        <select class="zone-assign-select" data-id="<?= $univers['id'] ?>">
-                                            <option value="vente" <?= ($univers['zone_assignee'] == 'vente') ? 'selected' : '' ?>>Vente</option>
-                                            <option value="reserve" <?= ($univers['zone_assignee'] == 'reserve') ? 'selected' : '' ?>>Réserve</option>
-                                        </select>
-                                    </td>
-                                    <td class="item-actions">
-                                        <a href="index.php?action=exportTemplate&id=<?= $univers['id'] ?>" class="btn-download">📥 Télécharger</a>
-                                    </td>
-                                    <td class="item-actions">
-                                        <a href="index.php?action=deleteUnivers&id=<?= $univers['id'] ?>" class="btn-delete" onclick="return confirm('Attention ! Suppression impossible si l\'univers est utilisé.');">❌</a>
-                                    </td>
+                                    <form action="index.php?action=updateUnivers" method="POST">
+                                        <input type="hidden" name="id" value="<?= $univers['id'] ?>">
+                                        <td>
+                                            <div class="color-picker-wrapper">
+                                                <input type="color" name="color" value="<?= htmlspecialchars($univers['color']) ?>">
+                                                <input type="text" name="nom" value="<?= htmlspecialchars($univers['nom']) ?>" class="form-control">
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <select name="zone_assignee" class="form-select">
+                                                <option value="vente" <?= ($univers['zone_assignee'] == 'vente') ? 'selected' : '' ?>>Vente</option>
+                                                <option value="reserve" <?= ($univers['zone_assignee'] == 'reserve') ? 'selected' : '' ?>>Réserve</option>
+                                            </select>
+                                        </td>
+                                        <td class="item-actions text-center">
+                                            <button type="submit" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
+                                            <a href="index.php?action=deleteUnivers&id=<?= $univers['id'] ?>" class="btn btn-sm btn-danger" title="Supprimer" onclick="return confirm('Attention ! Suppression impossible si l\'univers est utilisé.');"><i class="bi bi-trash-fill"></i></a>
+                                        </td>
+                                    </form>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="4">Aucun univers n'a été créé.</td>
+                                <td colspan="3" class="text-center">Aucun univers n'a été créé.</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>

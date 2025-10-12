@@ -1,5 +1,5 @@
 <?php
-// Fichier: models/UniversManager.php
+// Fichier : models/UniversManager.php
 
 class UniversManager {
 
@@ -27,7 +27,8 @@ class UniversManager {
     }
 
     public function getAllUnivers() {
-        return $this->db->query("SELECT id, nom, zone_assignee FROM univers ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+        // On récupère maintenant aussi la couleur
+        return $this->db->query("SELECT id, nom, zone_assignee, color FROM univers ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
     }
     
     public function getOrCreateUniversId(string $nom, string $zone): int {
@@ -42,15 +43,24 @@ class UniversManager {
         if ($result) {
             return (int)$result['id'];
         } else {
-            $this->addUnivers($nom, $zone);
+            // On utilise la nouvelle méthode addUnivers qui gère la couleur
+            $this->addUnivers($nom, $zone, '#3498db'); // Couleur par défaut pour les imports
             return (int)$this->db->lastInsertId();
         }
     }
 
-    public function addUnivers(string $nom, string $zone) {
-        $sql = "INSERT INTO univers (nom, zone_assignee) VALUES (?, ?)";
+    // Mise à jour pour inclure la couleur
+    public function addUnivers(string $nom, string $zone, string $color) {
+        $sql = "INSERT INTO univers (nom, zone_assignee, color) VALUES (?, ?, ?)";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$nom, $zone]);
+        return $stmt->execute([$nom, $zone, $color]);
+    }
+    
+    // NOUVELLE méthode pour mettre à jour un univers
+    public function updateUnivers(int $id, string $nom, string $zone, string $color): bool {
+        $sql = "UPDATE univers SET nom = ?, zone_assignee = ?, color = ? WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([$nom, $zone, $color, $id]);
     }
 
     public function deleteUnivers(int $id) {
@@ -65,6 +75,7 @@ class UniversManager {
         return $stmt->execute([$id]);
     }
     
+    // CONSERVÉE pour la compatibilité avec l'ancien JS, mais on utilisera updateUnivers
     public function updateUniversZone(int $id, string $zone): bool {
         if (!in_array($zone, ['vente', 'reserve'])) {
             return false;

@@ -79,7 +79,7 @@ switch ($action) {
     case 'manageCodes': $planController->manageCodesAction(); break; 
     case 'savePosition': $planController->savePositionAction(); break;
     case 'removePosition': $planController->removePositionAction(); break;
-    case 'removeMultiplePositions': $planController->removeMultiplePositionsAction(); break; // <-- NOUVELLE ROUTE
+    case 'removeMultiplePositions': $planController->removeMultiplePositionsAction(); break;
     case 'saveMultiplePositions': $planController->saveMultiplePositionsAction(); break;
     case 'deletePlan': $planController->deletePlanAction(); break;
     case 'editPlan': $planController->editPlanAction(); break; 
@@ -91,6 +91,7 @@ switch ($action) {
     // Univers
     case 'listUnivers': $universController->listAction(); break;
     case 'addUnivers': $universController->addAction(); break;
+    case 'updateUnivers': $universController->updateAction(); break; // <-- LIGNE AJOUTÉE ICI
     case 'deleteUnivers': $universController->deleteAction(); break;
     case 'updateUniversZone': $universController->updateZoneAction(); break;
 
