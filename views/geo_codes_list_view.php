@@ -102,7 +102,7 @@
         </div>
 
         <div id="table-view" class="d-none">
-            <table class="geo-table">
+            <table class="geo-table responsive-table">
                 <thead>
                     <tr>
                         <th data-sort="code_geo">Code Géo</th>
@@ -120,10 +120,10 @@
                                 data-zone="<?= htmlspecialchars($code['zone']) ?>"
                                 data-code_geo="<?= htmlspecialchars($code['code_geo']) ?>"
                                 data-libelle="<?= htmlspecialchars($code['libelle']) ?>">
-                                <td><?= htmlspecialchars($code['code_geo']) ?></td>
-                                <td><?= htmlspecialchars($code['libelle']) ?></td>
-                                <td><?= htmlspecialchars($code['univers']) ?></td>
-                                <td>
+                                <td data-label="Code Géo"><?= htmlspecialchars($code['code_geo']) ?></td>
+                                <td data-label="Libellé"><?= htmlspecialchars($code['libelle']) ?></td>
+                                <td data-label="Univers"><?= htmlspecialchars($code['univers']) ?></td>
+                                <td data-label="Placements">
                                     <?php if (empty($code['placements'])): ?>
                                         <span class="text-muted small">Aucun</span>
                                     <?php else: ?>
@@ -134,7 +134,7 @@
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </td>
-                                <td class="item-actions no-print text-center">
+                                <td data-label="Actions" class="item-actions no-print text-center">
                                     <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-warning" title="Modifier"><i class="bi bi-pencil-fill"></i></a>
                                     <a href="index.php?action=history&id=<?= $code['id'] ?>" class="btn btn-info" title="Historique"><i class="bi bi-clock-history"></i></a>
                                     <a href="index.php?action=printSingle&id=<?= $code['id'] ?>" target="_blank" class="btn btn-secondary" title="Imprimer"><i class="bi bi-printer-fill"></i></a>
