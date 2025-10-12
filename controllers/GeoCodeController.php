@@ -288,16 +288,18 @@ class GeoCodeController extends BaseController {
         }
         
         $options = [
-            'title'         => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
-            'copies'        => (int)($_POST['copies'] ?? 1),
-            'fields'        => $_POST['fields'] ?? ['qrcode', 'code_geo', 'libelle'],
-            'template'      => $_POST['template'] ?? 'qr-left',
-            'page_size'     => $_POST['page_size'] ?? 'A4',
-            'orientation'   => $_POST['orientation'] ?? 'portrait',
-            'margins'       => (int)($_POST['margins'] ?? 10),
-            'columns'       => (int)($_POST['columns'] ?? 2),
-            'gap'           => (int)($_POST['gap'] ?? 4),
-            'cut_lines'     => isset($_POST['cut_lines'])
+            'title'             => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
+            'copies'            => (int)($_POST['copies'] ?? 1),
+            'fields'            => $_POST['fields'] ?? ['qrcode', 'code_geo', 'libelle'],
+            'template'          => $_POST['template'] ?? 'qr-left',
+            'page_size'         => $_POST['page_size'] ?? 'A4',
+            'orientation'       => $_POST['orientation'] ?? 'portrait',
+            'margins'           => (int)($_POST['margins'] ?? 10),
+            'columns'           => (int)($_POST['columns'] ?? 2),
+            'gap'               => (int)($_POST['gap'] ?? 4),
+            'cut_lines'         => isset($_POST['cut_lines']),
+            'separate_univers'  => isset($_POST['separate_univers']),
+            'show_footer'       => isset($_POST['show_footer'])
         ];
 
         $groupedCodes = [];

@@ -81,39 +81,17 @@
                                     <option value="compact">Compacte (85mm x 25mm)</option>
                                 </select>
                                 <div class="row g-2">
-                                    <div class="col">
-                                        <label for="columns" class="form-label small">Colonnes</label>
-                                        <input type="number" id="columns" name="columns" class="form-control" value="2" min="1" max="5">
-                                    </div>
-                                    <div class="col">
-                                        <label for="gap" class="form-label small">Espace (mm)</label>
-                                        <input type="number" id="gap" name="gap" class="form-control" value="4" min="0">
-                                    </div>
+                                    <div class="col"><label for="columns" class="form-label small">Colonnes</label><input type="number" id="columns" name="columns" class="form-control" value="2" min="1" max="5"></div>
+                                    <div class="col"><label for="gap" class="form-label small">Espace (mm)</label><input type="number" id="gap" name="gap" class="form-control" value="4" min="0"></div>
                                 </div>
                             </div>
                             
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Mise en page de la feuille</label>
                                 <div class="row g-2">
-                                    <div class="col">
-                                        <label for="page_size" class="form-label small">Format</label>
-                                        <select name="page_size" id="page_size" class="form-select">
-                                            <option value="A4" selected>A4</option>
-                                            <option value="A5">A5</option>
-                                            <option value="letter">Letter</option>
-                                        </select>
-                                    </div>
-                                    <div class="col">
-                                        <label for="orientation" class="form-label small">Orientation</label>
-                                        <select name="orientation" id="orientation" class="form-select">
-                                            <option value="portrait" selected>Portrait</option>
-                                            <option value="landscape">Paysage</option>
-                                        </select>
-                                    </div>
-                                    <div class="col">
-                                        <label for="margins" class="form-label small">Marges (mm)</label>
-                                        <input type="number" id="margins" name="margins" class="form-control" value="10" min="0">
-                                    </div>
+                                    <div class="col"><label for="page_size" class="form-label small">Format</label><select name="page_size" id="page_size" class="form-select"><option value="A4" selected>A4</option><option value="A5">A5</option><option value="letter">Letter</option></select></div>
+                                    <div class="col"><label for="orientation" class="form-label small">Orientation</label><select name="orientation" id="orientation" class="form-select"><option value="portrait" selected>Portrait</option><option value="landscape">Paysage</option></select></div>
+                                    <div class="col"><label for="margins" class="form-label small">Marges (mm)</label><input type="number" id="margins" name="margins" class="form-control" value="10" min="0"></div>
                                 </div>
                             </div>
                             
@@ -127,19 +105,16 @@
                                 <label for="copies" class="form-label">Copies par étiquette</label>
                                 <input type="number" id="copies" name="copies" class="form-control" value="1" min="1">
                             </div>
-                             <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="cut_lines" value="1" id="cut_lines">
-                                <label class="form-check-label" for="cut_lines">Afficher les traits de coupe</label>
-                            </div>
+                            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" name="cut_lines" value="1" id="cut_lines"><label class="form-check-label" for="cut_lines">Afficher les traits de coupe</label></div>
+                            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" name="separate_univers" value="1" id="separate_univers" checked><label class="form-check-label" for="separate_univers">Séparer les univers par page</label></div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="show_footer" value="1" id="show_footer" checked><label class="form-check-label" for="show_footer">Afficher l'en-tête et le pied de page</label></div>
                         </div>
                     </div>
                 </div>
             </div>
             
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-generate">
-                    <i class="bi bi-file-earmark-text-fill"></i> Générer la page d'impression
-                </button>
+                <button type="submit" class="btn btn-primary btn-generate"><i class="bi bi-file-earmark-text-fill"></i> Générer la page d'impression</button>
             </div>
         </form>
     </section>
@@ -153,15 +128,11 @@
         const universCheckboxes = document.querySelectorAll('.univers-selection input[type="checkbox"]');
 
         if(selectAllBtn) {
-            selectAllBtn.addEventListener('click', () => {
-                universCheckboxes.forEach(cb => cb.checked = true);
-            });
+            selectAllBtn.addEventListener('click', () => { universCheckboxes.forEach(cb => cb.checked = true); });
         }
         
         if(deselectAllBtn) {
-            deselectAllBtn.addEventListener('click', () => {
-                universCheckboxes.forEach(cb => cb.checked = false);
-            });
+            deselectAllBtn.addEventListener('click', () => { universCheckboxes.forEach(cb => cb.checked = false); });
         }
     });
 </script>
