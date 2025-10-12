@@ -1,6 +1,5 @@
 {
     "require": {
-        "fpdf/fpdf": "^1.86",
         "chillerlan/php-qrcode": "^5.0"
     },
     "require-dev": {
