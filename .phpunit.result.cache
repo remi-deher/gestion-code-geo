@@ -1,0 +1,1 @@
+{"version":2,"defects":{"PdfGeneratorTest::testGenerateLabelsPdfDrawsCorrectContent":8},"times":{"GeoCodeManagerTest::testGetGeoCodeById":0.007,"PdfGeneratorTest::testGenerateLabelsPdfDrawsCorrectContent":0.394,"UniversManagerTest::testGetUniversById":0,"UniversManagerTest::testAddUnivers":0,"UniversManagerTest::testDeleteUniversFailsIfUsed":0}}

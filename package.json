@@ -1,0 +1,22 @@
+{
+  "name": "gestion-code-geo",
+  "version": "1.0.0",
+  "description": "Tests JavaScript pour l'application de gestion de codes géo.",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "roots": [
+      "<rootDir>/tests/js"
+    ]
+  }
+}
