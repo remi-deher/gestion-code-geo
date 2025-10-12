@@ -7,7 +7,7 @@
     margin: 0;
     max-width: 100%;
     padding: 0;
-    overflow-x: hidden;
+    overflow: hidden;
     position: relative;
 }
 
@@ -21,18 +21,28 @@
     display: flex;
     flex-direction: column;
     transition: margin-left 0.3s ease-in-out;
+    z-index: 1000;
+}
+
+.add-code-section {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#unplaced-list-container {
+    overflow-y: auto;
+    flex-grow: 1; /* Permet à la liste de prendre l'espace restant */
 }
 
 #unplaced-list .unplaced-item {
     cursor: pointer;
-    background-color: var(--light-gray);
-    padding: 0.5rem;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    margin-bottom: 0.5rem;
+    background-color: #fff;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    transition: background-color 0.2s;
 }
 
 #unplaced-list .unplaced-item:hover, .unplaced-item.placement-active {
@@ -43,7 +53,14 @@
     background-color: var(--primary-color) !important;
     color: white;
 }
-.unplaced-item.placement-active .item-libelle { color: #eee; }
+.unplaced-item.placement-active .item-libelle,
+.unplaced-item.placement-active .item-code,
+.unplaced-item.placement-active .placement-counter { 
+    color: white;
+}
+
+.unplaced-item .item-code { font-weight: bold; }
+.unplaced-item .item-libelle { font-size: 0.8rem; color: #6c757d; }
 
 .placement-counter {
     font-size: 0.8rem;
@@ -54,13 +71,8 @@
     color: #6c757d;
 }
 
-.unplaced-item.is-placed {
-    opacity: 0.7;
-}
-
-.unplaced-item.is-placed .item-code {
-    text-decoration: line-through;
-}
+.unplaced-item.is-placed { opacity: 0.7; }
+.unplaced-item.is-placed .item-code { text-decoration: line-through; }
 
 
 .plan-main-content {
@@ -68,12 +80,13 @@
     display: flex;
     flex-direction: column;
     position: relative;
+    overflow: hidden;
 }
 
 #toggle-sidebar-btn {
     position: absolute;
     top: 50%;
-    left: 300px;
+    left: 300px; /* Position initiale quand la sidebar est visible */
     transform: translateY(-50%);
     z-index: 1050;
     height: 60px;
@@ -107,19 +120,15 @@
 .plan-toolbar {
     display: flex;
     gap: 1rem;
-    margin: 1rem;
+    padding: 0.5rem 1rem;
     align-items: center;
-    flex-wrap: wrap;
-}
-
-#touch-controls-toolbar {
-    padding-top: 0;
-    margin-top: 0;
+    border-bottom: 1px solid var(--border-color);
+    background-color: #fff;
 }
 
 #plan-container {
     flex-grow: 1;
-    background-color: #ffffff; 
+    background-color: var(--light-gray); 
     overflow: hidden;
     position: relative;
     display: flex;
@@ -128,128 +137,18 @@
 }
 
 #plan-canvas {
-    border: 2px dashed #adb5bd;
     box-shadow: 0 0 15px rgba(0,0,0,0.1);
     background-color: #ffffff;
     box-sizing: border-box;
-}
-
-#placement-mode-banner {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1060;
-    background-color: rgba(0, 0, 0, 0.75);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-}
-
-#zoom-wrapper {
-    width: 100%;
-    height: 100%;
-    cursor: grab;
-    position: relative;
-}
-#zoom-wrapper:active { cursor: grabbing; }
-
-#map-image {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.geo-tag {
-    position: absolute;
-    color: white;
-    font-weight: bold;
-    cursor: grab;
-    user-select: none;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid transparent;
-    transition: box-shadow 0.2s, border-color 0.2s;
-    min-width: 50px;
-    min-height: 25px;
-    overflow: hidden;
-    padding: 4px 8px;
-    font-size: 0.9rem;
-    border-radius: 4px;
-}
-
-.resize-handle {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 15px;
-    height: 15px;
-    cursor: se-resize;
-    background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.4) 50%);
-}
-
-.geo-tag:active {
-    cursor: grabbing;
-}
-
-.geo-tag.selected {
-    border-color: #0d6efd;
-    box-shadow: 0 0 10px rgba(13, 110, 253, 0.7);
-    z-index: 10;
-}
-
-.geo-tag.is-moving {
-    opacity: 0.7;
-    border-style: dashed;
-    cursor: grabbing;
-}
-
-#tag-context-menu {
-    position: absolute;
-    z-index: 1100;
-}
-
-#selection-box {
-    position: absolute;
-    border: 1px dashed #0d6efd;
-    background-color: rgba(13, 110, 253, 0.2);
-    z-index: 100;
-    pointer-events: none;
 }
 
 #zoom-controls {
     position: absolute;
     bottom: 1rem;
     right: 1rem;
+    z-index: 1000;
 }
 
-@media (max-width: 991.98px) {
-    .plan-page-container {
-        flex-direction: column;
-        height: auto;
-    }
-    #unplaced-codes-sidebar {
-        width: 100%;
-        height: auto;
-        max-height: 40vh;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        margin-left: 0 !important;
-    }
-    .plan-main-content {
-        height: calc(100vh - var(--navbar-height) - 40vh);
-    }
-    #toggle-sidebar-btn {
-        display: none;
-    }
-}
 
 #tag-edit-toolbar {
     position: absolute;
@@ -272,10 +171,9 @@
     pointer-events: auto;
 }
 
-/* Correction pour les boutons de la barre d'outils */
 #tag-edit-toolbar .btn {
     background-color: #566573;
-    border-color: #4a5562; /* Ajout d'une bordure pour la séparation visuelle */
+    border-color: #4a5562;
     color: white;
 }
 
@@ -283,35 +181,27 @@
     background-color: #7f8c8d;
 }
 
-/* Assure que les boutons dans le btn-group n'ont pas de marge superflue */
-#tag-edit-toolbar .btn-group .btn {
-    margin: 0;
-}
+/* --- Styles pour les petits écrans --- */
+@media (max-width: 991.98px) {
+    /* Par défaut, la sidebar est cachée */
+    #unplaced-codes-sidebar {
+        margin-left: -300px;
+    }
+    #toggle-sidebar-btn {
+        left: 0; /* Le bouton est à gauche */
+    }
+     #toggle-sidebar-btn i {
+        transform: rotate(180deg); /* La flèche pointe vers la droite */
+    }
 
-/* --- STYLES POUR LE MODE PLEINE FENÊTRE --- */
-.plan-page-container.fullscreen-mode {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: 2000; /* Au-dessus de tout, y compris la navbar */
-    background-color: #f8f9fa; /* Un fond pour cacher le reste de la page */
-    padding: 0;
-    margin: 0;
-}
-
-/* On s'assure que la barre d'outils reste bien visible et s'adapte */
-.plan-page-container.fullscreen-mode .plan-toolbar {
-    border-radius: 0;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-/* Le conteneur du canvas prend tout l'espace restant */
-.plan-page-container.fullscreen-mode .plan-main-content {
-    height: 100%;
-}
-.plan-page-container.fullscreen-mode #plan-container {
-    border-radius: 0;
-    border: none;
+    /* Quand on veut la montrer (via la classe .sidebar-hidden enlevée) */
+    .plan-page-container:not(.sidebar-hidden) #unplaced-codes-sidebar {
+        margin-left: 0;
+    }
+     .plan-page-container:not(.sidebar-hidden) #toggle-sidebar-btn {
+        left: 300px;
+    }
+    .plan-page-container:not(.sidebar-hidden) #toggle-sidebar-btn i {
+        transform: rotate(0deg);
+    }
 }
