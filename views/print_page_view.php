@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF--8">
-    <title><?= htmlspecialchars($options['title']) ?></title>
+    <meta charset="UTF-8">
+    <title><?= htmlspecialchars($options['title'] ?? 'Impression des Étiquettes') ?></title>
     <link rel="stylesheet" href="css/print.css">
 </head>
 <body class="template-<?= htmlspecialchars($options['template']) ?>">
     <div class="page-container">
-        <header class="print-header">
+        <header class="print-header no-print">
             <?php if (!empty($options['title'])): ?>
                 <h1 class="page-title"><?= htmlspecialchars($options['title']) ?></h1>
             <?php endif; ?>
-            <div class="print-meta no-print">
-                <span>Page générée le <?= date('d/m/Y H:i') ?>.</span>
+            <div class="print-meta">
+                <span>Page générée le <?= date('d/m/Y H:i') ?>. L'aperçu avant impression va s'ouvrir.</span>
                 <button onclick="window.print()">
                     <i class="bi bi-printer-fill"></i> Ré-imprimer
                 </button>
@@ -41,11 +41,11 @@
                                         <?php endif; ?>
                                         
                                         <?php if (in_array('univers', $options['fields'])): ?>
-                                            <div class="print-univers"><strong>Univers :</strong> <?= htmlspecialchars($code['univers']) ?></div>
+                                            <div class="print-univers"><strong>Univers:</strong> <?= htmlspecialchars($code['univers']) ?></div>
                                         <?php endif; ?>
 
                                         <?php if (!empty($code['commentaire']) && in_array('commentaire', $options['fields'])): ?>
-                                            <div class="print-comment"><strong>Note :</strong> <?= htmlspecialchars($code['commentaire']) ?></div>
+                                            <div class="print-comment"><strong>Note:</strong> <?= htmlspecialchars($code['commentaire']) ?></div>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -62,21 +62,19 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. Déterminer la taille du QR code en fonction de la classe du body
             const templateClass = document.body.className;
             let qrSize;
 
             if (templateClass.includes('template-qr-left')) {
-                qrSize = 130; // 35mm approx.
+                qrSize = 130; // ~35mm
             } else if (templateClass.includes('template-qr-top')) {
-                qrSize = 130; // 35mm approx.
+                qrSize = 130; // ~35mm
             } else if (templateClass.includes('template-compact')) {
-                qrSize = 75;  // 20mm approx.
+                qrSize = 75;  // ~20mm
             } else {
-                qrSize = 80;  // Taille par défaut
+                qrSize = 80;  // Default
             }
 
-            // 2. Générer chaque QR code avec la taille dynamique calculée
             document.querySelectorAll('.print-qr-code').forEach(container => {
                 const codeText = container.dataset.code;
                 if (codeText) {
@@ -89,7 +87,6 @@
                 }
             });
 
-            // 3. Lancer l'impression après un court délai pour la génération des QR codes
             setTimeout(() => { 
                 window.print(); 
             }, 500);

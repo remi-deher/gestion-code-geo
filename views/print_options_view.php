@@ -11,7 +11,8 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Options d'Impression</h1>
         </div>
-        <form action="index.php?action=generatePdf" method="POST" target="_blank" class="print-options-form">
+        
+        <form action="index.php?action=generatePrint" method="POST" target="_blank" class="print-options-form">
             <div class="row g-4">
                 <div class="col-lg-7">
                     
@@ -111,7 +112,7 @@
             
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-generate">
-                    <i class="bi bi-file-earmark-pdf-fill"></i> Générer le PDF
+                    <i class="bi bi-file-earmark-text-fill"></i> Générer la page d'impression
                 </button>
             </div>
         </form>

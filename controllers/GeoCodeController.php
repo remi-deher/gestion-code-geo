@@ -4,7 +4,6 @@
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/GeoCodeManager.php';
 require_once __DIR__ . '/../models/UniversManager.php';
-require_once __DIR__ . '/../helpers/PdfGenerator.php';
 
 class GeoCodeController extends BaseController {
     
@@ -213,6 +212,9 @@ class GeoCodeController extends BaseController {
     }
 
     private function generatePdfExport(array $data, array $columns, string $filename) {
+        // Cette méthode peut maintenant être considérée comme obsolète ou être adaptée
+        // pour utiliser une autre librairie si besoin d'un vrai PDF serveur.
+        // Pour l'instant, on peut laisser ce code, même s'il ne sera plus appelé.
         $pdf = new FPDF('L', 'mm', 'A4');
         $pdf->AddPage();
         $pdf->SetFont('Arial', 'B', 12);
@@ -351,35 +353,6 @@ class GeoCodeController extends BaseController {
         
         require __DIR__ . '/../views/print_single_view.php';
     }
-
-    public function generatePdfAction() {
-        require_once __DIR__ . '/../helpers/PdfGenerator.php';
-
-        $universIds = $_POST['univers_ids'] ?? [];
-        $geoCodes = [];
-        if (!empty($universIds)) {
-            $geoCodes = $this->geoCodeManager->getGeoCodesByUniversIds(array_map('intval', $universIds));
-        }
-        
-        $options = [
-            'title'    => trim($_POST['print_title'] ?? 'Impression des Étiquettes'),
-            'copies'   => (int)($_POST['copies'] ?? 1),
-            'fields'   => $_POST['fields'] ?? ['qrcode', 'code_geo', 'libelle'],
-            'template' => $_POST['template'] ?? 'qr-left'
-        ];
-
-        $groupedCodes = [];
-        foreach ($geoCodes as $code) {
-            $groupedCodes[$code['univers']][] = $code;
-        }
-
-        if (empty($groupedCodes)) {
-            die("Aucun code à imprimer pour la sélection effectuée.");
-        }
-
-        $pdfGenerator = new PdfGenerator();
-        $pdfGenerator->generateLabelsPdf($groupedCodes, $options);
-    }
     
     public function getAllCodesJsonAction() {
         header('Content-Type: application/json');
@@ -388,5 +361,3 @@ class GeoCodeController extends BaseController {
         exit();
     }
 }
-
-?>
