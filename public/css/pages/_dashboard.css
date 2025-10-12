@@ -9,7 +9,24 @@
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
     border: none;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    opacity: 0; /* Caché par défaut pour l'animation */
+    transform: translateY(20px);
+    animation: fadeInUp 0.5s ease-out forwards;
 }
+
+/* Animation d'apparition */
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* On décale l'animation pour chaque carte */
+.row > div:nth-child(2) .dashboard-card { animation-delay: 0.1s; }
+.row > div:nth-child(3) .dashboard-card { animation-delay: 0.2s; }
+.row > div:nth-child(4) .dashboard-card { animation-delay: 0.3s; }
+
 
 .dashboard-card:hover {
     transform: translateY(-5px);
@@ -64,10 +81,12 @@
     height: 25px;
     font-size: 0.9rem;
     font-weight: bold;
+    background-color: #e9ecef;
 }
 
 .progress-card .progress-bar {
     background-color: #2ecc71; /* Vert succès */
+    transition: width 1s ease-out; /* Ajout de la transition pour l'animation */
 }
 
 /* --- Listes améliorées (codes à placer / derniers ajouts) --- */
@@ -91,4 +110,23 @@
 .dashboard-list .item-info .libelle {
     font-size: 0.9rem;
     color: #6c757d;
+}
+
+/* --- Badges de zone (copiés depuis _cards.css pour être sûr) --- */
+.zone-badge {
+    font-size: 0.9rem;
+    font-weight: bold;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    text-transform: capitalize;
+}
+.zone-vente { 
+    background-color: var(--zone-vente-bg); 
+    color: var(--zone-vente-color); 
+    border: 1px solid var(--zone-vente-color);
+}
+.zone-reserve { 
+    background-color: var(--zone-reserve-bg); 
+    color: var(--zone-reserve-color);
+    border: 1px solid var(--zone-reserve-color);
 }

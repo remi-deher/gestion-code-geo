@@ -4,10 +4,10 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // --- GRAPHIQUE ---
     const ctx = document.getElementById('universChart');
     if (ctx) {
         const chartData = <?= json_encode($chartJsData) ?>;
-
         new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -15,10 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 datasets: [{
                     label: 'Codes Géo',
                     data: chartData.data,
-                    backgroundColor: [
-                        '#3498db', '#e74c3c', '#2ecc71', '#f1c40f', 
-                        '#9b59b6', '#1abc9c', '#e67e22', '#34495e'
-                    ],
+                    backgroundColor: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'],
                     hoverOffset: 4,
                     borderColor: '#fff',
                     borderWidth: 2
@@ -28,9 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 responsive: true,
                 cutout: '70%',
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                    },
+                    legend: { position: 'bottom' },
                     title: {
                         display: true,
                         text: 'Répartition des codes par univers',
@@ -40,6 +35,48 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // --- ANIMATIONS AU SCROLL ---
+    const animateOnScroll = (entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const el = entry.target;
+
+                // Animation des compteurs
+                if (el.classList.contains('stat-number')) {
+                    const target = +el.dataset.target;
+                    el.innerText = '0';
+                    const increment = Math.ceil(target / 100);
+                    let current = 0;
+                    
+                    const updateCounter = () => {
+                        current += increment;
+                        if (current < target) {
+                            el.innerText = current;
+                            requestAnimationFrame(updateCounter);
+                        } else {
+                            el.innerText = target;
+                        }
+                    };
+                    updateCounter();
+                }
+                
+                // Animation de la barre de progression
+                if (el.classList.contains('progress-bar')) {
+                    el.style.width = el.dataset.width;
+                }
+
+                observer.unobserve(el);
+            }
+        });
+    };
+
+    const observer = new IntersectionObserver(animateOnScroll, {
+        threshold: 0.5
+    });
+
+    document.querySelectorAll('.stat-number').forEach(el => observer.observe(el));
+    document.querySelectorAll('.progress-bar').forEach(el => observer.observe(el));
 });
 </script>
 <?php $body_scripts = ob_get_clean(); ?>
@@ -50,36 +87,34 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="d-flex gap-2 mt-3 mt-md-0">
             <a href="index.php?action=list" class="btn btn-outline-secondary"><i class="bi bi-list-ul"></i> Voir la liste</a>
             <a href="index.php?action=create" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter</a>
-            <a href="index.php?action=listPlans" class="btn btn-secondary"><i class="bi bi-map-fill"></i> Plan</a>
+            <a href="index.php?action=listPlans" class="btn btn-secondary"><i class="bi bi-map-fill"></i> Gérer les Plans</a>
         </div>
     </div>
 
     <div class="row g-4 mb-4">
-        <div class="col-lg-4 col-md-6">
+        <div class="col-lg-3 col-md-6">
             <div class="card dashboard-card stat-card h-100">
                 <div class="card-body">
                     <div class="stat-icon icon-total"><i class="bi bi-box-seam"></i></div>
                     <div>
                         <h5>Codes Géo Total</h5>
-                        <span class="stat-number"><?= $stats['totalCodes'] ?></span>
+                        <span class="stat-number" data-target="<?= $stats['totalCodes'] ?>">0</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <?php 
-            $percentage = ($stats['totalCodes'] > 0) ? ($stats['placedCodes'] / $stats['totalCodes']) * 100 : 0;
-        ?>
-        <div class="col-lg-4 col-md-6">
+        <?php $percentage = ($stats['totalCodes'] > 0) ? ($stats['placedCodes'] / $stats['totalCodes']) * 100 : 0; ?>
+        <div class="col-lg-5 col-md-6">
             <div class="card dashboard-card progress-card h-100">
                  <div class="card-body d-flex flex-column justify-content-center">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Progression</h5>
+                        <h5 class="card-title mb-0">Progression du Placement</h5>
                         <span class="fw-bold fs-5"><?= round($percentage) ?>%</span>
                     </div>
                     <p class="text-muted small mb-2"><?= $stats['placedCodes'] ?> sur <?= $stats['totalCodes'] ?> codes placés</p>
                     <div class="progress" title="<?= round($percentage) ?>% Placé">
-                        <div class="progress-bar" role="progressbar" style="width: <?= $percentage ?>%;" aria-valuenow="<?= $percentage ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar" role="progressbar" data-width="<?= $percentage ?>%" style="width: 0%;" aria-valuenow="<?= $percentage ?>" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                  </div>
             </div>
@@ -94,14 +129,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="fw-bold">Zone de Vente</span>
                             <small class="text-muted d-block"><?= $stats['universByZone']['vente'] ?? 0 ?> univers</small>
                         </div>
-                        <span class="badge bg-primary rounded-pill fs-6"><?= $stats['codesByZone']['vente'] ?? 0 ?> codes</span>
+                        <span class="zone-badge zone-vente"><?= $stats['codesByZone']['vente'] ?? 0 ?> codes</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <span class="fw-bold">Réserve</span>
                             <small class="text-muted d-block"><?= $stats['universByZone']['reserve'] ?? 0 ?> univers</small>
                         </div>
-                        <span class="badge bg-secondary rounded-pill fs-6"><?= $stats['codesByZone']['reserve'] ?? 0 ?> codes</span>
+                        <span class="zone-badge zone-reserve"><?= $stats['codesByZone']['reserve'] ?? 0 ?> codes</span>
                     </div>
                 </div>
             </div>
@@ -118,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="col-lg-7">
             <div class="card dashboard-card dashboard-list mb-4">
-                <div class="card-header"><i class="bi bi-exclamation-triangle-fill"></i> Codes à placer en priorité</div>
+                <div class="card-header"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Codes à placer en priorité</div>
                 <ul class="list-group list-group-flush">
                     <?php if (empty($unplacedCodesList)): ?>
                         <li class="list-group-item text-center text-muted p-4">🎉<br/>Tous les codes sont placés !</li>
@@ -129,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <span class="code-geo"><?= htmlspecialchars($code['code_geo']) ?></span>
                                     <span class="libelle"><?= htmlspecialchars($code['libelle']) ?></span>
                                 </div>
-                                <a href="index.php?action=plan" class="btn btn-sm btn-outline-primary">Placer</a>
+                                <a href="index.php?action=manageCodes&id=1" class="btn btn-sm btn-outline-primary">Placer</a>
                             </li>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -144,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span class="code-geo"><?= htmlspecialchars($code['code_geo']) ?></span>
                                 <div>
                                     <span class="libelle"><?= htmlspecialchars($code['libelle']) ?></span>
-                                    <span class="badge bg-light text-dark"><?= htmlspecialchars($code['univers']) ?></span>
+                                    <span class="badge bg-light text-dark border"><?= htmlspecialchars($code['univers']) ?></span>
                                 </div>
                             </div>
                         </li>
