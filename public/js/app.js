@@ -36,19 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function switchView(view) {
         if (view === 'card') {
-            // Montre la vue fiches et cache la vue tableau
             cardView.classList.remove('d-none');
             tableView.classList.add('d-none');
-
-            // Met à jour les boutons
             viewCardBtn.classList.add('active');
             viewTableBtn.classList.remove('active');
         } else { // view === 'table'
-            // Cache la vue fiches et montre la vue tableau
             cardView.classList.add('d-none');
             tableView.classList.remove('d-none');
-
-            // Met à jour les boutons
             viewCardBtn.classList.remove('active');
             viewTableBtn.classList.add('active');
         }
@@ -108,10 +102,21 @@ document.addEventListener('DOMContentLoaded', () => {
         allZoneTabs.forEach(t => t.classList.remove('active'));
         document.querySelectorAll(`[data-zone="${zoneValue}"]`).forEach(t => t.classList.add('active'));
         
-        updateUniversFiltersVisibility();
+        const universFiltersDesktop = document.querySelector('#filtres-univers');
+        const universFiltersMobile = document.querySelector('#filtres-univers-mobile');
+    
+        if (zoneValue === 'unplaced') {
+            if (universFiltersDesktop) universFiltersDesktop.style.display = 'none';
+            if (universFiltersMobile) universFiltersMobile.style.display = 'none';
+        } else {
+            if (universFiltersDesktop) universFiltersDesktop.style.display = 'block';
+            if (universFiltersMobile) universFiltersMobile.style.display = 'flex';
+            updateUniversFiltersVisibility();
+        }
+        
         applyFiltersAndSort();
     }
-
+    
     function applyFiltersAndSort() {
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
         const activeZoneEl = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active');
@@ -122,25 +127,40 @@ document.addEventListener('DOMContentLoaded', () => {
                  .map(p => p.dataset.filter)
         );
         
-        if (document.querySelector('#filtres-univers .filter-pill[data-filter="all"].active')) {
-            activeUniversFilters = new Set(
-                 Array.from(document.querySelectorAll('#filtres-univers .filter-pill[data-zone]:not([style*="display: none"])'))
-                 .map(p => p.dataset.filter)
-            );
+        const allUniversPillActive = document.querySelector('#filtres-univers .filter-pill[data-filter="all"].active');
+        if (allUniversPillActive) {
+            activeUniversFilters.clear();
         }
 
         allGeoCards.forEach(card => {
             const searchMatch = (card.dataset.searchable || '').includes(searchTerm);
-            const universMatch = activeUniversFilters.size === 0 || activeUniversFilters.has(card.dataset.univers);
-            const zoneMatch = (activeZone === 'all' || card.dataset.zone === activeZone);
-            card.style.display = (searchMatch && universMatch && zoneMatch) ? 'grid' : 'none';
+            let isVisible = false;
+
+            if (activeZone === 'unplaced') {
+                const hasPlacements = card.querySelector('.info-placements') !== null;
+                isVisible = searchMatch && !hasPlacements;
+            } else {
+                const universMatch = activeUniversFilters.size === 0 || activeUniversFilters.has(card.dataset.univers);
+                const zoneMatch = (activeZone === 'all' || card.dataset.zone === activeZone);
+                isVisible = searchMatch && universMatch && zoneMatch;
+            }
+            card.style.display = isVisible ? 'grid' : 'none';
         });
 
         allTableRows.forEach(row => {
             const searchMatch = (row.dataset.searchable || '').includes(searchTerm);
-            const universMatch = activeUniversFilters.size === 0 || activeUniversFilters.has(row.dataset.univers);
-            const zoneMatch = (activeZone === 'all' || row.dataset.zone === activeZone);
-            row.style.display = (searchMatch && universMatch && zoneMatch) ? '' : 'none';
+            let isVisible = false;
+
+            if (activeZone === 'unplaced') {
+                const placementCell = row.querySelector('td[data-label="Placements"]');
+                const hasPlacements = placementCell && placementCell.textContent.trim() !== 'Aucun';
+                isVisible = searchMatch && !hasPlacements;
+            } else {
+                const universMatch = activeUniversFilters.size === 0 || activeUniversFilters.has(row.dataset.univers);
+                const zoneMatch = (activeZone === 'all' || row.dataset.zone === activeZone);
+                isVisible = searchMatch && universMatch && zoneMatch;
+            }
+            row.style.display = isVisible ? '' : 'none';
         });
 
         sortVisibleElements();

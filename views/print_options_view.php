@@ -5,7 +5,6 @@
 <script src="js/print-options.js"></script>
 <?php $body_scripts = ob_get_clean(); ?>
 
-
 <div class="container">
     <section>
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -30,9 +29,7 @@
                                     <?php foreach ($universList as $univers): ?>
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox" name="univers_ids[]" value="<?= $univers['id'] ?>" id="univers-<?= $univers['id'] ?>" checked>
-                                            <label class="form-check-label" for="univers-<?= $univers['id'] ?>">
-                                                <?= htmlspecialchars($univers['nom']) ?>
-                                            </label>
+                                            <label class="form-check-label" for="univers-<?= $univers['id'] ?>"><?= htmlspecialchars($univers['nom']) ?></label>
                                         </div>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -50,7 +47,6 @@
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="fields[]" value="commentaire" id="field_commentaire"><label class="form-check-label" for="field_commentaire">Commentaire</label></div>
                         </div>
                     </div>
-
                 </div>
 
                 <div class="col-lg-5">
@@ -58,8 +54,24 @@
                         <div class="card-header"><span class="step-number">3</span> Aperçu et mise en page</div>
                         <div class="card-body">
                             
+                            <div class="mb-3">
+                                <label for="layout_preset" class="form-label fw-bold">Disposition des étiquettes</label>
+                                <select id="layout_preset" class="form-select">
+                                    <option value="auto">Automatique (recommandé)</option>
+                                    <optgroup label="A4 Portrait">
+                                        <option value="a4-portrait-10">10 étiquettes / page (Verticales)</option>
+                                        <option value="a4-portrait-14">14 étiquettes / page (Classiques)</option>
+                                        <option value="a4-portrait-21">21 étiquettes / page (Petites, texte seul)</option>
+                                        <option value="a4-portrait-40">40 étiquettes / page (Très Petites, code seul)</option>
+                                    </optgroup>
+                                    <optgroup label="A4 Paysage">
+                                        <option value="a4-landscape-30">30 étiquettes / page (Compactes)</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+
                             <div class="mb-4">
-                                <label class="form-label fw-bold">Aperçu de l'étiquette :</label>
+                                <label class="form-label fw-bold">Aperçu du modèle sélectionné :</label>
                                 <div id="preview-box">
                                     <div class="print-item" id="label-preview-container">
                                         <div class="print-qr-code" id="preview-qrcode"></div>
@@ -70,28 +82,6 @@
                                             <div id="preview-commentaire" class="print-comment" style="display: none;"><strong>Note :</strong> Fragile</div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Disposition des étiquettes</label>
-                                 <select name="template" id="layout_format" class="form-select mb-2">
-                                    <option value="qr-left">Classique (85mm x 40mm)</option>
-                                    <option value="qr-top">Verticale (60mm x 55mm)</option>
-                                    <option value="compact">Compacte (85mm x 25mm)</option>
-                                </select>
-                                <div class="row g-2">
-                                    <div class="col"><label for="columns" class="form-label small">Colonnes</label><input type="number" id="columns" name="columns" class="form-control" value="2" min="1" max="5"></div>
-                                    <div class="col"><label for="gap" class="form-label small">Espace (mm)</label><input type="number" id="gap" name="gap" class="form-control" value="4" min="0"></div>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Mise en page de la feuille</label>
-                                <div class="row g-2">
-                                    <div class="col"><label for="page_size" class="form-label small">Format</label><select name="page_size" id="page_size" class="form-select"><option value="A4" selected>A4</option><option value="A5">A5</option><option value="letter">Letter</option></select></div>
-                                    <div class="col"><label for="orientation" class="form-label small">Orientation</label><select name="orientation" id="orientation" class="form-select"><option value="portrait" selected>Portrait</option><option value="landscape">Paysage</option></select></div>
-                                    <div class="col"><label for="margins" class="form-label small">Marges (mm)</label><input type="number" id="margins" name="margins" class="form-control" value="10" min="0"></div>
                                 </div>
                             </div>
                             
@@ -113,6 +103,21 @@
                 </div>
             </div>
             
+            <div style="display: none;">
+                <select name="template" id="layout_template">
+                    <option value="qr-left">Classique</option>
+                    <option value="qr-top">Verticale</option>
+                    <option value="compact">Compacte</option>
+                    <option value="compact-text">Petite (Texte seul)</option>
+                    <option value="ultra-compact">Très Petite (Code seul)</option>
+                </select>
+                <select name="page_size" id="page_size"><option value="A4">A4</option><option value="A5">A5</option><option value="letter">Letter</option></select>
+                <select name="orientation" id="orientation"><option value="portrait">Portrait</option><option value="landscape">Paysage</option></select>
+                <input type="number" id="margins" name="margins" value="10">
+                <input type="number" id="columns" name="columns" value="2">
+                <input type="number" id="gap" name="gap" value="4">
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-generate"><i class="bi bi-file-earmark-text-fill"></i> Générer la page d'impression</button>
             </div>

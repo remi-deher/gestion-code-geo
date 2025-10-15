@@ -22,38 +22,55 @@ body {
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
-.print-header {
-    text-align: center;
-    margin-bottom: 2rem;
-    border-bottom: 1px solid #ccc;
-    padding-bottom: 1rem;
-}
-
+.print-header { text-align: center; margin-bottom: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 1rem; page-break-after: avoid; }
 .page-title { font-size: 18pt; font-weight: bold; margin: 0; }
 .print-meta { margin-top: 0.5rem; color: #666; font-size: 9pt; display: flex; justify-content: space-between; align-items: center; }
 .print-meta button { padding: 8px 12px; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; }
 
-/* Styles communs des étiquettes (inchangés) */
+/* --- GESTION DES SAUTS DE PAGE --- */
+.univers-group { page-break-inside: avoid; }
+.univers-title { font-size: 14pt; font-weight: bold; border-bottom: 1px solid #999; padding-bottom: 8px; margin-bottom: 1rem; page-break-after: avoid; }
+
+/* --- STYLES DES ÉTIQUETTES --- */
 .print-grid { display: grid; gap: var(--grid-gap); }
 .print-item { border: 1px solid #333; padding: 2mm; box-sizing: border-box; display: flex; overflow: hidden; page-break-inside: avoid; background: white; }
 body.with-cut-lines .print-item { border: 1px dashed #cccccc; }
 
-/* ... (tous les styles de template .template-qr-left, .template-qr-top, etc. restent inchangés) ... */
-.template-qr-left { height: 40mm; flex-direction: row; align-items: center; gap: 3mm; }
+/* Modèle 1: Classique */
+.template-qr-left .print-item { height: 40mm; flex-direction: row; align-items: center; gap: 3mm; }
 .template-qr-left .print-qr-code { flex: 0 0 35mm; }
 .template-qr-left .print-details { flex-grow: 1; }
 .template-qr-left .print-code { font-size: 16pt; }
 .template-qr-left .print-libelle { font-size: 11pt; }
-.template-qr-top { height: 55mm; flex-direction: column; text-align: center; gap: 2mm; }
+
+/* Modèle 2: Vertical */
+.template-qr-top .print-item { height: 55mm; flex-direction: column; text-align: center; gap: 2mm; }
 .template-qr-top .print-qr-code { flex: 0 0 35mm; }
 .template-qr-top .print-details { flex-grow: 1; }
 .template-qr-top .print-code { font-size: 14pt; }
 .template-qr-top .print-libelle { font-size: 10pt; }
-.template-compact { height: 25mm; flex-direction: row; align-items: center; gap: 3mm; }
+
+/* Modèle 3: Compact */
+.template-compact .print-item { height: 25mm; flex-direction: row; align-items: center; gap: 3mm; }
 .template-compact .print-qr-code { flex: 0 0 20mm; }
 .template-compact .print-details { flex-grow: 1; }
 .template-compact .print-code { font-size: 12pt; }
-.template-compact .print-libelle { font-size: 8pt; }
+.template-compact .print-libelle { font-size: 9pt; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Modèle 4: Petite (Texte seul) */
+.template-compact-text .print-item { height: 20mm; flex-direction: column; justify-content: center; text-align: left; }
+.template-compact-text .print-qr-code { display: none !important; }
+.template-compact-text .print-code { font-size: 11pt; }
+.template-compact-text .print-libelle { font-size: 8pt; font-weight: normal; }
+
+/* Modèle 5: Très Petite (Code seul) */
+.template-ultra-compact .print-item { height: 20mm; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1mm; }
+.template-ultra-compact .print-qr-code { flex: 0 0 15mm; }
+.template-ultra-compact .print-details { flex-grow: 0; }
+.template-ultra-compact .print-code { font-size: 8pt; }
+.template-ultra-compact .print-libelle, .template-ultra-compact .print-univers, .template-ultra-compact .print-comment { display: none !important; }
+
+/* Styles communs internes */
 .print-qr-code { height: 100%; display: flex; align-items: center; justify-content: center; }
 .print-qr-code canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
 .print-details { display: flex; flex-direction: column; justify-content: center; gap: 1mm; font-size: 10pt; word-break: break-word; overflow: hidden; }
@@ -64,44 +81,22 @@ body.with-cut-lines .print-item { border: 1px dashed #cccccc; }
 
 /* --- STYLES SPÉCIFIQUES À L'IMPRESSION --- */
 @media print {
-    body { 
-        background-color: white; 
-        /* Initialise le compteur de page total */
-        counter-reset: page-total;
-    }
+    body { background-color: white; }
     .no-print { display: none !important; }
-    .page-container {
-        margin: 0; padding: 0; width: 100%; min-height: 100%;
-        box-shadow: none; border: none;
-    }
+    .page-container { margin: 0; padding: 0; width: 100%; min-height: 100%; box-shadow: none; border: none; }
 
-    /* Gestion des sauts de page */
-    .univers-container {
-        /* Un conteneur d'univers doit commencer sur une nouvelle page et on y réinitialise son propre compteur */
+    /* Règle de saut de page si l'option est cochée */
+    body.separate-univers-print .univers-container {
         page-break-before: always;
-        counter-reset: page-in-univers;
     }
-    .univers-container:first-child {
-        /* Sauf pour le tout premier */
-        page-break-before: auto;
-    }
-    .univers-title {
-        page-break-after: avoid; 
-    }
-    .univers-group {
-        /* Ceci force chaque section à être traitée comme un bloc de pagination, incrémentant les compteurs */
-        page-break-before: always;
-        counter-increment: page-total;
-    }
-    .univers-group:first-child {
-        page-break-before: auto;
-    }
-    /* S'il n'y a pas de séparation, le conteneur ne force pas de saut */
-    body:not(.separate-univers-print) .univers-container {
+    body.separate-univers-print .univers-container:first-child {
         page-break-before: auto;
     }
 
-    /* En-tête et pied de page */
+    /* En-tête et pied de page d'impression (générés par JS) */
+    .print-page-clone {
+        display: none; /* Caché par défaut, visible seulement à l'impression */
+    }
     .print-page-header, .print-page-footer {
         display: block;
         position: fixed;
@@ -112,27 +107,11 @@ body.with-cut-lines .print-item { border: 1px dashed #cccccc; }
         color: #888;
     }
     .print-page-header {
-        top: -8mm; /* Positionné dans la marge du haut */
+        top: 0;
         text-align: center;
     }
     .print-page-footer {
-        bottom: -8mm; /* Positionné dans la marge du bas */
+        bottom: 0;
         text-align: center;
-    }
-    
-    /* Logique des compteurs de pages */
-    .page-number-in-univers::before {
-        counter-increment: page-in-univers;
-        content: counter(page-in-univers);
-    }
-    .total-pages-in-univers::before {
-        /* Ce compteur sera rempli par le JavaScript, pas besoin de CSS */
-        content: counter(pages-in-univers);
-    }
-    .page-number-total::before {
-        content: counter(page-total);
-    }
-    .total-pages::before {
-        content: counter(pages-total);
     }
 }

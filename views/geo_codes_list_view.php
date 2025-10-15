@@ -21,6 +21,7 @@
                         <button class="zone-tab active" data-zone="all">Toutes</button>
                         <button class="zone-tab" data-zone="vente">Vente</button>
                         <button class="zone-tab" data-zone="reserve">Réserve</button>
+                        <button class="zone-tab" data-zone="unplaced">Non placés</button>
                     </div>
                 </div>
                 <div class="filter-section mt-3">
@@ -160,6 +161,7 @@
             <button type="button" class="btn btn-outline-secondary active" data-zone="all">Toutes</button>
             <button type="button" class="btn btn-outline-secondary" data-zone="vente">Vente</button>
             <button type="button" class="btn btn-outline-secondary" data-zone="reserve">Réserve</button>
+            <button type="button" class="btn btn-outline-secondary" data-zone="unplaced">Non placés</button>
         </div>
         <h5>Univers</h5>
         <div id="filtres-univers-mobile" class="filter-pills d-flex flex-wrap align-items-center gap-2">
