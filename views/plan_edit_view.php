@@ -12,6 +12,14 @@
     .univers-checkbox-list .form-check {
         margin-bottom: 0.5rem;
     }
+    .current-plan-preview {
+        max-width: 100%;
+        height: auto;
+        max-height: 200px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        object-fit: contain;
+    }
 </style>
 <?php $head_styles = ob_get_clean(); ?>
 
@@ -21,13 +29,28 @@
 
         <div class="card">
             <div class="card-body">
-                <form action="index.php?action=updatePlan" method="POST">
+                <form action="index.php?action=updatePlan" method="POST" enctype="multipart/form-data">
                     <input type="hidden" name="plan_id" value="<?= $plan['id'] ?>">
 
-                    <div class="mb-3">
-                        <label for="nom" class="form-label">Nom du plan</label>
-                        <input type="text" id="nom" name="nom" class="form-control" value="<?= htmlspecialchars($plan['nom']) ?>" required>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="nom" class="form-label">Nom du plan</label>
+                                <input type="text" id="nom" name="nom" class="form-control" value="<?= htmlspecialchars($plan['nom']) ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="planFile" class="form-label">Remplacer le fichier du plan (optionnel)</label>
+                                <input type="file" id="planFile" name="planFile" class="form-control" accept=".svg,.png,.jpg,.jpeg,.pdf">
+                                <div class="form-text">Laissez ce champ vide pour conserver le plan actuel.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                             <label class="form-label">Plan actuel :</label>
+                             <img src="uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>" alt="Aperçu du plan actuel" class="current-plan-preview">
+                        </div>
                     </div>
+
+                    <hr class="my-4">
 
                     <div class="mb-3">
                         <label for="zone" class="form-label">Zone de stockage associée</label>
@@ -78,8 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedZone = zoneSelect.value;
         
         universCheckboxes.forEach(checkboxContainer => {
-            // Si aucune zone n'est sélectionnée, on affiche tout.
-            // Sinon, on n'affiche que les univers correspondant à la zone sélectionnée.
             if (selectedZone === "" || checkboxContainer.dataset.zone === selectedZone) {
                 checkboxContainer.style.display = 'block';
             } else {
@@ -88,10 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Appelle la fonction une première fois au chargement de la page
     filterUnivers();
-
-    // Ajoute un écouteur d'événement pour réagir aux changements
     zoneSelect.addEventListener('change', filterUnivers);
 });
 </script>

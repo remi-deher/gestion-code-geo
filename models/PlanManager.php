@@ -52,12 +52,23 @@ class PlanManager {
         return $stmt->execute([$id]);
     }
     
-    public function updatePlanAssociations(int $planId, string $nom, ?string $zone, array $universIds): bool {
+    public function updatePlan(int $planId, string $nom, ?string $zone, array $universIds, ?string $newFilename = null): bool {
         $this->db->beginTransaction();
         try {
-            $stmt = $this->db->prepare("UPDATE plans SET nom = ?, zone = ? WHERE id = ?");
-            $stmt->execute([$nom, $zone, $planId]);
+            // Mise à jour du plan (nom, zone, et potentiellement le nom du fichier)
+            $sql = "UPDATE plans SET nom = ?, zone = ?";
+            $params = [$nom, $zone];
+            if ($newFilename) {
+                $sql .= ", nom_fichier = ?";
+                $params[] = $newFilename;
+            }
+            $sql .= " WHERE id = ?";
+            $params[] = $planId;
             
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            
+            // Mise à jour des associations avec les univers
             $stmt = $this->db->prepare("DELETE FROM plan_univers WHERE plan_id = ?");
             $stmt->execute([$planId]);
             
@@ -73,7 +84,7 @@ class PlanManager {
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log("Erreur lors de la mise à jour des associations du plan : " . $e->getMessage());
+            error_log("Erreur lors de la mise à jour du plan : " . $e->getMessage());
             return false;
         }
     }

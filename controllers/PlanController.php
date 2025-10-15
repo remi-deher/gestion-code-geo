@@ -168,16 +168,68 @@ class PlanController extends BaseController {
     }
 
     public function updatePlanAction() {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $planId = (int)($_POST['plan_id'] ?? 0);
-            $nom = trim($_POST['nom'] ?? '');
-            $zone = $_POST['zone'] ?? null;
-            if ($zone === '') { $zone = null; }
-            $universIds = $_POST['univers_ids'] ?? [];
-            if ($planId > 0 && !empty($nom)) {
-                $this->planManager->updatePlanAssociations($planId, $nom, $zone, $universIds);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: index.php?action=listPlans');
+            exit();
+        }
+    
+        $planId = (int)($_POST['plan_id'] ?? 0);
+        $nom = trim($_POST['nom'] ?? '');
+        $zone = $_POST['zone'] ?? null;
+        if ($zone === '') { $zone = null; }
+        $universIds = $_POST['univers_ids'] ?? [];
+    
+        if ($planId <= 0 || empty($nom)) {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Données invalides pour la mise à jour.'];
+            header('Location: index.php?action=listPlans');
+            exit();
+        }
+    
+        $currentPlan = $this->planManager->getPlanById($planId);
+        if (!$currentPlan) {
+            header('Location: index.php?action=listPlans');
+            exit();
+        }
+    
+        $newFilename = null;
+    
+        // Gérer le téléversement d'un nouveau fichier
+        if (isset($_FILES['planFile']) && $_FILES['planFile']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['planFile'];
+            $uploadDir = __DIR__ . '/../public/uploads/plans/';
+            $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $safeFilename = preg_replace('/[^a-zA-Z0-9-_\.]/', '_', pathinfo($file['name'], PATHINFO_FILENAME));
+            $newFilenameBase = time() . '_' . $safeFilename;
+    
+            if ($extension === 'pdf' && class_exists('Imagick')) {
+                $newFilename = $newFilenameBase . '.png';
+                try {
+                    $imagick = new Imagick();
+                    $imagick->readImage($file['tmp_name'] . '[0]');
+                    $imagick->setImageFormat('png');
+                    $imagick->writeImage($uploadDir . $newFilename);
+                    $imagick->clear();
+                    $imagick->destroy();
+                } catch (Exception $e) {
+                    $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de la conversion du PDF.'];
+                    header('Location: index.php?action=listPlans');
+                    exit();
+                }
+            } elseif (in_array($extension, ['png', 'jpg', 'jpeg', 'svg'])) {
+                $newFilename = $newFilenameBase . '.' . $extension;
+                move_uploaded_file($file['tmp_name'], $uploadDir . $newFilename);
+            }
+    
+            // Si un nouveau fichier a été téléversé avec succès, on supprime l'ancien
+            if ($newFilename && file_exists($uploadDir . $currentPlan['nom_fichier'])) {
+                unlink($uploadDir . $currentPlan['nom_fichier']);
             }
         }
+    
+        // Mettre à jour la base de données
+        $this->planManager->updatePlan($planId, $nom, $zone, $universIds, $newFilename);
+    
+        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Le plan a été mis à jour avec succès.'];
         header('Location: index.php?action=listPlans');
         exit();
     }
