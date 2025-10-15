@@ -1,5 +1,6 @@
 /* public/css/plan_print.css */
 
+/* Styles pour l'affichage à l'écran (non modifiés) */
 @media screen {
     body {
         background-color: #f0f0f0;
@@ -37,6 +38,7 @@
     }
 }
 
+/* --- NOUVEAUX STYLES POUR L'IMPRESSION --- */
 @media print {
     body, html {
         margin: 0;
@@ -47,41 +49,42 @@
     }
 
     @page {
-        size: A4 landscape;
+        size: A4 landscape; /* Format paysage pour mieux accueillir les plans */
         margin: 10mm;
     }
 
+    /* Le conteneur principal prend toute la zone imprimable */
     .print-container {
         width: 100%;
         height: 100%;
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
     }
 
+    /* Le conteneur du canvas grandit pour remplir l'espace disponible */
     .canvas-wrapper {
-        width: 100%;
-        height: 95%;
+        flex-grow: 1;
         display: flex;
         justify-content: center;
         align-items: center;
-        overflow: hidden;
+        overflow: hidden; /* Empêche tout débordement */
     }
 
+    /* Le canvas lui-même est traité comme une image responsive */
     #printed-canvas {
+        display: block;
         max-width: 100%;
         max-height: 100%;
-        object-fit: contain;
-        border: 1px solid #ccc;
-        box-sizing: border-box;
+        width: auto;
+        height: auto;
     }
 
+    /* La légende ne doit pas rétrécir et ne provoque un saut de page que si nécessaire */
     .print-legend-container {
-        page-break-before: auto;
         flex-shrink: 0;
+        page-break-before: auto;
     }
 }
-
 
 .print-legend-container h3 {
     font-size: 12pt;
