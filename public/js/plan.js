@@ -102,18 +102,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- GESTION DU CANVAS ET DES OBJETS FABRIC ---
 
-    function resizeFabricCanvas() {
-        if (!planContainer) return;
-        const containerRect = planContainer.getBoundingClientRect();
-        fabricCanvas.setWidth(containerRect.width);
-        fabricCanvas.setHeight(containerRect.height);
-        fabricCanvas.calcOffset();
-        if (fabricCanvas.backgroundImage) {
-            resetZoom();
-        }
-        fabricCanvas.renderAll();
+function resizeFabricCanvas() {
+    if (!planContainer) return;
+    const containerRect = planContainer.getBoundingClientRect();
+    fabricCanvas.setWidth(containerRect.width);
+    fabricCanvas.setHeight(containerRect.height);
+    fabricCanvas.calcOffset(); // Important after size changes
+
+    const bgImage = fabricCanvas.backgroundImage;
+    // Vérifie si l'image de fond existe ET a des dimensions chargées
+    if (bgImage && bgImage.width && bgImage.height) {
+        const canvasWidth = fabricCanvas.getWidth();
+        const canvasHeight = fabricCanvas.getHeight();
+        const imgWidth = bgImage.width;
+        const imgHeight = bgImage.height;
+
+        // Calculer l'échelle pour adapter l'image entière, sans dépasser 100% initialement
+        const scaleX = canvasWidth / imgWidth;
+        const scaleY = canvasHeight / imgHeight;
+        const scaleToFit = Math.min(scaleX, scaleY, 1); // Prend le plus petit ratio, max 1
+
+        fabricCanvas.setZoom(scaleToFit); // Applique le zoom initial calculé
+
+        // Centrer l'image en fonction de cette échelle
+        const panX = (canvasWidth - imgWidth * scaleToFit) / 2;
+        const panY = (canvasHeight - imgHeight * scaleToFit) / 2;
+
+        // Appliquer le centrage directement à la transformation de la vue
+        // C'est souvent plus fiable pour l'état initial que absolutePan
+        const newVpt = fabricCanvas.viewportTransform.slice(); // Copie la transformation actuelle
+        newVpt[0] = scaleToFit; // scaleX
+        newVpt[3] = scaleToFit; // scaleY
+        newVpt[4] = panX;       // panX (translation X)
+        newVpt[5] = panY;       // panY (translation Y)
+        fabricCanvas.setViewportTransform(newVpt); // Applique la nouvelle transformation
+
+        updateStrokesWidth(scaleToFit);
+    } else {
+        // S'il n'y a pas encore d'image de fond, réinitialiser la vue
+        fabricCanvas.setZoom(1);
+        fabricCanvas.viewportTransform[4] = 0; // panX = 0
+        fabricCanvas.viewportTransform[5] = 0; // panY = 0
+        fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform); // Applique la réinitialisation
     }
 
+    fabricCanvas.renderAll(); // Redessine le canvas avec les modifications
+}
     function loadBackgroundImage() {
         return new Promise((resolve, reject) => {
             const imageUrl = mapImageEl?.src;
@@ -751,31 +785,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function resetZoom() {
-        const bgImage = fabricCanvas.backgroundImage;
-        if (!bgImage || !bgImage.width || !bgImage.height) return;
+function resetZoom() {
+    const bgImage = fabricCanvas.backgroundImage;
+    if (!bgImage || !bgImage.width || !bgImage.height) return; // Ne fait rien si l'image n'est pas prête
 
-        const canvasWidth = fabricCanvas.getWidth();
-        const canvasHeight = fabricCanvas.getHeight();
-        const imgWidth = bgImage.width;
-        const imgHeight = bgImage.height;
+    const canvasWidth = fabricCanvas.getWidth();
+    const canvasHeight = fabricCanvas.getHeight();
+    const imgWidth = bgImage.width;
+    const imgHeight = bgImage.height;
 
-        // Calculer l'échelle pour adapter l'image entière
-        const scaleX = canvasWidth / imgWidth;
-        const scaleY = canvasHeight / imgHeight;
-        const scaleToFit = Math.min(scaleX, scaleY);
+    // Recalculer l'échelle pour adapter l'image entière, sans dépasser 100%
+    const scaleX = canvasWidth / imgWidth;
+    const scaleY = canvasHeight / imgHeight;
+    const scaleToFit = Math.min(scaleX, scaleY, 1);
 
-        fabricCanvas.setZoom(scaleToFit);
+    // Recalculer le centrage
+    const panX = (canvasWidth - imgWidth * scaleToFit) / 2;
+    const panY = (canvasHeight - imgHeight * scaleToFit) / 2;
 
-        // Centrer l'image
-        const panX = (canvasWidth - imgWidth * scaleToFit) / 2;
-        const panY = (canvasHeight - imgHeight * scaleToFit) / 2;
-        fabricCanvas.absolutePan({ x: panX, y: panY });
+    // Créer la nouvelle transformation de la vue
+    const newVpt = [
+        scaleToFit, // scaleX
+        0,          // skewY
+        0,          // skewX
+        scaleToFit, // scaleY
+        panX,       // panX
+        panY        // panY
+    ];
+    fabricCanvas.setViewportTransform(newVpt); // Applique la transformation de réinitialisation
 
-        updateStrokesWidth(scaleToFit);
-        fabricCanvas.renderAll();
-    }
-
+    updateStrokesWidth(scaleToFit);
+    fabricCanvas.renderAll(); // Redessine
+}
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
             planPageContainer?.requestFullscreen().catch(err => {

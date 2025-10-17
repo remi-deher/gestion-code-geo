@@ -123,12 +123,12 @@ class PlanController extends BaseController {
     public function savePositionAction() {
         header('Content-Type: application/json');
         $input = json_decode(file_get_contents('php://input'), true);
-        if (isset($input['id'], $input['plan_id'], $input['x'], $input['y'])) {
+        if (isset($input['id'], $input['plan_id'], $input['pos_x'], $input['pos_y'])) {
             $success = $this->planManager->savePosition(
                 (int)$input['id'], 
                 (int)$input['plan_id'], 
-                (float)$input['x'], 
-                (float)$input['y'],
+                (float)$input['pos_x'], 
+                (float)$input['pos_y'],
                 isset($input['width']) ? (int)$input['width'] : null,
                 isset($input['height']) ? (int)$input['height'] : null,
                 isset($input['anchor_x']) ? (float)$input['anchor_x'] : null,
