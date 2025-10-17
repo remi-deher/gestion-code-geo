@@ -126,7 +126,7 @@ class PlanController extends BaseController {
     public function savePositionAction() {
         header('Content-Type: application/json');
         $input = json_decode(file_get_contents('php://input'), true);
-
+	error_log('savePosition received: ' . print_r($input, true));
         // Utilise les clés envoyées par le JS ('pos_x', 'pos_y')
         if (isset($input['id'], $input['plan_id'], $input['pos_x'], $input['pos_y'])) {
             $savedData = $this->planManager->savePosition(
@@ -143,6 +143,7 @@ class PlanController extends BaseController {
 
             if ($savedData) {
                 // Renvoyer les données complètes avec l'ID de position
+                error_log('savePosition validation failed. Missing fields? id='.(isset($input['id'])?'yes':'NO').', plan_id='.(isset($input['plan_id'])?'yes':'NO').', pos_x='.(isset($input['pos_x'])?'yes':'NO').', pos_y='.(isset($input['pos_y'])?'yes':'NO'));
                 echo json_encode(['status' => 'success', 'position_data' => $savedData]);
             } else {
                  http_response_code(500); // Erreur serveur
