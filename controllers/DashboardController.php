@@ -20,7 +20,7 @@ class DashboardController extends BaseController {
 
     public function indexAction() {
         // 1. Récupérer les statistiques
-        $totalCodes = $this->geoCodeManager->countTotalCodes();
+        $totalCodes = $this->geoCodeManager->countTotalActiveCodes();
         $placedCodes = $this->geoCodeManager->countPlacedCodes();
         
         $stats = [
