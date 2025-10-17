@@ -2,7 +2,7 @@
 
 <?php ob_start(); ?>
 <style>
-    /* Styles spécifiques pour la page de création */
+    /* Styles spécifiques pour la page de création SVG (inchangés) */
     .drawing-toolbar {
         background-color: #f8f9fa;
         padding: 5px;
@@ -36,8 +36,8 @@
 
     /* Assurer que le conteneur principal prend toute la hauteur */
     .plan-page-container {
-        display: flex; /* Garder flex pour la structure interne */
-        height: calc(100vh - var(--navbar-height)); /* Occupe toute la hauteur disponible */
+        display: flex;
+        height: calc(100vh - var(--navbar-height));
         width: 100%;
         margin: 0;
         max-width: 100%;
@@ -52,7 +52,7 @@
         flex-direction: column;
         position: relative;
         overflow: hidden;
-        width: 100%; /* Important */
+        width: 100%;
     }
     #plan-container {
         flex-grow: 1;
@@ -67,16 +67,19 @@
 <?php $head_styles = ob_get_clean(); ?>
 
 <?php ob_start(); ?>
-<script>
-    // --- Données pour la création vierge ---
-    const currentPlan = null; // Pas de plan existant
-    const currentPlanId = null;
-    const planType = 'svg_creation'; // Un type spécifique pour le JS
-    const initialDrawingData = null;
-    const placedGeoCodes = []; // Pas de codes géo initiaux
-    const universColors = {}; // Pas pertinent ici
-    const planUnivers = []; // Pas pertinent ici
-</script>
+    <script id="plan-data" type="application/json">
+    <?= json_encode([
+        'placedGeoCodes' => [], // Vide pour la création
+        'universColors' => [], // Vide
+        'currentPlan' => null, // Pas de plan existant
+        'currentPlanId' => null, // Pas d'ID existant
+        'planType' => 'svg_creation', // Type spécifique
+        'initialDrawingData' => null, // Pas de dessin initial
+        'planUnivers' => [], // Vide
+        'csrfToken' => null // Mettre un vrai token CSRF ici si vous en utilisez un
+    ]); ?>
+    </script>
+    <script type="module" src="js/plan/main.js"></script>
 <?php $body_scripts = ob_get_clean(); ?>
 
 <div class="plan-page-container">
@@ -98,7 +101,7 @@
                  <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="rect" title="Rectangle"><i class="bi bi-square"></i></button>
                  <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="line" title="Ligne"><i class="bi bi-slash-lg"></i></button>
                  <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="circle" title="Cercle"><i class="bi bi-circle"></i></button>
-                 </div>
+             </div>
               <div class="btn-group ms-2" role="group" aria-label="Object Manipulation">
                   <button type="button" id="copy-btn" class="btn btn-outline-secondary" title="Copier la forme sélectionnée"><i class="bi bi-clipboard"></i></button>
                   <button type="button" id="paste-btn" class="btn btn-outline-secondary" title="Coller la forme"><i class="bi bi-clipboard-plus"></i></button>
@@ -117,24 +120,26 @@
              </div>
              <div class="ms-auto d-flex align-items-center">
                   <div class="form-check form-switch me-3">
-                     <input class="form-check-input" type="checkbox" id="grid-toggle">
+                     <input class="form-check-input" type="checkbox" id="grid-toggle" checked>
                      <label class="form-check-label" for="grid-toggle" title="Afficher/Cacher la grille"><i class="bi bi-grid-3x3-gap-fill"></i></label>
                  </div>
                   <div class="form-check form-switch">
-                     <input class="form-check-input" type="checkbox" id="snap-toggle">
+                     <input class="form-check-input" type="checkbox" id="snap-toggle" checked>
                      <label class="form-check-label" for="snap-toggle" title="Activer/Désactiver le magnétisme"><i class="bi bi-magnet-fill"></i></label>
                  </div>
              </div>
         </div>
 
         <div id="plan-container">
+             <div id="plan-loader" class="spinner-border text-primary" role="status" style="display: none;"><span class="visually-hidden">Loading...</span></div>
             <canvas id="plan-canvas"></canvas>
-            <div id="zoom-controls" class="no-print" style="/* display: none; */">
+            <div id="zoom-controls" class="no-print">
                 <button class="btn btn-light" id="zoom-in-btn" title="Zoomer"><i class="bi bi-zoom-in"></i></button>
                 <button class="btn btn-light" id="zoom-out-btn" title="Dézoomer"><i class="bi bi-zoom-out"></i></button>
                 <button class="btn btn-light" id="zoom-reset-btn" title="Réinitialiser le zoom"><i class="bi bi-aspect-ratio"></i></button>
             </div>
         </div>
-
     </div>
+</div>
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-notification-container" style="z-index: 1100">
 </div>
