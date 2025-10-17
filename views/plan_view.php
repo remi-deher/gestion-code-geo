@@ -59,6 +59,7 @@
     const initialDrawingData = <?= !empty($plan['drawing_data']) ? $plan['drawing_data'] : 'null'; ?>;
     const planUnivers = <?= json_encode($universList ?? []) ?>;
 </script>
+<script src="js/plan.js"></script> // <-- AJOUTER CETTE LIGNE
 <?php $body_scripts = ob_get_clean(); ?>
 
 <div class="plan-page-container">
