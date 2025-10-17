@@ -2,15 +2,17 @@
 
 .plan-page-container {
     display: flex;
-    height: calc(100vh - var(--navbar-height));
+    height: calc(100vh - var(--navbar-height)); /* Occupe toute la hauteur sous la navbar */
     width: 100%;
     margin: 0;
     max-width: 100%;
     padding: 0;
     overflow: hidden;
     position: relative;
+    background-color: var(--light-gray); /* Fond général */
 }
 
+/* --- Sidebar (Panneau latéral gauche) --- */
 #unplaced-codes-sidebar {
     width: 300px;
     background-color: #fff;
@@ -18,7 +20,7 @@
     box-shadow: 2px 0 5px rgba(0,0,0,0.1);
     overflow-y: auto;
     flex-shrink: 0;
-    display: flex;
+    display: flex; /* S'assure qu'il est flex même s'il est vide */
     flex-direction: column;
     transition: margin-left 0.3s ease-in-out;
     z-index: 1000;
@@ -31,7 +33,7 @@
 
 #unplaced-list-container {
     overflow-y: auto;
-    flex-grow: 1; /* Permet à la liste de prendre l'espace restant */
+    flex-grow: 1;
 }
 
 #unplaced-list .unplaced-item {
@@ -45,48 +47,42 @@
     transition: background-color 0.2s;
 }
 
-#unplaced-list .unplaced-item:hover, .unplaced-item.placement-active {
+#unplaced-list .unplaced-item:hover, .unplaced-item.active { /* 'active' remplace 'placement-active' */
     background-color: #e9ecef;
 }
-
-.unplaced-item.placement-active {
+#unplaced-list .unplaced-item.active {
     background-color: var(--primary-color) !important;
     color: white;
 }
-.unplaced-item.placement-active .item-libelle,
-.unplaced-item.placement-active .item-code,
-.unplaced-item.placement-active .placement-counter { 
-    color: white;
+#unplaced-list .unplaced-item.active .item-libelle,
+#unplaced-list .unplaced-item.active .item-code,
+#unplaced-list .unplaced-item.active .placement-count {
+    color: white !important;
 }
+#unplaced-list .unplaced-item.active .placement-count {
+    background-color: rgba(255,255,255,0.2);
+}
+
 
 .unplaced-item .item-code { font-weight: bold; }
 .unplaced-item .item-libelle { font-size: 0.8rem; color: #6c757d; }
 
-.placement-counter {
+.placement-count { /* Renommé depuis placement-counter */
     font-size: 0.8rem;
     font-weight: bold;
     background-color: #e9ecef;
     padding: 0.2rem 0.5rem;
     border-radius: 10px;
     color: #6c757d;
+    min-width: 25px; /* Pour éviter changement taille si 0 */
+    text-align: center;
 }
 
-.unplaced-item.is-placed { opacity: 0.7; }
-.unplaced-item.is-placed .item-code { text-decoration: line-through; }
-
-
-.plan-main-content {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    overflow: hidden;
-}
-
+/* --- Bouton pour afficher/cacher Sidebar --- */
 #toggle-sidebar-btn {
     position: absolute;
     top: 50%;
-    left: 300px; /* Position initiale quand la sidebar est visible */
+    left: 300px; /* Position initiale */
     transform: translateY(-50%);
     z-index: 1050;
     height: 60px;
@@ -102,21 +98,23 @@
     box-shadow: 2px 0 5px rgba(0,0,0,0.1);
     transition: left 0.3s ease-in-out;
 }
-
 #toggle-sidebar-btn i {
     transition: transform 0.3s ease-in-out;
 }
+.sidebar-hidden #unplaced-codes-sidebar { margin-left: -300px; }
+.sidebar-hidden #toggle-sidebar-btn { left: 0; }
+.sidebar-hidden #toggle-sidebar-btn i { transform: rotate(180deg); }
 
-.sidebar-hidden #unplaced-codes-sidebar {
-    margin-left: -300px;
-}
-.sidebar-hidden #toggle-sidebar-btn {
-    left: 0;
-}
-.sidebar-hidden #toggle-sidebar-btn i {
-    transform: rotate(180deg);
+/* --- Contenu Principal (Droite) --- */
+.plan-main-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden; /* Empêche débordement */
 }
 
+/* --- Barre d'outils Principale (Haut) --- */
 .plan-toolbar {
     display: flex;
     gap: 1rem;
@@ -124,32 +122,100 @@
     align-items: center;
     border-bottom: 1px solid var(--border-color);
     background-color: #fff;
+    flex-shrink: 0; /* Ne doit pas rétrécir */
 }
 
+/* --- NOUVEAU: Barre d'outils de Dessin --- */
+.drawing-toolbar {
+    background-color: #f8f9fa;
+    padding: 5px 10px; /* Ajusté */
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    gap: 8px; /* Espace entre groupes d'outils */
+    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 0; /* Ne doit pas rétrécir */
+    min-height: 40px; /* Hauteur minimale */
+}
+.drawing-toolbar .btn-group > .btn,
+.drawing-toolbar > .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    display: inline-flex; /* Pour centrer icônes */
+    align-items: center;
+    justify-content: center;
+}
+.drawing-toolbar .btn.active {
+    background-color: var(--primary-color); /* Couleur Bootstrap pour active */
+    color: white;
+    border-color: var(--primary-color);
+}
+.drawing-toolbar .form-control-color {
+    width: 35px; /* Taille cohérente */
+    height: 30px;
+    padding: 0.1rem;
+    border: 1px solid #ced4da;
+    cursor: pointer;
+    vertical-align: middle; /* Alignement vertical */
+}
+.drawing-toolbar .form-control-sm {
+    height: 30px;
+    padding: 0.25rem 0.5rem;
+    vertical-align: middle;
+}
+.drawing-toolbar .form-check-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    margin-bottom: 0; /* Important dans flex */
+    padding-left: 0.25rem; /* Espace après l'input */
+}
+ .drawing-toolbar .form-check-input {
+    cursor: pointer;
+    margin-top: 0; /* Aligner avec label */
+ }
+/* --- Fin Barre d'outils de Dessin --- */
+
+
+/* --- Conteneur du Canvas --- */
 #plan-container {
-    flex-grow: 1;
-    background-color: var(--light-gray); 
-    overflow: hidden;
-    position: relative;
+    flex-grow: 1; /* Prend l'espace restant */
+    background-color: var(--light-gray);
+    overflow: hidden; /* Très important pour le pan/zoom */
+    position: relative; /* Pour positionner les contrôles de zoom */
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 #plan-canvas {
+    /* Style initial, Fabric.js gère la taille ensuite */
+    /* Ne pas mettre width/height 100% ici, Fabric le fait */
     box-shadow: 0 0 15px rgba(0,0,0,0.1);
-    background-color: #ffffff;
-    box-sizing: border-box;
+    background-color: #ffffff; /* Fond si image transparente */
 }
 
+/* Curseurs */
+#plan-container.placement-mode #plan-canvas { cursor: crosshair; }
+#plan-canvas:active { cursor: grabbing; } /* Pendant le pan */
+
+
+/* --- Contrôles de Zoom --- */
 #zoom-controls {
     position: absolute;
     bottom: 1rem;
     right: 1rem;
     z-index: 1000;
+    display: flex;
+    flex-direction: column; /* Les uns sur les autres */
+    gap: 0.5rem;
+}
+#zoom-controls .btn {
+    background-color: rgba(255,255,255,0.8);
+    border: 1px solid rgba(0,0,0,0.1);
 }
 
-
+/* --- Toolbar d'édition des TAGS GÉO (au-dessus des tags) --- */
 #tag-edit-toolbar {
     position: absolute;
     background-color: rgba(44, 62, 80, 0.9);
@@ -160,48 +226,53 @@
     gap: 6px;
     z-index: 1100;
     transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
-    opacity: 0;
+    opacity: 0; /* Cachée par défaut */
     transform: translateY(10px);
-    pointer-events: none;
+    pointer-events: none; /* Non cliquable si cachée */
 }
-
 #tag-edit-toolbar.visible {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;
 }
-
 #tag-edit-toolbar .btn {
     background-color: #566573;
     border-color: #4a5562;
     color: white;
+    padding: 0.2rem 0.4rem; /* Plus petits */
+    font-size: 0.8rem;
 }
+#tag-edit-toolbar .btn:hover { background-color: #7f8c8d; }
+#tag-edit-toolbar .btn-group > .btn { padding: 0.2rem 0.5rem; } /* Ajuster boutons S,M,L */
 
-#tag-edit-toolbar .btn:hover {
-    background-color: #7f8c8d;
-}
 
-/* --- Styles pour les petits écrans --- */
+/* --- Responsive --- */
 @media (max-width: 991.98px) {
-    /* Par défaut, la sidebar est cachée */
-    #unplaced-codes-sidebar {
-        margin-left: -300px;
-    }
-    #toggle-sidebar-btn {
-        left: 0; /* Le bouton est à gauche */
-    }
-     #toggle-sidebar-btn i {
-        transform: rotate(180deg); /* La flèche pointe vers la droite */
-    }
+    /* Cache la sidebar par défaut sur mobile/tablette */
+    #unplaced-codes-sidebar { margin-left: -300px; }
+    #toggle-sidebar-btn { left: 0; }
+    #toggle-sidebar-btn i { transform: rotate(180deg); } /* Flèche vers droite */
 
-    /* Quand on veut la montrer (via la classe .sidebar-hidden enlevée) */
-    .plan-page-container:not(.sidebar-hidden) #unplaced-codes-sidebar {
-        margin-left: 0;
+    /* Quand elle est visible (pas de classe .sidebar-hidden) */
+    .plan-page-container:not(.sidebar-hidden) #unplaced-codes-sidebar { margin-left: 0; }
+    .plan-page-container:not(.sidebar-hidden) #toggle-sidebar-btn { left: 300px; }
+    .plan-page-container:not(.sidebar-hidden) #toggle-sidebar-btn i { transform: rotate(0deg); }
+
+    /* Ajuster la barre d'outils de dessin si l'espace manque */
+    .drawing-toolbar {
+        justify-content: space-between; /* Mieux répartir les éléments */
     }
-     .plan-page-container:not(.sidebar-hidden) #toggle-sidebar-btn {
-        left: 300px;
-    }
-    .plan-page-container:not(.sidebar-hidden) #toggle-sidebar-btn i {
-        transform: rotate(0deg);
-    }
+}
+
+@media (max-width: 767.98px) {
+    /* Réduire un peu la taille des éléments de la toolbar dessin */
+     .drawing-toolbar .btn-group > .btn,
+     .drawing-toolbar > .btn {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.75rem;
+     }
+     .drawing-toolbar .form-control-color { width: 30px; height: 25px; }
+     .drawing-toolbar .form-control-sm { height: 25px; padding: 0.1rem 0.3rem; }
+     .drawing-toolbar .form-check-label i { font-size: 0.9rem; } /* Icônes un peu plus petites */
+     .drawing-toolbar { gap: 4px; } /* Moins d'espace */
 }

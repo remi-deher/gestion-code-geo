@@ -2,17 +2,63 @@
 
 <?php ob_start(); ?>
 <link rel="stylesheet" href="css/plan_print.css" media="print">
+<style>
+    .drawing-toolbar {
+        background-color: #f8f9fa;
+        padding: 5px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex; /* Modifié pour s'afficher par défaut, JS gèrera si besoin */
+        gap: 5px;
+        flex-wrap: wrap; /* Pour les petits écrans */
+        align-items: center; /* Aligner verticalement les éléments */
+    }
+    .drawing-toolbar .btn-group > .btn, .drawing-toolbar > .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+    .drawing-toolbar .btn.active {
+        background-color: var(--bs-primary); /* Utilise la variable Bootstrap */
+        color: white;
+    }
+    .drawing-toolbar .form-control-color {
+        width: 40px; /* Taille fixe pour les sélecteurs de couleur */
+        height: 30px;
+        padding: 0.1rem;
+    }
+    .drawing-toolbar .form-control-sm {
+        height: 30px; /* Aligner hauteur avec sélecteur couleur */
+        padding: 0.25rem 0.5rem;
+    }
+    .drawing-toolbar .form-check-label {
+        cursor: pointer;
+    }
+     /* Style pour la grille (optionnel) */
+    .grid-line { stroke: rgba(0,0,0,0.1); stroke-width: 1; /* Sera ajusté par JS */ }
+
+    /* Cacher les contrôles de dessin si ce n'est pas un plan éditable (image/svg) */
+    body:not(.plan-type-image):not(.plan-type-svg) #drawing-toolbar,
+    body:not(.plan-type-image):not(.plan-type-svg) #save-drawing-btn {
+        display: none !important;
+    }
+    /* Cacher saveDrawingBtn si c'est un SVG (un autre bouton gèrera la sauvegarde SVG) */
+     body.plan-type-svg #save-drawing-btn {
+       /* On le laisse pour saveModifiedSvgPlan, mais on change le texte via JS */
+     }
+</style>
 <?php $head_styles = ob_get_clean(); ?>
 
 <?php ob_start(); ?>
 <script>
+    // --- Données passées par PHP ---
     let placedGeoCodes = <?= json_encode($placedGeoCodes ?? []); ?>;
     const universColors = <?= json_encode($universColors ?? []); ?>;
-    const currentPlan = <?= json_encode($plan); ?>;
+    const currentPlan = <?= json_encode($plan); ?>; // Contient id, nom, nom_fichier, zone, drawing_data
     const currentPlanId = currentPlan.id;
-    const planUnivers = <?= json_encode($universList) ?>;
+    const planType = <?= json_encode($planType); ?>; // 'image' ou 'svg'
+    // Tente de parser drawing_data si ce n'est pas null, sinon garde null
+    const initialDrawingData = <?= !empty($plan['drawing_data']) ? $plan['drawing_data'] : 'null'; ?>;
+    const planUnivers = <?= json_encode($universList ?? []) ?>;
 </script>
-<script src="js/plan.js"></script> 
 <?php $body_scripts = ob_get_clean(); ?>
 
 <div class="plan-page-container">
@@ -59,7 +105,6 @@
             </div>
         </div>
     </div>
-
     <button id="toggle-sidebar-btn" class="btn btn-light no-print" title="Cacher le panneau">
         <i class="bi bi-chevron-left"></i>
     </button>
@@ -72,27 +117,63 @@
                     <i class="bi bi-pencil-square"></i> Mode Édition : <strong><?= htmlspecialchars($plan['nom']) ?></strong>
                 </h3>
             </div>
-            <div class="d-flex gap-2">
-                <a href="index.php?action=printPlan&id=<?= $plan['id'] ?>" class="btn btn-info" target="_blank" title="Imprimer le plan">
+            <div class="d-flex gap-2 align-items-center"> <button id="save-drawing-btn" class="btn btn-success"><i class="bi bi-save"></i> Sauvegarder Annotations</button>
+                 <a href="index.php?action=printPlan&id=<?= $plan['id'] ?>" class="btn btn-info" target="_blank" title="Imprimer le plan">
                     <i class="bi bi-printer-fill"></i>
-                </a>
-                <button class="btn btn-secondary" id="fullscreen-btn" title="Plein écran">
+                 </a>
+                 <button class="btn btn-secondary" id="fullscreen-btn" title="Plein écran">
                     <i class="bi bi-arrows-fullscreen"></i>
-                </button>
+                 </button>
+            </div>
+        </div>
+
+        <div id="drawing-toolbar" class="drawing-toolbar no-print">
+            <div class="btn-group" role="group" aria-label="Drawing Tools">
+                <button type="button" class="btn btn-outline-secondary tool-btn active" data-tool="select" title="Sélectionner/Déplacer"><i class="bi bi-cursor-fill"></i></button>
+                <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="rect" title="Rectangle"><i class="bi bi-square"></i></button>
+                <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="line" title="Ligne"><i class="bi bi-slash-lg"></i></button>
+                <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="circle" title="Cercle"><i class="bi bi-circle"></i></button>
+                </div>
+             <div class="btn-group ms-2" role="group" aria-label="Object Manipulation">
+                 <button type="button" id="copy-btn" class="btn btn-outline-secondary" title="Copier la forme sélectionnée"><i class="bi bi-clipboard"></i></button>
+                 <button type="button" id="paste-btn" class="btn btn-outline-secondary" title="Coller la forme"><i class="bi bi-clipboard-plus"></i></button>
+                 <button type="button" id="delete-shape-btn" class="btn btn-outline-danger" title="Supprimer la forme sélectionnée"><i class="bi bi-trash3"></i></button>
+            </div>
+            <div class="ms-2 d-flex align-items-center">
+                <label for="stroke-color" class="form-label me-1 mb-0 visually-hidden">Couleur</label> <input type="color" id="stroke-color" class="form-control form-control-color" value="#000000" title="Couleur Trait/Remplissage">
+                <label for="stroke-width" class="form-label ms-2 me-1 mb-0 visually-hidden">Épaisseur</label>
+                <input type="number" id="stroke-width" class="form-control form-control-sm" value="2" min="1" max="50" style="width: 60px;" title="Épaisseur du trait">
+                 <div class="form-check form-switch ms-3" title="Remplir la forme (au lieu de juste le contour)">
+                    <input class="form-check-input" type="checkbox" id="fill-shape-toggle">
+                    <label class="form-check-label" for="fill-shape-toggle"><i class="bi bi-paint-bucket"></i></label>
+                </div>
+                <input type="color" id="fill-color" class="form-control form-control-color ms-1" value="#cccccc" title="Couleur de remplissage" style="display:none;">
+            </div>
+            <div class="ms-auto d-flex align-items-center">
+                 <div class="form-check form-switch me-3">
+                    <input class="form-check-input" type="checkbox" id="grid-toggle">
+                    <label class="form-check-label" for="grid-toggle" title="Afficher/Cacher la grille"><i class="bi bi-grid-3x3-gap-fill"></i></label>
+                </div>
+                 <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="snap-toggle">
+                    <label class="form-check-label" for="snap-toggle" title="Activer/Désactiver le magnétisme"><i class="bi bi-magnet-fill"></i></label>
+                </div>
             </div>
         </div>
 
         <div id="plan-container">
             <div id="plan-loader" class="spinner-border text-primary" role="status" style="display: none;"><span class="visually-hidden">Loading...</span></div>
             <canvas id="plan-canvas"></canvas>
-            <img src="uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>" alt="Plan du magasin" id="map-image" style="display: none;">
+            <?php if ($planType === 'image'): ?>
+                <img src="uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>" alt="Plan source" id="map-image" style="display: none;">
+            <?php endif; ?>
             <div id="zoom-controls" class="no-print">
                 <button class="btn btn-light" id="zoom-in-btn" title="Zoomer"><i class="bi bi-zoom-in"></i></button>
                 <button class="btn btn-light" id="zoom-out-btn" title="Dézoomer"><i class="bi bi-zoom-out"></i></button>
                 <button class="btn btn-light" id="zoom-reset-btn" title="Réinitialiser le zoom"><i class="bi bi-aspect-ratio"></i></button>
             </div>
         </div>
-        
+
         <div id="tag-edit-toolbar" class="tag-toolbar no-print">
             <button id="toolbar-highlight" class="btn btn-sm btn-info" title="Surligner toutes les instances"><i class="bi bi-search"></i></button>
             <button id="toolbar-arrow" class="btn btn-sm btn-secondary" title="Ajouter/Modifier la flèche"><i class="bi bi-arrow-up-right"></i></button>
@@ -101,7 +182,7 @@
                 <button type="button" class="btn btn-secondary size-btn" data-size="medium">M</button>
                 <button type="button" class="btn btn-secondary size-btn" data-size="large">L</button>
             </div>
-            <button id="toolbar-delete" class="btn btn-sm btn-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+            <button id="toolbar-delete" class="btn btn-sm btn-danger" title="Supprimer le tag géo"><i class="bi bi-trash"></i></button>
         </div>
     </div>
 </div>
@@ -142,7 +223,4 @@
 </div>
 
 <div id="print-output" class="print-container" style="display:none;">
-    <div class="print-header-container"></div>
-    <img id="printed-canvas" src="" alt="Plan à imprimer" />
-    <div class="print-legend-container"></div>
-</div>
+     </div>
