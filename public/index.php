@@ -68,9 +68,12 @@ switch ($action) {
     case 'handleExport': $geoCodeController->handleExportAction(); break;
     case 'showImport': $geoCodeController->showImportAction(); break;
     case 'handleImport': $geoCodeController->handleImportAction(); break;
-    case 'printLabels': $geoCodeController->showPrintOptionsAction(); break; // Options impression étiquettes
-    case 'generatePrint': $geoCodeController->generatePrintPageAction(); break; // Génère page HTML étiquettes
-    case 'printSingle': $geoCodeController->printSingleLabelAction(); break; // Imprime une seule étiquette
+    case 'printLabels': $geoCodeController->showPrintOptionsAction(); break; // Options impression étiquettes (maintenant PDF)
+    // case 'generatePrint': $geoCodeController->generatePrintPageAction(); break; // ANCIENNE ROUTE HTML (peut être supprimée ou commentée)
+    case 'printSingle': $geoCodeController->printSingleLabelAction(); break; // Imprime une seule étiquette (probablement à adapter si besoin PDF)
+
+    // NOUVELLE ROUTE POUR AJAX PDF
+    case 'getCodesForPrint': $geoCodeController->getCodesForPrintAction(); break;
 
     // Plans (Gestion CRUD et Métadonnées)
     case 'listPlans': $planController->listPlansAction(); break;
