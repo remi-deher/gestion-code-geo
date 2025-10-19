@@ -53,15 +53,9 @@
                         <div class="card-header"><span class="step-number">3</span> Mise en page et options</div>
                         <div class="card-body">
 
-                            <div class="mb-3">
-                                <label for="labels_per_page" class="form-label fw-bold">Nombre d'étiquettes par page</label>
-                                <input type="number" id="labels_per_page" name="labels_per_page" class="form-control" value="10" min="1" max="100">
-                                <div class="form-text">La taille et la disposition seront calculées automatiquement.</div>
-                            </div>
-
                             <div class="row g-3 mb-3">
                                 <div class="col-6">
-                                    <label for="page_size" class="form-label">Format Papier</label>
+                                    <label for="page_size" class="form-label fw-bold">Format Papier</label>
                                     <select id="page_size" name="page_size" class="form-select">
                                         <option value="A4" selected>A4</option>
                                         <option value="A3">A3</option>
@@ -69,7 +63,7 @@
                                     </select>
                                 </div>
                                 <div class="col-6">
-                                    <label for="orientation" class="form-label">Orientation</label>
+                                    <label for="orientation" class="form-label fw-bold">Orientation</label>
                                     <select id="orientation" name="orientation" class="form-select">
                                         <option value="portrait">Portrait</option>
                                         <option value="landscape" selected>Paysage</option>
@@ -77,14 +71,26 @@
                                 </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label for="margins" class="form-label">Marges (mm)</label>
-                                <input type="number" id="margins" name="margins" class="form-control form-control-sm" value="10" min="0">
+                            <div class="row g-3 mb-3">
+                                <div class="col-6">
+                                    <label for="labels_per_page" class="form-label">Étiquettes/page (Max)</label>
+                                    <input type="number" id="labels_per_page" name="labels_per_page" class="form-control" value="10" min="1" max="100">
+                                </div>
+                                <div class="col-6">
+                                    <label for="columns" class="form-label fw-bold">Colonnes</label>
+                                    <input type="number" id="columns" name="columns" class="form-control" value="2" min="1" max="10">
+                                </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label for="gap" class="form-label">Espace entre étiquettes (mm)</label>
-                                <input type="number" id="gap" name="gap" class="form-control form-control-sm" value="4" min="0">
+                            <div class="row g-3 mb-3">
+                                <div class="col-6">
+                                    <label for="margins" class="form-label">Marges (mm)</label>
+                                    <input type="number" id="margins" name="margins" class="form-control form-control-sm" value="10" min="0">
+                                </div>
+                                <div class="col-6">
+                                    <label for="gap" class="form-label">Espace (mm)</label>
+                                    <input type="number" id="gap" name="gap" class="form-control form-control-sm" value="4" min="0">
+                                </div>
                             </div>
 
                              <div class="mb-3">
@@ -140,7 +146,7 @@
 
 <?php ob_start(); ?>
 <script>
-    // Script simple pour cocher/décocher tout (peut être mis dans pdf-label-generator.js si tu préfères)
+    // Script simple pour cocher/décocher tout
     document.addEventListener('DOMContentLoaded', () => {
         const selectAllBtn = document.getElementById('select-all');
         const deselectAllBtn = document.getElementById('deselect-all');
