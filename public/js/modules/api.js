@@ -26,7 +26,16 @@ async function apiRequest(action, data = {}, method = 'POST') {
             options.body = JSON.stringify(data);
         }
 
-        const response = await fetch(`index.php?action=${action}`, options);
+        // Construit l'URL avec les paramètres GET si besoin
+        let url = `index.php?action=${action}`;
+        if (method === 'GET' && Object.keys(data).length > 0) {
+            // Pour les requêtes GET, les 'data' sont ajoutés comme paramètres d'URL
+            // Note: `action` peut déjà contenir des paramètres GET (ex: getAsset&id=X)
+            const params = new URLSearchParams(data);
+            url += (url.includes('?') ? '&' : '?') + params.toString();
+        }
+
+        const response = await fetch(url, options);
 
         console.log(`apiRequest ${action} - Status: ${response.status}`);
         const responseText = await response.text(); // Lire en texte d'abord pour le debug
@@ -39,7 +48,7 @@ async function apiRequest(action, data = {}, method = 'POST') {
                 errorMsg += `: ${errorJson.message || errorJson.error || 'Erreur inconnue'}`;
             } catch (e) {
                 // Si la réponse n'est pas du JSON valide, utiliser le texte brut
-                errorMsg += `: ${responseText}`;
+                if(responseText.length < 200) errorMsg += `: ${responseText}`; // Limite la taille si texte brut
             }
              console.error(`apiRequest ${action} - Failed:`, errorMsg);
             throw new Error(errorMsg);
@@ -86,22 +95,31 @@ export async function removeMultiplePositions(geoCodeId, planId) {
 }
 
 export async function fetchAvailableCodes(planId) {
-    // Utilise GET, donc pas de corps de requête
+    // Utilise GET avec ID dans l'action string
     return await apiRequest(`getAvailableCodesForPlan&id=${planId}`, {}, 'GET');
 }
 
 export async function saveNewGeoCode(codeData) {
     const result = await apiRequest('addGeoCodeFromPlan', codeData);
-    // L'API retourne directement le nouvel objet code géo si succès
-    return result; // L'appelant vérifiera si l'objet a un ID
+    // L'API est censée retourner directement le nouvel objet code géo si succès
+    if (result && result.id) {
+        return result;
+    } else {
+        throw new Error(result.error || 'Erreur lors de la création du code géo.');
+    }
 }
 
 export async function saveDrawingData(planId, drawingData) {
     const result = await apiRequest('saveDrawing', {
         plan_id: planId,
-        drawing_data: drawingData // Peut être null
+        drawing_data: drawingData // Peut être null si vide
     });
-    return result.status === 'success';
+    // L'API saveDrawing renvoie juste status: success/error
+    if (result.status === 'success') {
+        return true;
+    } else {
+        throw new Error(result.message || 'Erreur lors de la sauvegarde des annotations.');
+    }
 }
 
 export async function createSvgPlan(planName, svgContent) {
@@ -115,5 +133,51 @@ export async function createSvgPlan(planName, svgContent) {
 
 export async function updateSvgPlan(planId, svgContent) {
     const result = await apiRequest('updateSvgPlan', { plan_id: planId, svgContent: svgContent });
-    return result.status === 'success';
+    // L'API updateSvgPlan renvoie juste status: success/error
+    if (result.status === 'success') {
+        return true;
+    } else {
+        throw new Error(result.message || 'Erreur lors de la mise à jour du plan SVG.');
+    }
 }
+
+
+// --- Fonctions spécifiques pour les Assets ---
+
+export async function saveAsset(assetName, assetData) {
+    const result = await apiRequest('saveAsset', { name: assetName, data: assetData });
+    if (result.status === 'success' && result.asset_id) {
+        return result.asset_id;
+    } else {
+        throw new Error(result.message || 'Erreur lors de la sauvegarde de l\'asset.');
+    }
+}
+
+export async function listAssets() {
+    // Utilise GET, pas de corps
+    return await apiRequest('listAssets', {}, 'GET');
+}
+
+export async function getAssetData(assetId) {
+    // Utilise GET avec ID dans l'action string
+    const result = await apiRequest(`getAsset&id=${assetId}`, {}, 'GET');
+    // L'API renvoie {id: ..., name: ..., data: '{...}'}
+    if (result && result.data) {
+        try {
+            // Tente de parser la chaîne JSON contenue dans 'data'
+            const parsedData = JSON.parse(result.data);
+            return { id: result.id, name: result.name, data: parsedData }; // Renvoie l'objet JS
+        } catch(e) {
+            console.error("Erreur parsing JSON de l'asset:", e);
+            throw new Error("Données de l'asset reçues corrompues.");
+        }
+    } else {
+        throw new Error(result.error || 'Asset non trouvé ou données manquantes.');
+    }
+}
+
+// Optionnel: Ajouter une fonction deleteAsset(assetId)
+// export async function deleteAsset(assetId) {
+//     const result = await apiRequest('deleteAsset', { id: parseInt(assetId, 10) });
+//     return result.status === 'success';
+// }

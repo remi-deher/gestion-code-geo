@@ -82,3 +82,14 @@ CREATE TABLE IF NOT EXISTS `geo_codes_history` (
   `action_timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (geo_code_id) REFERENCES geo_codes(id) ON DELETE CASCADE -- Ajout pour nettoyage si code supprimé
 );
+
+-- Nouvelle table pour les assets réutilisables
+CREATE TABLE IF NOT EXISTS `assets` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NULL DEFAULT NULL, -- Pour lier à un utilisateur si tu as un système d'authentification
+  `name` VARCHAR(255) NOT NULL,
+  `data` JSON NOT NULL, -- Stocke l'objet Fabric sérialisé
+  `thumbnail` TEXT NULL DEFAULT NULL, -- Optionnel : stocker une miniature en base64
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `user_id_idx` (`user_id`) -- Index si lié aux utilisateurs
+);

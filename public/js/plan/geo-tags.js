@@ -404,7 +404,7 @@ function toggleHighlightSelected() {
 }
 
 /** Redessine tous les objets pour appliquer/retirer l'effet de surlignage. */
-function redrawAllTagsHighlight() {
+export function redrawAllTagsHighlight() {
     if (!fabricCanvas) return;
     fabricCanvas.getObjects().forEach(updateHighlightEffect);
     fabricCanvas.renderAll();
@@ -532,12 +532,15 @@ export function handleArrowEndPoint(opt) {
 }
 
 /** Annule le mode dessin de flèche. */
-function cancelArrowDrawing() {
+// **** CORRECTION ICI ****
+export function cancelArrowDrawing() {
     isDrawingArrowMode = false;
     // Restaurer le curseur par défaut (sera géré par setActiveTool si un outil de dessin est actif)
-    const currentTool = document.querySelector('.tool-btn.active')?.dataset.tool || 'select';
-    fabricCanvas.defaultCursor = (currentTool === 'select') ? 'default' : 'crosshair';
-     fabricCanvas.setCursor(fabricCanvas.defaultCursor); // Appliquer immédiatement
+    if (fabricCanvas) { // S'assurer que le canvas existe
+        const currentTool = document.querySelector('.tool-btn.active')?.dataset.tool || 'select';
+        fabricCanvas.defaultCursor = (currentTool === 'select') ? 'default' : 'crosshair';
+        fabricCanvas.setCursor(fabricCanvas.defaultCursor); // Appliquer immédiatement
+    }
 }
 
 /**

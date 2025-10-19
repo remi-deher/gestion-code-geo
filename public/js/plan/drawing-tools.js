@@ -1,19 +1,21 @@
 /**
- * Module pour la gestion des outils de dessin (formes, styles, copier/coller).
+ * Module pour la gestion des outils de dessin (formes+texte, styles, copier/coller, grouper).
+ * VERSION MISE A JOUR AVEC EXPORTS CORRIGÉS
  */
 import { getCanvasInstance, updateStrokesWidth, snapToGrid } from './canvas.js';
 import { getIsSnapEnabled } from './canvas.js'; // Pour utiliser la valeur de snap
+import { showToast } from '../modules/utils.js'; // Pour les notifications
 
 let fabricCanvas;
 let drawingToolbarEl;
 let toolBtns;
 let strokeColorInput, strokeWidthInput, fillShapeToggle, fillColorInput;
-let copyBtn, pasteBtn, deleteShapeBtn;
+let copyBtn, pasteBtn, deleteShapeBtn, groupBtn, ungroupBtn;
 
 let currentDrawingTool = 'select'; // Outil actif
 let isDrawing = false;             // État: en train de dessiner une forme ?
 let startPoint = null;             // Point de départ du dessin
-let currentShape = null;           // Forme en cours de dessin
+let currentShape = null;           // Forme en cours de dessin (peut être un groupe)
 let fabricClipboard = null;        // Presse-papier pour copier/coller
 
 /**
@@ -37,6 +39,8 @@ export function initializeDrawingTools(canvasInstance) {
     copyBtn = document.getElementById('copy-btn');
     pasteBtn = document.getElementById('paste-btn');
     deleteShapeBtn = document.getElementById('delete-shape-btn');
+    groupBtn = document.getElementById('group-btn');
+    ungroupBtn = document.getElementById('ungroup-btn');
 
     addEventListeners();
     setActiveTool('select'); // Outil par défaut
@@ -54,20 +58,25 @@ function addEventListeners() {
         updateDrawingStyle(); // Appliquer le changement de remplissage à la sélection
     });
     fillColorInput?.addEventListener('input', updateDrawingStyle);
+    
+    // Les boutons appellent maintenant les versions exportées
     copyBtn?.addEventListener('click', copyShape);
     pasteBtn?.addEventListener('click', pasteShape);
     deleteShapeBtn?.addEventListener('click', deleteSelectedShape);
+    groupBtn?.addEventListener('click', groupSelectedObjects);
+    ungroupBtn?.addEventListener('click', ungroupSelectedObject);
 }
 
 /**
  * Définit l'outil de dessin actif et configure le canvas Fabric en conséquence.
- * @param {string} tool - Le nom de l'outil ('select', 'line', 'rect', 'circle', 'freehand').
+ * @param {string} tool - Le nom de l'outil ('select', 'line', 'rect', 'circle', 'text').
  */
 export function setActiveTool(tool) {
     if (!fabricCanvas) return;
     currentDrawingTool = tool;
 
-    fabricCanvas.isDrawingMode = (tool === 'freehand'); // Mode dessin libre de Fabric
+    // Le mode dessin libre n'est plus utilisé ici
+    fabricCanvas.isDrawingMode = false;
     fabricCanvas.selection = (tool === 'select'); // Activer/désactiver la sélection multiple
 
     // Configurer les curseurs
@@ -83,16 +92,14 @@ export function setActiveTool(tool) {
             selectable: isSelectable,
             evented: isSelectable // Permet de recevoir les événements souris
         });
+        // Si c'est un groupe forme+texte, rendre le texte interne non sélectionnable individuellement
+        if (obj.type === 'group' && obj._objects?.length === 2 && obj._objects[1].type === 'i-text') {
+             obj._objects[1].set({ selectable: false, evented: false });
+        }
     });
 
     // Mettre à jour l'état visuel des boutons d'outils
     toolBtns?.forEach(btn => btn.classList.toggle('active', btn.dataset.tool === tool));
-
-    // Configurer le pinceau pour le dessin libre
-    if (fabricCanvas.isDrawingMode) {
-        fabricCanvas.freeDrawingBrush.color = strokeColorInput?.value || '#000000';
-        fabricCanvas.freeDrawingBrush.width = parseInt(strokeWidthInput?.value || '2', 10);
-    }
 
     fabricCanvas.discardActiveObject().renderAll(); // Désélectionner et redessiner
     console.log(`Outil actif: ${tool}`);
@@ -103,9 +110,9 @@ export function getCurrentDrawingTool() {
     return currentDrawingTool;
 }
 
-/** Démarre le dessin d'une forme (appelé par mouse:down). */
+/** Démarre le dessin d'une forme ou place un texte (appelé par mouse:down). */
 export function startDrawing(pointer) {
-    if (currentDrawingTool === 'select' || currentDrawingTool === 'freehand') return;
+    if (currentDrawingTool === 'select' || currentDrawingTool === 'text') return; // L'outil texte est géré au clic dans main.js
 
     isDrawing = true;
     startPoint = pointer; // Coordonnées déjà ajustées pour le snap si besoin
@@ -114,27 +121,71 @@ export function startDrawing(pointer) {
     const fillColor = fillShapeToggle?.checked ? (fillColorInput?.value || '#cccccc') : 'transparent';
     const zoom = fabricCanvas.getZoom();
 
-    const options = {
+    const options = { // Options de style pour la FORME
         stroke: strokeColor,
-        // L'épaisseur initiale doit tenir compte du zoom actuel
         strokeWidth: baseStrokeWidth / zoom,
         fill: fillColor,
         selectable: false, // Non sélectionnable pendant le dessin
         evented: false,
         originX: 'left',
         originY: 'top',
-        baseStrokeWidth: baseStrokeWidth // Stocker l'épaisseur de base
+        // baseStrokeWidth sera stocké sur le GROUPE
     };
+
+    let shape; // La forme géométrique (Line, Rect, Ellipse...)
+    let text;  // L'objet texte éditable (pour Rect et Circle)
 
     switch (currentDrawingTool) {
         case 'line':
-            currentShape = new fabric.Line([startPoint.x, startPoint.y, startPoint.x, startPoint.y], options);
+            currentShape = new fabric.Line([startPoint.x, startPoint.y, startPoint.x, startPoint.y], {
+                 ...options,
+                 baseStrokeWidth: baseStrokeWidth // Stocker sur la ligne directement
+             });
             break;
         case 'rect':
-            currentShape = new fabric.Rect({ left: startPoint.x, top: startPoint.y, width: 0, height: 0, ...options });
+            shape = new fabric.Rect({
+                left: 0, top: 0, width: 0, height: 0,
+                originX: 'left', originY: 'top',
+                fill: options.fill, stroke: options.stroke, strokeWidth: options.strokeWidth
+            });
+            text = new fabric.IText('', { // Texte initial vide
+                left: 5 / zoom, top: 5 / zoom, // Marge interne ajustée au zoom
+                fontSize: 16 / zoom,
+                fill: strokeColor, // Couleur du texte = couleur du trait
+                originX: 'left', originY: 'top',
+                selectable: false, evented: false, // Rendu sélectionnable au double clic
+                padding: 2 / zoom
+            });
+            currentShape = new fabric.Group([shape, text], {
+                left: startPoint.x, top: startPoint.y,
+                originX: 'left', originY: 'top',
+                selectable: false, evented: false,
+                baseStrokeWidth: baseStrokeWidth, // Stocker sur le groupe
+                subTargetCheck: true // Important pour détecter le double clic sur le texte
+            });
             break;
-        case 'circle': // Utiliser Ellipse pour un cercle parfait
-            currentShape = new fabric.Ellipse({ left: startPoint.x, top: startPoint.y, rx: 0, ry: 0, ...options });
+        case 'circle':
+            shape = new fabric.Ellipse({
+                left: 0, top: 0, rx: 0, ry: 0,
+                originX: 'center', originY: 'center', // Centre pour ellipse dans le groupe
+                fill: options.fill, stroke: options.stroke, strokeWidth: options.strokeWidth
+            });
+            text = new fabric.IText('', {
+                left: 0, top: 0, // Centré dans le groupe
+                fontSize: 16 / zoom,
+                fill: strokeColor,
+                originX: 'center', originY: 'center',
+                textAlign: 'center',
+                selectable: false, evented: false,
+                padding: 2 / zoom
+            });
+            currentShape = new fabric.Group([shape, text], {
+                left: startPoint.x, top: startPoint.y,
+                originX: 'center', originY: 'center', // Groupe centré au point de départ
+                selectable: false, evented: false,
+                baseStrokeWidth: baseStrokeWidth,
+                subTargetCheck: true
+            });
             break;
     }
 
@@ -148,39 +199,54 @@ export function startDrawing(pointer) {
 export function continueDrawing(pointer) {
     if (!isDrawing || !currentShape) return;
 
-    let { x, y } = pointer; // Coordonnées déjà ajustées pour le snap si besoin
+    let { x, y } = getIsSnapEnabled() ? snapToGrid(pointer.x, pointer.y) : pointer;
+    const zoom = fabricCanvas.getZoom();
 
-    switch (currentDrawingTool) {
-        case 'line':
-            currentShape.set({ x2: x, y2: y });
-            break;
-        case 'rect':
-            // Ajuster left/top et width/height pour dessiner dans toutes les directions
-            currentShape.set({
-                left: Math.min(x, startPoint.x),
-                top: Math.min(y, startPoint.y),
-                width: Math.abs(x - startPoint.x),
-                height: Math.abs(y - startPoint.y)
-            });
-            break;
-        case 'circle':
-            // Calculer le rayon basé sur la distance au point de départ
+    if (currentShape.type === 'group' && currentShape._objects?.length === 2) {
+        const shape = currentShape._objects[0]; // La forme (Rect ou Ellipse)
+        const text = currentShape._objects[1];  // Le texte
+
+        if (shape.type === 'rect') {
+            const width = Math.abs(x - startPoint.x);
+            const height = Math.abs(y - startPoint.y);
+            const newLeft = Math.min(x, startPoint.x);
+            const newTop = Math.min(y, startPoint.y);
+
+            currentShape.set({ left: newLeft, top: newTop }); // Position du groupe
+            // Taille de la forme DANS le groupe (l'origine est 0,0)
+            shape.set({ width: width, height: height });
+            // Position/taille du texte DANS le groupe
+            text.set({
+                 left: 5 / zoom,
+                 top: 5 / zoom,
+                 width: Math.max(0, width - 10 / zoom), // Largeur max texte avec marges
+                 fontSize: 16 / zoom // Garder la taille de police constante pendant le dessin
+             });
+
+            currentShape.addWithUpdate(); // Recalcule la taille du groupe
+
+        } else if (shape.type === 'ellipse') {
             const dx = x - startPoint.x;
             const dy = y - startPoint.y;
-            // Pour un cercle, rx et ry sont égaux à la moitié de la plus grande distance
+            // Utiliser la plus grande dimension pour un cercle 'inscrit' dans le rectangle de dessin
             const radius = Math.max(Math.abs(dx), Math.abs(dy)) / 2;
-            currentShape.set({
-                left: startPoint.x + dx / 2, // Le centre se déplace
-                top: startPoint.y + dy / 2,
-                rx: radius,
-                ry: radius,
-                originX: 'center', // Centrer l'origine pendant le dessin
-                originY: 'center'
-            });
-            break;
+            const groupCenterX = startPoint.x + dx / 2;
+            const groupCenterY = startPoint.y + dy / 2;
+
+            currentShape.set({ left: groupCenterX, top: groupCenterY }); // Position du groupe
+            shape.set({ rx: radius, ry: radius }); // Taille de l'ellipse DANS le groupe
+            text.set({
+                width: Math.max(0, radius * 1.6 - 10 / zoom), // Limiter largeur texte
+                fontSize: 16 / zoom
+             });
+
+            currentShape.addWithUpdate();
+        }
+    } else if (currentShape.type === 'line') {
+        currentShape.set({ x2: x, y2: y });
     }
-    currentShape.setCoords(); // Mettre à jour les coordonnées de contrôle
-    fabricCanvas.renderAll();
+    currentShape?.setCoords(); // Mettre à jour les coordonnées de contrôle
+    fabricCanvas.requestRenderAll(); // Demander un rendu (optimisé par Fabric)
 }
 
 /** Termine le dessin de la forme (appelé par mouse:up). */
@@ -189,21 +255,23 @@ export function stopDrawing() {
     isDrawing = false;
 
     if (currentShape) {
-        // Remettre l'origine par défaut pour rect/ellipse après dessin
-        if (currentShape.type === 'rect' || currentShape.type === 'ellipse') {
-            const { left, top, width, height, rx, ry, originX, originY } = currentShape;
-            if (originX === 'center' || originY === 'center') {
-                currentShape.set({
-                    left: left - (currentShape.type === 'ellipse' ? rx : width / 2),
-                    top: top - (currentShape.type === 'ellipse' ? ry : height / 2),
-                    originX: 'left',
-                    originY: 'top'
-                });
-            }
+        // Rendre la forme sélectionnable
+        currentShape.set({ selectable: true, evented: true });
+
+        // Ajustements finaux pour les groupes (origines)
+        if (currentShape.type === 'group') {
+             const shape = currentShape._objects[0];
+             // Si c'est un rectangle, son origine dans le groupe doit être left/top
+             if (shape.type === 'rect') {
+                 currentShape.set({ originX: 'left', originY: 'top' });
+                 shape.set({ originX: 'left', originY: 'top' });
+                 // Le texte garde son origine left/top avec le padding
+                 // currentShape.addWithUpdate(); // Potentiellement pas nécessaire ici
+             }
+             // Pour l'ellipse, l'origine du groupe et de l'ellipse est déjà 'center'
         }
 
-        // Rendre la forme sélectionnable
-        currentShape.set({ selectable: true, evented: true }).setCoords();
+        currentShape.setCoords(); // Recalculer après tous changements
 
         console.log(`Fin dessin: ${currentDrawingTool}`);
         fabricCanvas.setActiveObject(currentShape); // Sélectionner la forme créée
@@ -229,35 +297,47 @@ function updateDrawingStyle() {
     const activeObject = fabricCanvas.getActiveObject();
     const currentZoom = fabricCanvas.getZoom();
 
-    console.log("Update style - Stroke:", strokeColor, "BaseWidth:", baseStrokeWidth, "Fill:", fillColor, "Active:", activeObject);
+    console.log("Update style - Stroke:", strokeColor, "BaseWidth:", baseStrokeWidth, "Fill:", fillColor, "Active:", activeObject?.type);
 
-    // Si un objet (non-tag) est sélectionné, appliquer le style
-    if (activeObject && !activeObject.customData?.isGeoTag && !activeObject.isGridLine) {
-        const updateProps = {
-            stroke: strokeColor,
-            strokeWidth: baseStrokeWidth / currentZoom, // Appliquer l'épaisseur ajustée au zoom
-            fill: fillColor,
-            baseStrokeWidth: baseStrokeWidth // Stocker l'épaisseur de base
-        };
+    const applyStyleToObject = (obj) => {
+        if (!obj || obj.customData?.isGeoTag || obj.isGridLine || obj.isPageGuide) return; // Ignorer tags, grille, guide
 
-        if (activeObject.type === 'activeSelection') { // Si plusieurs objets sont sélectionnés
-            activeObject.forEachObject(obj => {
-                if (!obj.isGridLine) obj.set(updateProps);
+        // Stocker la largeur de base
+        obj.set('baseStrokeWidth', baseStrokeWidth);
+
+        if (obj.type === 'group' && obj._objects?.length > 1) { // Groupe Forme+Texte
+            const shape = obj._objects[0];
+            const text = obj._objects[1];
+            shape.set({
+                stroke: strokeColor,
+                strokeWidth: baseStrokeWidth / currentZoom,
+                fill: fillColor
             });
+            text.set({ fill: strokeColor }); // Mettre à jour couleur texte aussi
+            obj.setCoords(); // Important pour les groupes
+        } else { // Forme simple (ligne, IText, etc.)
+            obj.set({
+                stroke: strokeColor,
+                strokeWidth: baseStrokeWidth / currentZoom,
+                fill: (obj.type === 'i-text' ? strokeColor : fillColor) // Texte utilise 'fill' pour sa couleur principale
+            });
+             // Si c'est un IText, mettre à jour la couleur du texte
+             if (obj.type === 'i-text') {
+                 obj.set({ fill: strokeColor });
+             }
+        }
+    };
+
+    if (activeObject) {
+        if (activeObject.type === 'activeSelection') { // Si plusieurs objets sont sélectionnés
+            activeObject.forEachObject(applyStyleToObject);
         } else {
-            activeObject.set(updateProps);
+            applyStyleToObject(activeObject);
         }
         fabricCanvas.requestRenderAll();
         console.log("Style appliqué à la sélection.");
     }
-
-    // Mettre à jour le pinceau pour le dessin libre
-    if (fabricCanvas.isDrawingMode) {
-        fabricCanvas.freeDrawingBrush.color = strokeColor;
-        // Pour le dessin libre, Fabric gère l'épaisseur différemment, on utilise la valeur brute
-        fabricCanvas.freeDrawingBrush.width = baseStrokeWidth;
-        console.log("Style du pinceau mis à jour.");
-    }
+    // Le style du pinceau n'est plus utilisé directement ici
 }
 
 /** Affiche ou cache le sélecteur de couleur de remplissage */
@@ -267,25 +347,26 @@ function updateFillColorVisibility() {
     }
 }
 
-// --- Copier / Coller / Supprimer Formes ---
+// --- Copier / Coller / Supprimer / Grouper ---
+// **** CORRECTION: Ajout de 'export' ****
 
 /** Copie l'objet sélectionné (non-tag) dans le presse-papiers interne. */
-function copyShape() {
+export function copyShape() {
     const activeObject = fabricCanvas.getActiveObject();
-    // Ne copier que les objets de dessin, pas les tags ni la grille
-    if (activeObject && !activeObject.customData?.isGeoTag && !activeObject.isGridLine) {
+    if (activeObject && !activeObject.customData?.isGeoTag && !activeObject.isGridLine && !activeObject.isPageGuide) {
         activeObject.clone(cloned => {
             fabricClipboard = cloned;
             console.log("Objet copié:", fabricClipboard.type);
-        });
+            showToast('Objet copié.', 'info');
+        }, ['baseStrokeWidth', 'customData']); // Inclure baseStrokeWidth et customData si besoin
     } else {
-        fabricClipboard = null; // Vide le presse-papiers si rien n'est sélectionné
-         console.log("Copie annulée (aucun objet dessin valide sélectionné).");
+        fabricClipboard = null;
+        console.log("Copie annulée (aucun objet dessin valide sélectionné).");
     }
 }
 
 /** Colle l'objet du presse-papiers sur le canvas. */
-function pasteShape() {
+export function pasteShape() {
     if (!fabricClipboard) {
         console.log("Collage annulé (presse-papiers vide).");
         return;
@@ -293,49 +374,112 @@ function pasteShape() {
     console.log("Collage de:", fabricClipboard.type);
     fabricClipboard.clone(clonedObj => {
         fabricCanvas.discardActiveObject(); // Désélectionner avant de coller
+
+        // Position légèrement décalée
+        const offset = 10 / fabricCanvas.getZoom();
         clonedObj.set({
-            left: clonedObj.left + 10, // Décaler légèrement pour la visibilité
-            top: clonedObj.top + 10,
+            left: clonedObj.left + offset,
+            top: clonedObj.top + offset,
             evented: true,       // Rendre cliquable
             selectable: true,    // Rendre sélectionnable
             // Assurer que baseStrokeWidth est copié s'il existe
-            ...(clonedObj.baseStrokeWidth && { baseStrokeWidth: clonedObj.baseStrokeWidth })
+            ...(clonedObj.baseStrokeWidth && {
+                baseStrokeWidth: clonedObj.baseStrokeWidth,
+                strokeWidth: clonedObj.baseStrokeWidth / fabricCanvas.getZoom() // Appliquer la bonne épaisseur
+            })
         });
+        // Si c'est un groupe forme+texte, ajuster aussi le texte interne
+        if (clonedObj.type === 'group' && clonedObj._objects?.length === 2 && clonedObj._objects[1].type === 'i-text') {
+             const text = clonedObj._objects[1];
+             text.set({
+                 fontSize: text.fontSize / fabricCanvas.getZoom(), // Ajuster taille police si nécessaire ? Ou stocker fontSize de base ?
+                 selectable: false, // Non sélectionnable individuellement par défaut
+                 evented: false
+             });
+        }
+
 
         if (clonedObj.type === 'activeSelection') {
-            // Si c'était une sélection multiple, ajouter chaque objet individuellement
             clonedObj.canvas = fabricCanvas;
             clonedObj.forEachObject(obj => fabricCanvas.add(obj));
-            clonedObj.setCoords(); // Recalculer les coords du groupe collé
+            clonedObj.setCoords();
         } else {
-            fabricCanvas.add(clonedObj); // Ajouter l'objet simple
+            fabricCanvas.add(clonedObj);
         }
 
         // Mettre à jour la position pour le prochain collage
-        fabricClipboard.top += 10;
-        fabricClipboard.left += 10;
+        fabricClipboard.top += offset;
+        fabricClipboard.left += offset;
 
         fabricCanvas.setActiveObject(clonedObj); // Sélectionner l'objet collé
         fabricCanvas.requestRenderAll();
         console.log("Objet collé et sélectionné.");
-    });
+    }, ['baseStrokeWidth', 'customData']); // Inclure les propriétés personnalisées
 }
 
 /** Supprime l'objet de dessin sélectionné (pas les tags géo). */
-function deleteSelectedShape() {
+export function deleteSelectedShape() {
     const activeObject = fabricCanvas.getActiveObject();
-    if (activeObject && !activeObject.customData?.isGeoTag && !activeObject.isGridLine) {
+    if (activeObject && !activeObject.customData?.isGeoTag && !activeObject.isGridLine && !activeObject.isPageGuide) {
         console.log("Suppression de:", activeObject.type);
         if (activeObject.type === 'activeSelection') {
-            // Si c'est une sélection multiple, supprimer chaque objet
             activeObject.forEachObject(obj => fabricCanvas.remove(obj));
         } else {
-            fabricCanvas.remove(activeObject); // Supprimer l'objet simple
+            fabricCanvas.remove(activeObject);
         }
         fabricCanvas.discardActiveObject().renderAll(); // Désélectionner et redessiner
     } else if (activeObject?.customData?.isGeoTag) {
-        alert("Utilisez la barre d'outils du tag géo (icône poubelle) pour le supprimer.");
+        showToast("Utilisez la barre d'outils du tag géo (icône poubelle) pour le supprimer.", "warning");
     } else {
         console.log("Suppression annulée (aucun objet dessin sélectionné).");
     }
+}
+
+/** Groupe les objets actuellement sélectionnés */
+export function groupSelectedObjects() {
+    const activeSelection = fabricCanvas.getActiveObject();
+    if (!activeSelection || activeSelection.type !== 'activeSelection') {
+        showToast('Sélectionnez au moins deux formes (non géo-tags) pour les grouper.', 'info');
+        return;
+    }
+    // Filtrer pour exclure les tags géo du groupement
+    const objectsToGroup = activeSelection.getObjects().filter(obj => !obj.customData?.isGeoTag && !obj.isGridLine && !obj.isPageGuide);
+    if (objectsToGroup.length < 2) {
+         showToast('Sélectionnez au moins deux formes (non géo-tags) pour les grouper.', 'info');
+         return;
+    }
+
+    fabricCanvas.discardActiveObject(); // Désélectionner la sélection multiple
+
+    // Créer une nouvelle sélection active SEULEMENT avec les objets à grouper
+    const selectionToGroup = new fabric.ActiveSelection(objectsToGroup, { canvas: fabricCanvas });
+
+    const newGroup = selectionToGroup.toGroup(); // Crée le groupe
+    fabricCanvas.remove(...objectsToGroup); // Retire les objets individuels
+    fabricCanvas.add(newGroup).setActiveObject(newGroup); // Ajoute et sélectionne le groupe
+    fabricCanvas.renderAll();
+    console.log('Objets groupés.');
+    showToast('Objets groupés.', 'success');
+}
+
+/** Dégroupe l'objet actuellement sélectionné s'il s'agit d'un groupe (non géo-tag) */
+export function ungroupSelectedObject() {
+    const activeObject = fabricCanvas.getActiveObject();
+    if (!activeObject || activeObject.type !== 'group' || activeObject.customData?.isGeoTag || activeObject.isPageGuide) {
+        showToast('Sélectionnez un groupe (non géo-tag) pour le dégrouper.', 'info');
+        return;
+    }
+    const items = activeObject._objects; // Récupère les objets du groupe
+    activeObject._restoreObjectsState(); // Restitue l'état individuel
+    fabricCanvas.remove(activeObject); // Supprime le groupe
+    items.forEach(item => {
+        item.set({ selectable: true, evented: true }); // S'assurer qu'ils sont sélectionnables
+        fabricCanvas.add(item);
+    }); // Ré-ajoute les objets individuellement
+
+    // Recréer une sélection active avec les objets dégroupés
+    const newSelection = new fabric.ActiveSelection(items, { canvas: fabricCanvas });
+    fabricCanvas.setActiveObject(newSelection).renderAll();
+    console.log('Groupe dégroupé.');
+    showToast('Groupe dégroupé.', 'success');
 }

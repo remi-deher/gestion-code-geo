@@ -6,59 +6,67 @@
     /* Styles CSS spécifiques à plan_view.php (inchangés) */
     .drawing-toolbar {
         background-color: #f8f9fa;
-        padding: 5px;
-        border-bottom: 1px solid #dee2e6;
+        padding: 5px 10px; /* Ajusté */
+        border-bottom: 1px solid var(--border-color);
         display: flex; /* Affiché par défaut */
-        gap: 5px;
+        gap: 8px; /* Espace entre groupes d'outils */
         flex-wrap: wrap;
         align-items: center;
+        flex-shrink: 0; /* Ne doit pas rétrécir */
+        min-height: 40px; /* Hauteur minimale */
     }
-    .drawing-toolbar .btn-group > .btn, .drawing-toolbar > .btn {
+    .drawing-toolbar .btn-group > .btn,
+    .drawing-toolbar > .btn {
         padding: 0.25rem 0.5rem;
         font-size: 0.875rem;
+        display: inline-flex; /* Pour centrer icônes */
+        align-items: center;
+        justify-content: center;
     }
     .drawing-toolbar .btn.active {
-        background-color: var(--bs-primary);
+        background-color: var(--primary-color); /* Couleur Bootstrap pour active */
         color: white;
+        border-color: var(--primary-color);
     }
     .drawing-toolbar .form-control-color {
-        width: 40px;
+        width: 35px; /* Taille cohérente */
         height: 30px;
         padding: 0.1rem;
+        border: 1px solid #ced4da;
+        cursor: pointer;
+        vertical-align: middle; /* Alignement vertical */
     }
     .drawing-toolbar .form-control-sm {
         height: 30px;
         padding: 0.25rem 0.5rem;
+        vertical-align: middle;
     }
     .drawing-toolbar .form-check-label {
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        margin-bottom: 0; /* Important dans flex */
+        padding-left: 0.25rem; /* Espace après l'input */
     }
-    .grid-line { stroke: rgba(0,0,0,0.1); stroke-width: 1; /* Sera ajusté par JS */ }
-
-    /* Styles pour cacher/montrer toolbar selon type (inchangé) */
-     body:not(.plan-type-image):not(.plan-type-svg) #drawing-toolbar,
-     body:not(.plan-type-image):not(.plan-type-svg) #save-drawing-btn {
-         /* display: none !important; */ /* Commenté pour laisser JS gérer dynamiquement */
+     .drawing-toolbar .form-check-input {
+        cursor: pointer;
+        margin-top: 0; /* Aligner avec label */
      }
-     /* Style spécifique pour bouton sauvegarde SVG */
-     body.plan-type-svg #save-drawing-btn {
-        /* Texte changé par JS */
-     }
+    /* Style pour le guide de page (sera créé par JS) */
+    /* .page-guide-rect { /* Pas besoin ici, géré directement par Fabric */ } */
 </style>
 <?php $head_styles = ob_get_clean(); ?>
 
 <?php ob_start(); ?>
     <script id="plan-data" type="application/json">
     <?= json_encode([
-        // Note: $placedGeoCodes contient TOUS les codes avec leurs placements. Le JS filtrera si nécessaire.
         'placedGeoCodes' => $placedGeoCodes ?? [],
         'universColors' => $universColors ?? [],
         'currentPlan' => $plan ?? null,
         'currentPlanId' => $plan['id'] ?? null,
-        'planType' => $planType ?? 'unknown', // 'image' ou 'svg'
-        // On décode drawing_data ici pour le passer comme objet JSON, ou null si vide/invalide
+        'planType' => $planType ?? 'unknown',
         'initialDrawingData' => isset($plan['drawing_data']) ? json_decode($plan['drawing_data']) : null,
-        'planUnivers' => $universList ?? [], // $universList contient déjà UNIQUEMENT ceux du plan
+        'planUnivers' => $universList ?? [],
         'csrfToken' => null // Mettre un vrai token CSRF ici si vous en utilisez un
     ]); ?>
     </script>
@@ -104,7 +112,7 @@
                     </button>
                 </h2>
                 <div id="collapse-legend" class="accordion-collapse collapse" aria-labelledby="heading-legend">
-                    <div class="accordion-body" id="legend-container"></div>
+                    <div class="accordion-body" id="legend-container"><p class="text-muted small">Chargement...</p></div>
                 </div>
             </div>
         </div>
@@ -116,14 +124,25 @@
     <div class="plan-main-content">
         <div class="plan-toolbar no-print">
             <a href="index.php?action=listPlans" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Retour</a>
-            <div class="mx-auto">
-                <h3 class="mb-0 text-center">
+            <div class="mx-auto d-flex align-items-center"> <h3 class="mb-0 text-center me-3">
                     <i class="bi bi-pencil-square"></i> Mode Édition : <strong><?= htmlspecialchars($plan['nom']) ?></strong>
                 </h3>
+                <div class="d-flex align-items-center">
+                    <label for="page-format-select" class="form-label mb-0 me-2 small">Format:</label>
+                    <select id="page-format-select" class="form-select form-select-sm" style="width: auto;">
+                        <option value="custom" selected>Libre (Canvas)</option>
+                        <option value="A4_landscape">A4 Paysage</option>
+                        <option value="A4_portrait">A4 Portrait</option>
+                        <option value="A3_landscape">A3 Paysage</option>
+                        <option value="A3_portrait">A3 Portrait</option>
+                    </select>
+                </div>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                 <button id="save-drawing-btn" class="btn btn-success"><i class="bi bi-save"></i> Sauvegarder...</button>
-                 <a href="index.php?action=printPlan&id=<?= $plan['id'] ?>" class="btn btn-info" target="_blank" title="Imprimer le plan">
+                 <button class="btn btn-secondary" type="button" data-bs-toggle="offcanvas" data-bs-target="#assetsOffcanvas" aria-controls="assetsOffcanvas" title="Assets">
+                    <i class="bi bi-star-fill"></i>
+                </button>
+                 <button id="save-drawing-btn" class="btn btn-success"><i class="bi bi-save"></i> Sauvegarder...</button> <a href="index.php?action=printPlan&id=<?= $plan['id'] ?>" class="btn btn-info" target="_blank" title="Imprimer le plan">
                     <i class="bi bi-printer-fill"></i>
                  </a>
                  <button class="btn btn-secondary" id="fullscreen-btn" title="Plein écran">
@@ -135,18 +154,23 @@
         <div id="drawing-toolbar" class="drawing-toolbar no-print">
              <div class="btn-group" role="group" aria-label="Drawing Tools">
                 <button type="button" class="btn btn-outline-secondary tool-btn active" data-tool="select" title="Sélectionner/Déplacer"><i class="bi bi-cursor-fill"></i></button>
-                <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="rect" title="Rectangle"><i class="bi bi-square"></i></button>
+                <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="rect" title="Rectangle (double-clic pour texte)"><i class="bi bi-square"></i></button>
                 <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="line" title="Ligne"><i class="bi bi-slash-lg"></i></button>
-                <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="circle" title="Cercle"><i class="bi bi-circle"></i></button>
+                <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="circle" title="Cercle (double-clic pour texte)"><i class="bi bi-circle"></i></button>
+                <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="text" title="Texte libre"><i class="bi bi-fonts"></i></button>
              </div>
              <div class="btn-group ms-2" role="group" aria-label="Object Manipulation">
                  <button type="button" id="copy-btn" class="btn btn-outline-secondary" title="Copier la forme sélectionnée"><i class="bi bi-clipboard"></i></button>
                  <button type="button" id="paste-btn" class="btn btn-outline-secondary" title="Coller la forme"><i class="bi bi-clipboard-plus"></i></button>
                  <button type="button" id="delete-shape-btn" class="btn btn-outline-danger" title="Supprimer la forme sélectionnée"><i class="bi bi-trash3"></i></button>
             </div>
+            <div class="btn-group ms-2" role="group" aria-label="Grouping">
+                <button type="button" id="group-btn" class="btn btn-outline-secondary" title="Grouper la sélection" disabled><i class="bi bi-bounding-box"></i></button>
+                <button type="button" id="ungroup-btn" class="btn btn-outline-secondary" title="Dégrouper la sélection" disabled><i class="bi bi-box-arrow-in-down-right"></i></button>
+            </div>
             <div class="ms-2 d-flex align-items-center">
                 <label for="stroke-color" class="form-label me-1 mb-0 visually-hidden">Couleur</label>
-                <input type="color" id="stroke-color" class="form-control form-control-color" value="#000000" title="Couleur Trait/Remplissage">
+                <input type="color" id="stroke-color" class="form-control form-control-color" value="#000000" title="Couleur Trait/Texte/Remplissage">
                 <label for="stroke-width" class="form-label ms-2 me-1 mb-0 visually-hidden">Épaisseur</label>
                 <input type="number" id="stroke-width" class="form-control form-control-sm" value="2" min="1" max="50" style="width: 60px;" title="Épaisseur du trait">
                  <div class="form-check form-switch ms-3" title="Remplir la forme (au lieu de juste le contour)">

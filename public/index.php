@@ -27,12 +27,14 @@ require_once '../controllers/DashboardController.php';
 require_once '../controllers/GeoCodeController.php';
 require_once '../controllers/PlanController.php';
 require_once '../controllers/UniversController.php';
+require_once '../controllers/AssetController.php'; // ** NOUVEAU: Ajouter l'inclusion du contrôleur d'assets **
 
 // Initialisation des contrôleurs
 $dashboardController = new DashboardController($db);
 $geoCodeController = new GeoCodeController($db);
 $planController = new PlanController($db);
 $universController = new UniversController($db);
+$assetController = new AssetController($db); // ** NOUVEAU: Instancier le contrôleur d'assets **
 
 // Action par défaut
 $action = $_GET['action'] ?? 'dashboard';
@@ -69,56 +71,56 @@ switch ($action) {
     case 'showImport': $geoCodeController->showImportAction(); break;
     case 'handleImport': $geoCodeController->handleImportAction(); break;
     case 'printLabels': $geoCodeController->showPrintOptionsAction(); break; // Options impression étiquettes (maintenant PDF)
-    // case 'generatePrint': $geoCodeController->generatePrintPageAction(); break; // ANCIENNE ROUTE HTML (peut être supprimée ou commentée)
-    case 'printSingle': $geoCodeController->printSingleLabelAction(); break; // Imprime une seule étiquette (probablement à adapter si besoin PDF)
+    case 'printSingle': $geoCodeController->printSingleLabelAction(); break; // Imprime une seule étiquette
 
     // NOUVELLE ROUTE POUR AJAX PDF
     case 'getCodesForPrint': $geoCodeController->getCodesForPrintAction(); break;
 
     // Plans (Gestion CRUD et Métadonnées)
     case 'listPlans': $planController->listPlansAction(); break;
-    case 'addPlanForm': $planController->addPlanFormAction(); break; // Afficher formulaire ajout (image/pdf/svg)
-    case 'addPlan': $planController->addPlanAction(); break; // Traiter ajout (image/pdf/svg)
-    case 'editPlan': $planController->editPlanAction(); break; // Afficher formulaire modif (métadonnées + remplacement fichier)
-    case 'updatePlan': $planController->updatePlanAction(); break; // Traiter modif (métadonnées + remplacement fichier)
+    case 'addPlanForm': $planController->addPlanFormAction(); break;
+    case 'addPlan': $planController->addPlanAction(); break;
+    case 'editPlan': $planController->editPlanAction(); break;
+    case 'updatePlan': $planController->updatePlanAction(); break;
     case 'deletePlan': $planController->deletePlanAction(); break;
 
     // Plans (Visualisation et Édition Contenu)
-    case 'viewPlan': $planController->viewPlanAction(); break; // Consultation
-    case 'manageCodes': $planController->manageCodesAction(); break; // Édition (codes + dessin)
-    case 'printPlan': $planController->printPlanAction(); break; // Imprimer le plan avec codes/dessins
+    case 'viewPlan': $planController->viewPlanAction(); break;
+    case 'manageCodes': $planController->manageCodesAction(); break;
+    case 'printPlan': $planController->printPlanAction(); break;
 
     // Plans (Actions AJAX pour l'éditeur)
-    case 'getAvailableCodesForPlan': $planController->getAvailableCodesForPlanAction(); break; // AJAX
-    case 'savePosition': $planController->savePositionAction(); break; // AJAX (pour tags géo)
-    case 'removePosition': $planController->removePositionAction(); break; // AJAX (pour tags géo)
-    case 'removeMultiplePositions': $planController->removeMultiplePositionsAction(); break; // AJAX (pour tags géo)
-    // case 'saveMultiplePositions': $planController->saveMultiplePositionsAction(); break; // AJAX (si besoin)
+    case 'getAvailableCodesForPlan': $planController->getAvailableCodesForPlanAction(); break;
+    case 'savePosition': $planController->savePositionAction(); break;
+    case 'removePosition': $planController->removePositionAction(); break;
+    case 'removeMultiplePositions': $planController->removeMultiplePositionsAction(); break;
 
     // Plans (NOUVELLES Actions Dessin AJAX / Pages)
-    case 'createBlankPlan': $planController->createBlankPlanAction(); break; // Afficher page création SVG
-    case 'createSvgPlan': $planController->createSvgPlanAction(); break; // AJAX: Enregistrer nouveau SVG
-    case 'saveDrawing': $planController->saveDrawingAction(); break; // AJAX: Sauvegarder annotations JSON sur image
-    case 'updateSvgPlan': $planController->updateSvgPlanAction(); break; // AJAX: Mettre à jour contenu SVG existant
+    case 'createBlankPlan': $planController->createBlankPlanAction(); break;
+    case 'createSvgPlan': $planController->createSvgPlanAction(); break;
+    case 'saveDrawing': $planController->saveDrawingAction(); break;
+    case 'updateSvgPlan': $planController->updateSvgPlanAction(); break;
 
-    // Plans (Historique - si implémenté)
-    case 'getHistory': $planController->getHistoryAction(); break; // AJAX
-    // case 'restorePosition': $planController->restorePositionAction(); break; // AJAX
+    // Plans (Historique - AJAX)
+    case 'getHistory': $planController->getHistoryAction(); break;
+    // case 'restorePosition': $planController->restorePositionAction(); break; // Décommenter si implémenté
 
     // Univers
     case 'listUnivers': $universController->listAction(); break;
     case 'addUnivers': $universController->addAction(); break;
-    case 'updateUnivers': $universController->updateAction(); break; // Mise à jour complète via formulaire
+    case 'updateUnivers': $universController->updateAction(); break;
     case 'deleteUnivers': $universController->deleteAction(); break;
-    // case 'updateUniversZone': $universController->updateZoneAction(); break; // Potentiellement obsolète si géré par updateUnivers
+
+    // ** NOUVEAU: Assets (AJAX) **
+    case 'listAssets': $assetController->listAssetsAction(); break;
+    case 'getAsset': $assetController->getAssetAction(); break;
+    case 'saveAsset': $assetController->saveAssetAction(); break;
+    // case 'deleteAsset': $assetController->deleteAssetAction(); break; // Optionnel
 
     // Action par défaut
     default:
-        // Sécurité : évite l'inclusion de fichiers arbitraires
-        // Afficher le tableau de bord ou une page d'erreur 404
-        // header("HTTP/1.0 404 Not Found");
-        // echo "Action non trouvée.";
-        // exit;
-        $dashboardController->indexAction(); // Redirige vers le tableau de bord par défaut
+        $dashboardController->indexAction(); // Redirige vers le tableau de bord
         break;
 }
+
+?>
