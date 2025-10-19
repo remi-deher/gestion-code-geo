@@ -54,43 +54,53 @@
                         <div class="card-body">
 
                             <div class="mb-3">
-                                <label for="layout_preset" class="form-label fw-bold">Modèle d'étiquette / Mise en page</label>
-                                <select id="layout_preset" name="layout_preset" class="form-select">
-                                    <option value="classic_14">Classique (14/page A4 Portrait)</option>
-                                    <option value="vertical_10">Verticale (10/page A4 Portrait)</option>
-                                    <option value="compact_30">Compacte (30/page A4 Paysage)</option>
-                                    <option value="text_21">Petite Texte (21/page A4 Portrait)</option>
-                                    <option value="tiny_40">Très Petite (40/page A4 Portrait)</option>
-                                    <option value="custom">Personnalisé...</option>
-                                </select>
+                                <label for="labels_per_page" class="form-label fw-bold">Nombre d'étiquettes par page</label>
+                                <input type="number" id="labels_per_page" name="labels_per_page" class="form-control" value="10" min="1" max="100">
+                                <div class="form-text">La taille et la disposition seront calculées automatiquement.</div>
                             </div>
 
-                            <div id="custom-layout-options" style="display: none; border: 1px dashed #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 5px; background-color: #f8f9fa;">
-                                <h6 class="mb-3">Options personnalisées</h6>
-                                <div class="row g-2 mb-2">
-                                    <div class="col-6"><label for="page_size" class="form-label">Format</label><select id="page_size" name="page_size" class="form-select form-select-sm"><option value="A4" selected>A4</option><option value="A5">A5</option><option value="letter">Lettre US</option></select></div>
-                                    <div class="col-6"><label for="orientation" class="form-label">Orientation</label><select id="orientation" name="orientation" class="form-select form-select-sm"><option value="portrait" selected>Portrait</option><option value="landscape">Paysage</option></select></div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-6">
+                                    <label for="page_size" class="form-label">Format Papier</label>
+                                    <select id="page_size" name="page_size" class="form-select">
+                                        <option value="A4" selected>A4</option>
+                                        <option value="A3">A3</option>
+                                        <option value="letter">Lettre US</option>
+                                    </select>
                                 </div>
-                                <div class="row g-2 mb-2">
-                                     <div class="col-4"><label for="columns" class="form-label">Colonnes</label><input type="number" id="columns" name="columns" class="form-control form-control-sm" value="2" min="1"></div>
-                                     <div class="col-4"><label for="margins" class="form-label">Marges (mm)</label><input type="number" id="margins" name="margins" class="form-control form-control-sm" value="10" min="0"></div>
-                                     <div class="col-4"><label for="gap" class="form-label">Espace (mm)</label><input type="number" id="gap" name="gap" class="form-control form-control-sm" value="4" min="0"></div>
+                                <div class="col-6">
+                                    <label for="orientation" class="form-label">Orientation</label>
+                                    <select id="orientation" name="orientation" class="form-select">
+                                        <option value="portrait">Portrait</option>
+                                        <option value="landscape" selected>Paysage</option>
+                                    </select>
                                 </div>
-                                <div class="row g-2">
-                                      <div class="col-6"><label for="label_width" class="form-label">Larg. Étiquette (mm)</label><input type="number" id="label_width" name="label_width" class="form-control form-control-sm" value="0" min="0"><small class="form-text">0 = auto</small></div>
-                                      <div class="col-6"><label for="label_height" class="form-label">Haut. Étiquette (mm)</label><input type="number" id="label_height" name="label_height" class="form-control form-control-sm" value="40" min="10"></div>
-                                </div>
-                                 <div class="mb-2 mt-2">
-                                     <label for="template_style" class="form-label">Style Étiquette</label>
-                                     <select id="template_style" name="template_style" class="form-select form-select-sm">
-                                        <option value="qr-left" selected>QR à gauche</option>
-                                        <option value="qr-top">QR en haut</option>
-                                        <option value="compact">Compact (QR petit)</option>
-                                        <option value="text-only">Texte seul</option>
-                                        <option value="ultra-compact">Code et QR seul</option>
-                                     </select>
-                                 </div>
                             </div>
+
+                            <div class="mb-3">
+                                <label for="margins" class="form-label">Marges (mm)</label>
+                                <input type="number" id="margins" name="margins" class="form-control form-control-sm" value="10" min="0">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="gap" class="form-label">Espace entre étiquettes (mm)</label>
+                                <input type="number" id="gap" name="gap" class="form-control form-control-sm" value="4" min="0">
+                            </div>
+
+                             <div class="mb-3">
+                                 <label for="template_style" class="form-label">Style de l'étiquette</label>
+                                 <select id="template_style" name="template_style" class="form-select form-select-sm">
+                                    <option value="qr-left" selected>QR à gauche</option>
+                                    <option value="qr-top">QR en haut</option>
+                                    <option value="compact">Compact (QR petit)</option>
+                                    <option value="text-only">Texte seul</option>
+                                    <option value="ultra-compact">Code et QR seul</option>
+                                 </select>
+                                 <div class="form-text">Affecte la disposition interne de l'étiquette.</div>
+                             </div>
+
+                            <hr>
+
                             <div class="mb-3">
                                 <label for="print_title" class="form-label">Titre de la page (optionnel)</label>
                                 <input type="text" id="print_title" name="print_title" class="form-control" placeholder="Ex: Inventaire 2025">
