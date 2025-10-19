@@ -41,23 +41,7 @@
         </div>
         
         <div class="view-controls">
-            <div class="view-switcher">
-                <button id="view-card-btn" class="active">Vue Fiches</button>
-                <button id="view-table-btn">Vue Tableau</button>
-            </div>
-             
-             <div class="d-flex align-items-center" id="page-length-controls">
-                <label for="items-per-page" class="form-label me-2 mb-0">Afficher :</label>
-                <select id="items-per-page" class="form-select form-select-sm" style="width: auto;">
-                    <option value="15">15</option>
-                    <option value="30">30</option>
-                    <option value="50">50</option>
-                    <option value="-1">Tous</option> 
-                </select>
-                <span class="ms-2">éléments</span>
-             </div>
-
-             <div class="sort-container" id="card-sort-controls"> 
+            <div class="sort-container" id="card-sort-controls"> 
                  <label for="sort-by" class="form-label">Trier par :</label>
                 <select id="sort-by" class="form-select form-select-sm sort" data-sort="univers"> 
                     <option value="univers">Univers (A-Z)</option>
@@ -74,6 +58,7 @@
                 <?php else: ?>
                     <?php 
                     $currentUnivers = null; 
+                    // Tri initial par Univers
                     usort($geoCodes, function($a, $b) {
                         return strnatcmp($a['univers_nom'] ?? '', $b['univers_nom'] ?? '');
                     });
@@ -130,58 +115,9 @@
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
-            <ul class="pagination justify-content-center mt-4"></ul>
-        </div>
+            </div>
 
-        <div id="table-view" class="d-none"> 
-            <table id="geo-table" class="geo-table responsive-table table table-striped table-bordered" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Code Géo</th>
-                        <th>Libellé</th>
-                        <th>Univers</th>
-                        <th>Placements</th>
-                        <th class="no-print no-sort text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (!empty($geoCodes)): ?>
-                        <?php foreach ($geoCodes as $code): ?>
-                            <tr data-univers="<?= htmlspecialchars($code['univers_nom'] ?? '') ?>"
-                                data-zone="<?= htmlspecialchars($code['zone'] ?? '') ?>">
-                                <td data-label="Code Géo"><?= htmlspecialchars($code['code_geo'] ?? '') ?></td>
-                                <td data-label="Libellé"><?= htmlspecialchars($code['libelle'] ?? '') ?></td>
-                                <td data-label="Univers"><?= htmlspecialchars($code['univers_nom'] ?? '') ?></td>
-                                <td data-label="Placements">
-                                    <?php if (empty($code['placements'])): ?>
-                                        <span class="text-muted small">Aucun</span>
-                                    <?php else: ?>
-                                        <?php 
-                                        $placementsText = [];
-                                        foreach ($code['placements'] as $placement) {
-                                            $placementsText[] = htmlspecialchars($placement['plan_name'] ?? '') . ' (' . ($placement['placement_count'] ?? 0) . 'x)';
-                                        }
-                                        echo implode('<br>', $placementsText);
-                                        ?>
-                                    <?php endif; ?>
-                                </td>
-                                <td data-label="Actions" class="item-actions no-print text-center">
-                                     <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-warning btn-sm" title="Modifier"><i class="bi bi-pencil-fill"></i></a>
-                                     <a href="index.php?action=history&id=<?= $code['id'] ?>" class="btn btn-info btn-sm" title="Historique"><i class="bi bi-clock-history"></i></a>
-                                     <a href="index.php?action=printSingle&id=<?= $code['id'] ?>" target="_blank" class="btn btn-secondary btn-sm" title="Imprimer"><i class="bi bi-printer-fill"></i></a>
-                                     <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn btn-danger btn-sm" title="Supprimer" onclick="return confirm('Mettre ce code à la corbeille ?');"><i class="bi bi-trash-fill"></i></a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="5" class="text-center">Aucun code géo trouvé.</td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </section>
+        </section>
 </div>
 
 <div class="offcanvas offcanvas-start" tabindex="-1" id="filtersOffcanvas" aria-labelledby="filtersOffcanvasLabel">
