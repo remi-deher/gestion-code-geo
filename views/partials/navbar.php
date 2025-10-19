@@ -60,7 +60,6 @@ $data_actions = ['showImport', 'export'];
             </ul>
 
             <div class="d-flex align-items-center">
-                <input class="form-control me-2" type="search" id="recherche" placeholder="Rechercher...">
                 <div class="print-menu">
                     <button id="print-btn" class="btn btn-outline-secondary">🖨️ Imprimer</button>
                     <div class="print-options dropdown-menu">

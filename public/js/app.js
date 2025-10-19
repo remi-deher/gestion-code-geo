@@ -1,4 +1,4 @@
-/* public/js/app.js (Version List.js SEULEMENT - v6 - Correction Erreur 'childNodes') */
+/* public/js/app.js (Version List.js SEULEMENT - v7 - Sans recherche) */
 
 window.addEventListener('load', () => {
 
@@ -15,7 +15,7 @@ window.addEventListener('load', () => {
     if (!classeurSection) return;
 
     // --- Éléments du DOM ---
-    const searchInput = document.getElementById('recherche');
+    // const searchInput = document.getElementById('recherche'); // Retiré
     const listJsElement = document.getElementById('fiches-list-js');
     
     const allFilterPills = document.querySelectorAll('.filter-pill');
@@ -49,10 +49,6 @@ window.addEventListener('load', () => {
     // --- Initialisation de List.js ---
     if (listJsElement && typeof List !== 'undefined') {
         try {
-
-            // CORRECTION: L'option 'pagination: false' causait l'erreur.
-            // Nous la retirons complètement de l'objet 'options'.
-            // 'page: 10000' est la bonne méthode pour tout afficher.
             const options = {
                 valueNames: [
                     'code_geo', 'libelle', 'univers', 'zone', 'unplaced',
@@ -60,12 +56,11 @@ window.addEventListener('load', () => {
                     { data: ['univers'] }
                 ],
                 page: 10000, // Affiche "tout"
-                // La clé 'pagination' est volontairement omise pour désactiver le plugin
+                // 'pagination' est omis pour désactiver le plugin
                 listClass: 'list',
-                searchClass: 'listjs-search'
+                searchClass: 'listjs-search' // Gardé au cas où, mais non utilisé
             };
             
-            // L'erreur se produisait sur cette ligne
             cardList = new List('fiches-list-js', options);
 
             // Logique de tri conservée
@@ -89,7 +84,7 @@ window.addEventListener('load', () => {
 
     // --- Fonction pour récupérer les filtres actifs ---
     function getActiveFilters() {
-        const searchTerm = (searchInput && searchInput.value) ? searchInput.value.toLowerCase().trim() : '';
+        // const searchTerm = ... // Retiré
         const activeZoneEl = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active');
         const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
         const activeUniversPills = document.querySelectorAll('.filter-pill.active[data-zone]');
@@ -97,36 +92,28 @@ window.addEventListener('load', () => {
         const filterByUnivers = !allUniversPillActive && activeUniversPills.length > 0;
         const activeUniversFilters = new Set(Array.from(activeUniversPills).map(p => p.dataset.filter));
 
-        return { searchTerm, activeZone, filterByUnivers, activeUniversFilters };
+        // 'searchTerm' retiré de l'objet retourné
+        return { activeZone, filterByUnivers, activeUniversFilters }; 
     }
 
 
     // --- GESTION DES ÉVÉNEMENTS ---
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(() => {
-            // S'applique uniquement à List.js
-            if (cardList) {
-                applyFiltersToListJs();
-            }
-        }, 300));
-    } else {
-        console.warn("Élément #recherche non trouvé.");
-    }
-
+    // Bloc 'if (searchInput)' retiré
+    
     allFilterPills.forEach(pill => pill.addEventListener('click', handlePillClick));
     allZoneTabs.forEach(tab => tab.addEventListener('click', handleZoneClick));
     
 
     // --- LOGIQUE DES FONCTIONS ---
 
-    // Fonctions de gestion des filtres (conservées pour List.js)
+    // Fonctions de gestion des filtres
     function updateUniversFiltersVisibility() {
         const activeZone = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active')?.dataset.zone || 'all';
         let anyVisibleActive = false;
 
         document.querySelectorAll('.filter-pill[data-zone]').forEach(pill => {
             const pillZone = pill.dataset.zone;
-            const shouldBeVisible = (activeZone === 'all' || pillZone === activeZone); // Correction ici (activeZon -> activeZone)
+            const shouldBeVisible = (activeZone === 'all' || pillZone === activeZone);
             pill.style.display = shouldBeVisible ? '' : 'none';
             if (!shouldBeVisible && pill.classList.contains('active')) {
                 syncPillStates(pill.dataset.filter, false);
@@ -200,7 +187,7 @@ window.addEventListener('load', () => {
         }
     }
 
-    // Logique de filtre pour List.js (conservée)
+    // Logique de filtre pour List.js
     function applyFiltersToListJs() {
         if (!cardList) return;
         const filters = getActiveFilters();
@@ -211,14 +198,13 @@ window.addEventListener('load', () => {
             }
 
             const itemValues = item.values();
-            const codeGeo = itemValues.code_geo || '';
-            const libelle = itemValues.libelle || '';
+            // Recherche textuelle retirée
             const univers = itemValues.univers || '';
             const zone = item.elm.dataset.zone || '';
             const isUnplaced = itemValues.unplaced === 'true';
-            const searchableText = `${codeGeo} ${libelle} ${univers}`.toLowerCase();
 
-            if (filters.searchTerm && !searchableText.includes(filters.searchTerm)) return false;
+            // 'searchTerm' retiré
+            // if (filters.searchTerm && !searchableText.includes(filters.searchTerm)) return false; 
 
             if (filters.activeZone === 'unplaced') {
                 if (!isUnplaced) return false;
@@ -247,7 +233,7 @@ window.addEventListener('load', () => {
                     item.elm.style.display = visibleUnivers.has(separatorUnivers) ? 'block' : 'none';
                 }
             });
-            generateVisibleQrCodes(); // Regénérer les QR codes après filtrage
+            generateVisibleQrCodes();
         }, 0);
     }
 
