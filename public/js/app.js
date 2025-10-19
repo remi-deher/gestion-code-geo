@@ -1,4 +1,4 @@
-/* public/js/app.js (Version DataTables + List.js - Vérifications Robustes et Correction QR Code) */
+/* public/js/app.js (Version DataTables + List.js - Vérifications Robustes et Correction QR Code + Correction Responsive) */
 
 window.addEventListener('load', () => {
 
@@ -235,14 +235,30 @@ window.addEventListener('load', () => {
             if (viewCardBtn) viewCardBtn.classList.remove('active');
             if (viewTableBtn) viewTableBtn.classList.add('active');
             if (cardSortControls) cardSortControls.style.display = 'none';
+
             // Important: Redessiner DataTables pour ajuster les colonnes si elles étaient cachées
-            if (dataTable) {
-                 dataTable.columns.adjust().responsive.recalc();
+            // AJOUT DE LA VÉRIFICATION ROBUSTE ICI
+            if (dataTable && typeof dataTable.responsive === 'object' && typeof dataTable.responsive.recalc === 'function') { // Vérifie si l'extension responsive est chargée
+                 try {
+                     // Recalculer la responsivité ET ajuster les colonnes
+                     dataTable.columns.adjust().responsive.recalc();
+                 } catch(e) {
+                     console.error("Error during DataTables responsive recalc:", e);
+                 }
+            } else if (dataTable) {
+                // Si responsive n'existe pas mais dataTable oui, juste ajuster les colonnes
+                try {
+                    dataTable.columns.adjust();
+                } catch(e) {
+                    console.error("Error during DataTables column adjust:", e);
+                }
+                console.warn("DataTables Responsive extension not detected during switchView, only adjusting columns.");
             }
         }
         // Appliquer les filtres à la nouvelle vue affichée
         applyAllFilters();
     }
+
 
     function updateUniversFiltersVisibility() {
         const activeZone = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active')?.dataset.zone || 'all';
