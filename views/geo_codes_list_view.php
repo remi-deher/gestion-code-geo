@@ -61,8 +61,8 @@
             <?php else: ?>
                 <?php foreach ($geoCodes as $code): ?>
                     <div class="geo-card"
-                         data-searchable="<?= strtolower(htmlspecialchars(($code['code_geo'] ?? '').' '.($code['libelle'] ?? '').' '.($code['univers'] ?? '').' '.($code['commentaire'] ?? ''))) ?>"
-                         data-univers="<?= htmlspecialchars($code['univers'] ?? '') ?>"
+                         data-searchable="<?= strtolower(htmlspecialchars(($code['code_geo'] ?? '').' '.($code['libelle'] ?? '').' '.($code['univers_nom'] ?? '').' '.($code['commentaire'] ?? ''))) ?>"
+                         data-univers="<?= htmlspecialchars($code['univers_nom'] ?? '') ?>"
                          data-zone="<?= htmlspecialchars($code['zone'] ?? '') ?>"
                          data-code_geo="<?= htmlspecialchars($code['code_geo'] ?? '') ?>"
                          data-libelle="<?= htmlspecialchars($code['libelle'] ?? '') ?>">
@@ -116,14 +116,14 @@
                 <tbody>
                     <?php if (!empty($geoCodes)): ?>
                         <?php foreach ($geoCodes as $code): ?>
-                            <tr data-searchable="<?= strtolower(htmlspecialchars(($code['code_geo'] ?? '').' '.($code['libelle'] ?? '').' '.($code['univers'] ?? ''))) ?>"
-                                data-univers="<?= htmlspecialchars($code['univers'] ?? '') ?>"
+                            <tr data-searchable="<?= strtolower(htmlspecialchars(($code['code_geo'] ?? '').' '.($code['libelle'] ?? '').' '.($code['univers_nom'] ?? ''))) ?>"
+                                data-univers="<?= htmlspecialchars($code['univers_nom'] ?? '') ?>"
                                 data-zone="<?= htmlspecialchars($code['zone'] ?? '') ?>"
                                 data-code_geo="<?= htmlspecialchars($code['code_geo'] ?? '') ?>"
                                 data-libelle="<?= htmlspecialchars($code['libelle'] ?? '') ?>">
                                 <td data-label="Code Géo"><?= htmlspecialchars($code['code_geo'] ?? '') ?></td>
                                 <td data-label="Libellé"><?= htmlspecialchars($code['libelle'] ?? '') ?></td>
-                                <td data-label="Univers"><?= htmlspecialchars($code['univers'] ?? '') ?></td>
+                                <td data-label="Univers"><?= htmlspecialchars($code['univers_nom'] ?? '') ?></td>
                                 <td data-label="Placements">
                                     <?php if (empty($code['placements'])): ?>
                                         <span class="text-muted small">Aucun</span>

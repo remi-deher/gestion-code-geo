@@ -97,7 +97,8 @@ class GeoCodeManager {
         }
 
         // Retourne un tableau indexé numériquement, pas associatif
-        return array_values($groupedCodes);
+        error_log("DEBUG MANAGER - Premier élément groupé: " . print_r(reset($groupedCodes), true));
+	return array_values($groupedCodes);
     }
 
     /**
