@@ -12,6 +12,7 @@
 
         <form id="print-options-form" class="print-options-form">
             <div class="row g-4">
+                
                 <div class="col-lg-7">
 
                     <div class="card mb-4">
@@ -36,7 +37,7 @@
                         </div>
                     </div>
 
-                    <div class="card">
+                    <div class="card mb-4"> {/* Ajout de mb-4 pour l'espacement */}
                         <div class="card-header"><span class="step-number">2</span> Choisir les informations à inclure</div>
                         <div class="card-body field-selection">
                             <div class="form-check form-switch"><input class="form-check-input print-field" type="checkbox" name="fields[]" value="qrcode" id="field_qrcode" checked><label class="form-check-label" for="field_qrcode">QR Code</label></div>
@@ -46,9 +47,21 @@
                             <div class="form-check form-switch"><input class="form-check-input print-field" type="checkbox" name="fields[]" value="commentaire" id="field_commentaire"><label class="form-check-label" for="field_commentaire">Commentaire</label></div>
                         </div>
                     </div>
-                </div>
 
-                <div class="col-lg-5">
+                    <div id="loading-indicator" class="text-center my-3" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Génération du PDF...</span>
+                        </div>
+                        <p>Génération du PDF en cours...</p>
+                    </div>
+
+                    <div class="form-actions mt-4 mb-4">
+                        <button type="button" id="generate-pdf-btn" class="btn btn-primary btn-generate">
+                            <i class="bi bi-file-earmark-pdf-fill"></i> Générer l'aperçu PDF
+                        </button>
+                    </div>
+
+                </div> <div class="col-lg-5">
                     <div class="card sticky-top" style="top: calc(var(--navbar-height) + 1rem);">
                         <div class="card-header"><span class="step-number">3</span> Mise en page et options</div>
                         <div class="card-body">
@@ -74,7 +87,7 @@
                             <div class="row g-3 mb-3">
                                 <div class="col-6">
                                     <label for="labels_per_page" class="form-label">Étiquettes/page (Max)</label>
-                                    <input type="number" id="labels_per_page" name="labels_per_page" class="form-control" value="10" min="1" max="100">
+                                    <input type="number" id="labels_per_page" name="labels_per_page" class="form-control" value="10" min="1" max="100" title="Nombre maximum d'étiquettes à placer sur une page. Saisissez un grand nombre (ex: 99) pour remplir la page.">
                                 </div>
                                 <div class="col-6">
                                     <label for="columns" class="form-label fw-bold">Colonnes</label>
@@ -102,7 +115,7 @@
                                     <option value="text-only">Texte seul</option>
                                     <option value="ultra-compact">Code et QR seul</option>
                                  </select>
-                                 <div class="form-text">Affecte la disposition interne de l'étiquette.</div>
+                                 <div class="form-text">Affecte la disposition interne de l'étiquette. Modifiable dans le code JS (fonction drawLabel).</div>
                              </div>
 
                             <hr>
@@ -117,31 +130,22 @@
                             </div>
                             <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" name="separate_univers" value="1" id="separate_univers" checked><label class="form-check-label" for="separate_univers">Nouvelle page par univers</label></div>
                              <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" name="add_cut_lines" value="1" id="add_cut_lines"><label class="form-check-label" for="add_cut_lines">Ajouter des traits de coupe</label></div>
+                             <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" name="add_column_separators" value="1" id="add_column_separators" checked><label class="form-check-label" for="add_column_separators">Ajouter des séparateurs de colonnes</label></div>
 
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <div id="loading-indicator" class="text-center my-3" style="display: none;">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Génération du PDF...</span>
-                </div>
-                <p>Génération du PDF en cours...</p>
-            </div>
-
-            <div class="mt-4">
-                <h5>Aperçu PDF</h5>
-                <iframe id="pdf-preview-iframe" style="width: 100%; height: 500px; border: 1px solid #ccc;" title="Aperçu PDF"></iframe>
-            </div>
-
-            <div class="form-actions mt-4">
-                <button type="button" id="generate-pdf-btn" class="btn btn-primary btn-generate">
-                    <i class="bi bi-file-earmark-pdf-fill"></i> Générer l'aperçu PDF
-                </button>
-            </div>
-        </form>
+                </div> </div> </form>
     </section>
+</div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="pdf-preview-offcanvas" aria-labelledby="pdf-preview-offcanvas-label" style="width: 75vw;">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="pdf-preview-offcanvas-label">Aperçu PDF</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    <iframe id="pdf-preview-iframe" style="width: 100%; height: 100%; border: none;" title="Aperçu PDF"></iframe>
+  </div>
 </div>
 
 <?php ob_start(); ?>
