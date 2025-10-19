@@ -1,104 +1,81 @@
-/* public/css/components/_tables.css */
-
+/* --- Styles existants --- */
 .geo-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.95rem;
+    margin-bottom: 1rem;
+    background-color: var(--card-bg-color); 
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius); 
+    overflow: hidden; 
 }
 
-.geo-table th, 
+.geo-table th,
 .geo-table td {
-    border-bottom: 1px solid var(--border-color);
     padding: 0.75rem;
     text-align: left;
-}
-
-.geo-table thead { 
-    background-color: var(--light-gray); 
+    border-bottom: 1px solid var(--border-color); 
 }
 
 .geo-table thead th {
-    font-weight: 600;
-    position: sticky;
-    top: var(--navbar-height);
-    border-bottom-width: 2px;
-}
-
-.geo-table tbody tr:nth-child(even) { 
     background-color: #f8f9fa; 
+    font-weight: 600;
 }
 
-.geo-table tbody tr:hover { 
-    background-color: #e9ecef; 
+.geo-table tbody tr:last-child td {
+    border-bottom: none; 
 }
 
-/* --- LOGIQUE RESPONSIVE POUR LES PETITS ECRANS --- */
-@media (max-width: 767.98px) {
-    /* On applique ces styles uniquement aux tableaux ayant la classe .responsive-table */
-    .responsive-table thead {
-        /* On cache l'en-tête du tableau sur mobile */
-        display: none;
-    }
-
-    .responsive-table tr {
-        /* Chaque ligne devient une carte */
-        display: block;
-        background-color: #fff !important; /* On force le fond blanc pour toutes les lignes */
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-
-    .responsive-table td {
-        display: block;
-        text-align: right; /* On aligne le contenu de la cellule à droite */
-        position: relative;
-        padding-left: 50%; /* On laisse de la place à gauche pour le label */
-        border-bottom: 1px dotted #eee;
-    }
-    .responsive-table td:first-of-type {
-        border-top-left-radius: 8px;
-        border-top-right-radius: 8px;
-    }
-    .responsive-table td:last-of-type {
-        border-bottom: none; /* Pas de bordure pour la dernière cellule (actions) */
-        border-bottom-left-radius: 8px;
-        border-bottom-right-radius: 8px;
-    }
-
-    .responsive-table td::before {
-        /* On affiche le label (stocké dans l'attribut data-label) */
-        content: attr(data-label);
-        position: absolute;
-        left: 0.75rem;
-        width: calc(50% - 1.5rem);
-        text-align: left;
-        font-weight: bold;
-        color: #333;
-    }
-    
-    .responsive-table .item-actions {
-        display: flex;
-        justify-content: flex-end; /* Aligne les boutons à droite */
-        gap: 0.5rem;
-        padding-top: 1rem;
-    }
-    .responsive-table .item-actions::before {
-        display: none; /* Pas besoin de label pour la cellule des actions */
-    }
+.geo-table tbody tr:hover {
+    background-color: #f1f1f1; 
 }
 
-.dt-buttons .btn {
-    margin-left: 0.25rem;
+.item-actions a {
+    margin-right: 5px;
+}
+.item-actions a:last-child {
+    margin-right: 0;
 }
 
-/* Corriger l'alignement des infos et de la pagination */
+/* --- Styles pour DataTables.js --- */
+
 .dataTables_wrapper .row {
-    align-items: center;
+    margin-bottom: 1rem;
+    align-items: center; 
 }
 
-/* Forcer la responsivité de la table générée */
-.dataTables_wrapper .dataTables_scrollBody {
-    overflow-x: auto;
+.dt-buttons {
+    display: inline-flex;
+    gap: 0.25rem; 
+    flex-wrap: wrap; 
 }
+
+.dataTables_filter {
+     margin-bottom: 0;
+     display: none; /* Masquer la recherche par défaut */
+ }
+
+ #geo-table {
+    width: 100% !important; 
+ }
+ 
+ /* Forcer les cellules d'en-tête à ne pas passer à la ligne */
+ table.dataTable thead th {
+    white-space: nowrap !important; /* EMPÊCHE le retour à la ligne */
+    vertical-align: middle !important; 
+    padding: 0.75rem !important; 
+    border-bottom-width: 2px !important;
+ }
+
+ /* S'assurer que le thead est sur une seule ligne */
+ table.dataTable thead tr {
+    display: table-row !important; 
+ }
+
+ table.dataTable tbody {
+     display: table-row-group; 
+ }
+
+ .dataTables_wrapper .dt-buttons .btn {
+    padding: 0.25rem 0.5rem; 
+    font-size: 0.875rem; 
+ }
