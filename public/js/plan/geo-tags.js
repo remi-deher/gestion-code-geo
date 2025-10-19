@@ -73,7 +73,7 @@ export function createFabricTag(codeData) {
     }
 
     const bgColor = universColors[codeData.univers] || '#7f8c8d';
-    const codeText = codeData.code_geo || 'ERR';
+    const codeText = codeData.code_geo || codeData.codeGeo || 'ERR';
     // Utilise la taille sauvegardée ou la taille moyenne par défaut
     const tagWidth = codeData.width || sizePresets.medium.width;
     const tagHeight = codeData.height || sizePresets.medium.height;
