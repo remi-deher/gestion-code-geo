@@ -29,10 +29,10 @@
                     <div id="filtres-univers" class="filter-pills d-flex flex-wrap align-items-center gap-2 mt-2">
                         <span class="badge filter-pill active" data-filter="all">Tout voir</span>
                         <?php if (!empty($univers)): foreach ($univers as $u): ?>
-                            <span class="badge filter-pill active" 
-                                  data-filter="<?= htmlspecialchars($u['nom']) ?>" 
-                                  data-zone="<?= htmlspecialchars($u['zone_assignee']) ?>">
-                                <?= htmlspecialchars($u['nom']) ?>
+                            <span class="badge filter-pill active"
+                                  data-filter="<?= htmlspecialchars($u['nom'] ?? '') ?>"
+                                  data-zone="<?= htmlspecialchars($u['zone_assignee'] ?? '') ?>">
+                                <?= htmlspecialchars($u['nom'] ?? '') ?>
                             </span>
                         <?php endforeach; endif; ?>
                     </div>
@@ -60,31 +60,31 @@
                 <p>Aucun code géo n'a été trouvé dans la base de données.</p>
             <?php else: ?>
                 <?php foreach ($geoCodes as $code): ?>
-                    <div class="geo-card" 
-                         data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'].' '.$code['commentaire'])) ?>"
-                         data-univers="<?= htmlspecialchars($code['univers']) ?>"
-                         data-zone="<?= htmlspecialchars($code['zone']) ?>"
-                         data-code_geo="<?= htmlspecialchars($code['code_geo']) ?>"
-                         data-libelle="<?= htmlspecialchars($code['libelle']) ?>">
-                        
-                        <div class="geo-card-qr" data-code="<?= htmlspecialchars($code['code_geo']) ?>"></div>
+                    <div class="geo-card"
+                         data-searchable="<?= strtolower(htmlspecialchars(($code['code_geo'] ?? '').' '.($code['libelle'] ?? '').' '.($code['univers'] ?? '').' '.($code['commentaire'] ?? ''))) ?>"
+                         data-univers="<?= htmlspecialchars($code['univers'] ?? '') ?>"
+                         data-zone="<?= htmlspecialchars($code['zone'] ?? '') ?>"
+                         data-code_geo="<?= htmlspecialchars($code['code_geo'] ?? '') ?>"
+                         data-libelle="<?= htmlspecialchars($code['libelle'] ?? '') ?>">
+
+                        <div class="geo-card-qr" data-code="<?= htmlspecialchars($code['code_geo'] ?? '') ?>"></div>
                         <div class="geo-card-info">
                             <div class="info-code">
-                                <span class="code-badge"><?= htmlspecialchars($code['code_geo']) ?></span>
-                                <span class="zone-badge zone-<?= htmlspecialchars($code['zone']) ?>"><?= htmlspecialchars($code['zone']) ?></span>
+                                <span class="code-badge"><?= htmlspecialchars($code['code_geo'] ?? '') ?></span>
+                                <span class="zone-badge zone-<?= htmlspecialchars($code['zone'] ?? '') ?>"><?= htmlspecialchars($code['zone'] ?? '') ?></span>
                             </div>
-                            <div class="info-libelle"><?= htmlspecialchars($code['libelle']) ?></div>
+                            <div class="info-libelle"><?= htmlspecialchars($code['libelle'] ?? '') ?></div>
                             <?php if (!empty($code['commentaire'])): ?>
                                 <div class="info-comment">💬 <?= htmlspecialchars($code['commentaire']) ?></div>
                             <?php endif; ?>
-                            
+
                             <?php if (!empty($code['placements'])): ?>
                                 <div class="info-placements">
                                     <small class="text-muted">
                                         <i class="bi bi-pin-map-fill"></i> Placé sur :
                                         <?php foreach ($code['placements'] as $placement): ?>
                                             <a href="index.php?action=viewPlan&id=<?= $placement['plan_id'] ?>" class="badge bg-secondary text-decoration-none">
-                                                <?= htmlspecialchars($placement['plan_name']) ?> (<?= $placement['placement_count'] ?>x)
+                                                <?= htmlspecialchars($placement['plan_name'] ?? '') ?> (<?= $placement['placement_count'] ?? 0 ?>x)
                                             </a>
                                         <?php endforeach; ?>
                                     </small>
@@ -116,21 +116,21 @@
                 <tbody>
                     <?php if (!empty($geoCodes)): ?>
                         <?php foreach ($geoCodes as $code): ?>
-                            <tr data-searchable="<?= strtolower(htmlspecialchars($code['code_geo'].' '.$code['libelle'].' '.$code['univers'])) ?>"
-                                data-univers="<?= htmlspecialchars($code['univers']) ?>"
-                                data-zone="<?= htmlspecialchars($code['zone']) ?>"
-                                data-code_geo="<?= htmlspecialchars($code['code_geo']) ?>"
-                                data-libelle="<?= htmlspecialchars($code['libelle']) ?>">
-                                <td data-label="Code Géo"><?= htmlspecialchars($code['code_geo']) ?></td>
-                                <td data-label="Libellé"><?= htmlspecialchars($code['libelle']) ?></td>
-                                <td data-label="Univers"><?= htmlspecialchars($code['univers']) ?></td>
+                            <tr data-searchable="<?= strtolower(htmlspecialchars(($code['code_geo'] ?? '').' '.($code['libelle'] ?? '').' '.($code['univers'] ?? ''))) ?>"
+                                data-univers="<?= htmlspecialchars($code['univers'] ?? '') ?>"
+                                data-zone="<?= htmlspecialchars($code['zone'] ?? '') ?>"
+                                data-code_geo="<?= htmlspecialchars($code['code_geo'] ?? '') ?>"
+                                data-libelle="<?= htmlspecialchars($code['libelle'] ?? '') ?>">
+                                <td data-label="Code Géo"><?= htmlspecialchars($code['code_geo'] ?? '') ?></td>
+                                <td data-label="Libellé"><?= htmlspecialchars($code['libelle'] ?? '') ?></td>
+                                <td data-label="Univers"><?= htmlspecialchars($code['univers'] ?? '') ?></td>
                                 <td data-label="Placements">
                                     <?php if (empty($code['placements'])): ?>
                                         <span class="text-muted small">Aucun</span>
                                     <?php else: ?>
                                         <?php foreach ($code['placements'] as $placement): ?>
                                             <a href="index.php?action=viewPlan&id=<?= $placement['plan_id'] ?>" class="badge bg-secondary text-decoration-none mb-1 d-inline-block">
-                                                <?= htmlspecialchars($placement['plan_name']) ?> (<?= $placement['placement_count'] ?>x)
+                                                <?= htmlspecialchars($placement['plan_name'] ?? '') ?> (<?= $placement['placement_count'] ?? 0 ?>x)
                                             </a>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
@@ -167,10 +167,10 @@
         <div id="filtres-univers-mobile" class="filter-pills d-flex flex-wrap align-items-center gap-2">
              <span class="badge filter-pill active" data-filter="all">Tout voir</span>
             <?php if (!empty($univers)): foreach ($univers as $u): ?>
-                <span class="badge filter-pill active" 
-                      data-filter="<?= htmlspecialchars($u['nom']) ?>"
-                      data-zone="<?= htmlspecialchars($u['zone_assignee']) ?>">
-                    <?= htmlspecialchars($u['nom']) ?>
+                <span class="badge filter-pill active"
+                      data-filter="<?= htmlspecialchars($u['nom'] ?? '') ?>"
+                      data-zone="<?= htmlspecialchars($u['zone_assignee'] ?? '') ?>">
+                    <?= htmlspecialchars($u['nom'] ?? '') ?>
                 </span>
             <?php endforeach; endif; ?>
         </div>
