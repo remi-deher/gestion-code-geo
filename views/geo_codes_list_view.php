@@ -5,9 +5,15 @@
     <section id="classeur">
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h2 class="mb-0">📚 Classeur des emplacements</h2>
-            <a href="index.php?action=trash" class="btn btn-outline-secondary">
-                <i class="bi bi-trash"></i> Corbeille
-            </a>
+            
+            <div class="d-flex gap-2">
+                <a href="index.php?action=printLabels" target="_blank" class="btn btn-outline-secondary">
+                    <i class="bi bi-printer-fill"></i> Imprimer des étiquettes
+                </a>
+                <a href="index.php?action=trash" class="btn btn-outline-secondary">
+                    <i class="bi bi-trash"></i> Corbeille
+                </a>
+            </div>
         </div>
 
         <div class="filter-control-panel">
@@ -41,7 +47,7 @@
         </div>
         
         <div class="view-controls">
-            <div class="sort-container" id="card-sort-controls"> 
+             <div class="sort-container" id="card-sort-controls"> 
                  <label for="sort-by" class="form-label">Trier par :</label>
                 <select id="sort-by" class="form-select form-select-sm sort" data-sort="univers"> 
                     <option value="univers">Univers (A-Z)</option>
@@ -115,9 +121,9 @@
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
-            </div>
+        </div>
 
-        </section>
+    </section>
 </div>
 
 <div class="offcanvas offcanvas-start" tabindex="-1" id="filtersOffcanvas" aria-labelledby="filtersOffcanvasLabel">

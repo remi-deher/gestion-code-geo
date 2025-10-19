@@ -60,14 +60,7 @@ $data_actions = ['showImport', 'export'];
             </ul>
 
             <div class="d-flex align-items-center">
-                <div class="print-menu">
-                    <button id="print-btn" class="btn btn-outline-secondary">🖨️ Imprimer</button>
-                    <div class="print-options dropdown-menu">
-                        <a class="dropdown-item" href="javascript:window.print();">Imprimer la vue actuelle</a>
-                        <a class="dropdown-item" href="index.php?action=printLabels" target="_blank">Imprimer des étiquettes</a>
-                    </div>
                 </div>
-            </div>
         </div>
     </div>
 </nav>
