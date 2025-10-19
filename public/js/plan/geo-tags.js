@@ -1,5 +1,6 @@
 /**
  * Module pour la gestion des tags géo (création, modification, suppression, toolbar, flèches).
+ * CORRECTION: Ajout de 'export' pour addArrowToTag
  */
 import { GEO_TAG_FONT_SIZE, sizePresets } from '../modules/config.js';
 import { convertPercentToPixels, convertPixelsToPercent } from '../modules/utils.js';
@@ -133,7 +134,8 @@ export function createFabricTag(codeData) {
  * Ajoute ou met à jour la flèche d'un tag géo.
  * @param {fabric.Group} tagGroup - Le groupe Fabric du tag.
  */
-function addArrowToTag(tagGroup) {
+// **** CORRECTION ICI ****
+export function addArrowToTag(tagGroup) {
     const { anchorXPercent, anchorYPercent } = tagGroup.customData;
     if (anchorXPercent === null || typeof anchorXPercent === 'undefined' || anchorYPercent === null || typeof anchorYPercent === 'undefined') {
         // Si les ancres sont nulles, supprimer la flèche existante
@@ -227,7 +229,7 @@ export async function handleGeoTagModified(target) {
     }
 
     // Redessiner la flèche si elle existe
-    if (target.arrowLine) {
+    if (target.arrowLine || (anchorXPercent !== null && anchorYPercent !== null)) {
         addArrowToTag(target);
     }
     showToolbar(target); // Réafficher la toolbar au cas où
@@ -532,7 +534,6 @@ export function handleArrowEndPoint(opt) {
 }
 
 /** Annule le mode dessin de flèche. */
-// **** CORRECTION ICI ****
 export function cancelArrowDrawing() {
     isDrawingArrowMode = false;
     // Restaurer le curseur par défaut (sera géré par setActiveTool si un outil de dessin est actif)

@@ -2,14 +2,16 @@
  * Point d'entrée principal pour l'éditeur de plan (plan_view.php et plan_create_svg_view.php).
  * Initialise tous les modules nécessaires et gère l'état global.
  * VERSION MISE A JOUR AVEC TOUTES LES NOUVELLES FONCTIONNALITES
+ * CORRECTION: Ajout d'une vérification pour activeObject dans handleSelectionChange.
  */
 import { initializeCanvas, getCanvasInstance, loadBackgroundImage, loadSvgPlan, resizeCanvas, handleMouseWheel, startPan, handlePanMove, stopPan, snapObjectToGrid, getIsSnapEnabled, toggleGrid, toggleSnap, drawGrid, removeGrid, snapToGrid, updateStrokesWidth, resetZoom as resetCanvasZoom, zoom as zoomCanvas } from './canvas.js';
 import { initializeSidebar, fetchAndRenderAvailableCodes, updateCodeCountInSidebar, clearSidebarSelection } from './sidebar.js';
-import { initializeGeoTags, createFabricTag, handleGeoTagModified, showToolbar, hideToolbar, getIsDrawingArrowMode, handleArrowEndPoint, cancelArrowDrawing } from './geo-tags.js';
+import { initializeGeoTags, createFabricTag, handleGeoTagModified, showToolbar, hideToolbar, getIsDrawingArrowMode, handleArrowEndPoint, cancelArrowDrawing, redrawAllTagsHighlight, addArrowToTag } from './geo-tags.js'; // Assurer import complet
 import { initializeDrawingTools, setActiveTool, getCurrentDrawingTool, startDrawing, continueDrawing, stopDrawing, getIsDrawing, groupSelectedObjects, ungroupSelectedObject, copyShape, pasteShape, deleteSelectedShape } from './drawing-tools.js'; // Importer les nouvelles fonctions
 import { initializeUI } from './ui.js';
 import { savePosition, saveDrawingData, createSvgPlan, updateSvgPlan, saveAsset, listAssets, getAssetData } from '../modules/api.js'; // Importer les nouvelles fonctions API
 import { convertPixelsToPercent, showToast } from '../modules/utils.js'; // Importer les utilitaires
+import { sizePresets } from '../modules/config.js'; // Importer sizePresets depuis config.js
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Plan Editor - DOMContentLoaded");
@@ -65,6 +67,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeDrawingTools(fabricCanvas); // Initialise les outils (y compris groupe/texte)
     initializeUI(); // Gère fullscreen, zoom buttons, sidebar toggle
 
+    // --- Ajout des nouveaux éléments UI ---
+    // Doit être déclaré avant le bloc try/catch qui utilise pageFormatSelect
+    const pageFormatSelect = document.getElementById('page-format-select');
+    const saveAssetBtn = document.getElementById('save-asset-btn');
+    const assetsListEl = document.getElementById('assets-list');
+    const assetsOffcanvasEl = document.getElementById('assetsOffcanvas');
+    let pageGuideRect = null; // Référence au guide visuel de page
+    const strokeColorInput = document.getElementById('stroke-color'); // Nécessaire pour l'outil texte
+    let isGridVisible = document.getElementById('grid-toggle')?.checked || false; // Suivi de l'état de la grille
+
     // --- Chargement du contenu du plan ---
     const loader = document.getElementById('plan-loader');
     if(loader) loader.style.display = 'block';
@@ -98,10 +110,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Ajuster la vue initiale
         resizeCanvas(); // Adapte canvas et fond/SVG
+        
         // NOUVEAU: Afficher le guide de page initial
-        if (pageFormatSelect) updatePageGuide();
+        if (pageFormatSelect) updatePageGuide(); 
 
-    } catch (error) {
+    } catch (error) { 
         console.error("Erreur lors du chargement du plan:", error);
         showToast(`Erreur chargement plan: ${error.message}`, 'danger');
         const planContainer = document.getElementById('plan-container');
@@ -109,13 +122,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } finally {
         if(loader) loader.style.display = 'none';
     }
-
-    // --- Ajout des nouveaux éléments UI ---
-    const pageFormatSelect = document.getElementById('page-format-select');
-    const saveAssetBtn = document.getElementById('save-asset-btn');
-    const assetsListEl = document.getElementById('assets-list');
-    const assetsOffcanvasEl = document.getElementById('assetsOffcanvas');
-    let pageGuideRect = null; // Référence au guide visuel de page
 
     // --- Gestion des Événements Canvas Globaux ---
     fabricCanvas.on({
@@ -139,11 +145,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (assetsOffcanvasEl) assetsOffcanvasEl.addEventListener('show.bs.offcanvas', loadAssetsList);
     if (assetsListEl) assetsListEl.addEventListener('click', handleAssetClick);
     document.addEventListener('keydown', handleKeyDown); // Pour Echap, Suppr, Copier/Coller
+    
+    // Listeners pour grille/snap (déplacés de ui.js si gèrent l'état)
+    const gridToggle = document.getElementById('grid-toggle');
+    const snapToggle = document.getElementById('snap-toggle');
+    if (gridToggle) {
+        gridToggle.addEventListener('change', () => {
+            isGridVisible = gridToggle.checked;
+            toggleGrid(isGridVisible);
+        });
+        isGridVisible = gridToggle.checked; // État initial
+        toggleGrid(isGridVisible); // Afficher au début si coché
+    }
+    if (snapToggle) {
+        snapToggle.addEventListener('change', () => toggleSnap(snapToggle.checked));
+        toggleSnap(snapToggle.checked); // État initial
+    }
+
 
     // --- Variables d'état local (inchangées) ---
     let isPlacementMode = false;
     let codeToPlace = null;
     let placementModeActiveItem = null;
+    let highlightedCodeGeo = null; // Suivi du code surligné
 
     // --- Fonctions de Gestion d'État et d'Interaction (Mises à jour et Nouvelles) ---
 
@@ -203,7 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             plan_id: currentPlanId,
             pos_x: posX,
             pos_y: posY,
-            width: sizePresets.medium.width,
+            width: sizePresets.medium.width,  // Utiliser la config
             height: sizePresets.medium.height,
             anchor_x: null,
             anchor_y: null
@@ -237,7 +261,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateCodeCountInSidebar(codeToPlace.id, 1);
 
             // Mettre à jour planData.placedGeoCodes localement si nécessaire
-            // ... (code existant)
+            if(planData.placedGeoCodes) {
+                 const existingCodeIndex = planData.placedGeoCodes.findIndex(c => c.id == fullCodeData.id); // Correction: utiliser == ou ===
+                 if (existingCodeIndex > -1) {
+                     if (!planData.placedGeoCodes[existingCodeIndex].placements) {
+                         planData.placedGeoCodes[existingCodeIndex].placements = [];
+                     }
+                     planData.placedGeoCodes[existingCodeIndex].placements.push(savedData);
+                 } else {
+                     console.warn("Code géo placé non trouvé dans planData.placedGeoCodes:", fullCodeData.id);
+                 }
+            }
 
         } catch (error) {
             console.error("Échec placement tag:", error);
@@ -272,8 +306,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             // La sélection est gérée par Fabric et handleSelectionChange
         } else { // Clic sur le fond
              console.log("Clic sur fond canvas.");
-            fabricCanvas.discardActiveObject().renderAll();
-            hideToolbar();
+            // Ne pas désélectionner si on double-clique pour éditer du texte
+            if (opt.e.detail !== 2) { 
+                fabricCanvas.discardActiveObject().renderAll();
+                hideToolbar();
+            }
 
             if (isPlacementMode) {
                 placeNewTagOnClick(evt);
@@ -341,7 +378,11 @@ document.addEventListener('DOMContentLoaded', async () => {
          if (!textObject.isEditing) {
              // Rendre éditable et sélectionner
              textObject.set({ selectable: true, evented: true });
-             if(parentGroup) fabricCanvas.setActiveObject(parentGroup); // Garder le groupe sélectionné visuellement
+             if(parentGroup) {
+                fabricCanvas.setActiveObject(parentGroup); // Garder le groupe sélectionné visuellement
+             } else {
+                fabricCanvas.setActiveObject(textObject);
+             }
              textObject.enterEditing();
              textObject.selectAll();
              console.log("Entrée en édition de texte");
@@ -385,11 +426,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (target.customData?.isGeoTag) {
             showToolbar(target);
             if (target.arrowLine) {
-                // La fonction addArrowToTag met à jour la position
-                addArrowToTag(target);
+                 // La flèche sera mise à jour dans handleGeoTagModified
+                 // Pour optimiser, on pourrait le faire ici aussi : addArrowToTag(target);
             }
         }
-        // Si c'est un groupe forme+texte, le texte bouge avec
     }
 
      function handleObjectModified(opt) {
@@ -406,52 +446,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function handleSelectionChange(opt) {
-        const selected = opt.selected;
+        const selected = opt.selected; // Peut être un tableau d'objets
+        // Cas 1: Sélection effacée ou seul un élément non pertinent est sélectionné
         if (!selected || selected.length === 0 || (selected.length === 1 && (selected[0].isGridLine || selected[0].isPageGuide))) {
             handleSelectionCleared();
             return;
         }
 
-        const activeObject = selected.length === 1 ? selected[0] : opt.target; // opt.target est l'ActiveSelection
-        console.log("Sélection modifiée:", activeObject.type);
+        // Cas 2: Sélection unique valide OU Sélection multiple (opt.target est l'objet ActiveSelection)
+        const activeObject = selected.length === 1 ? selected[0] : opt.target;
+
+        // **** CORRECTION: Ajout de la vérification ****
+        if (!activeObject || typeof activeObject.type === 'undefined') {
+            console.warn("handleSelectionChange: activeObject ou son type est indéfini. Opt:", opt);
+            handleSelectionCleared(); // Sécurité: considérer comme désélectionné
+            return;
+        }
+        // **** FIN CORRECTION ****
+
+        console.log("Sélection modifiée:", activeObject.type); // Maintenant l'accès est sûr
+
+        const groupBtn = document.getElementById('group-btn');
+        const ungroupBtn = document.getElementById('ungroup-btn');
 
         if (activeObject.type === 'activeSelection') {
              // Sélection multiple
              hideToolbar();
-             // Activer/désactiver boutons Groupe/Dégroupe
+             // Activer Groupe, Désactiver Dégroupe
              if(groupBtn) groupBtn.disabled = false;
-             if(ungroupBtn) ungroupBtn.disabled = true; // On ne peut dégrouper qu'un seul groupe à la fois
+             if(ungroupBtn) ungroupBtn.disabled = true;
         } else if (activeObject.customData?.isGeoTag) {
             // Tag géo unique
             showToolbar(activeObject);
-            redrawAllTagsHighlight();
+            redrawAllTagsHighlight(); // Mettre à jour le surlignage
+            // Désactiver Groupe/Dégroupe
             if(groupBtn) groupBtn.disabled = true;
             if(ungroupBtn) ungroupBtn.disabled = true;
         } else if (activeObject.type === 'group' && !activeObject.customData?.isGeoTag) {
              // Groupe de formes unique
              hideToolbar();
+             // Désactiver Groupe, Activer Dégroupe
              if(groupBtn) groupBtn.disabled = true;
              if(ungroupBtn) ungroupBtn.disabled = false;
         } else {
-            // Forme simple unique (ligne, texte, ou groupe forme+texte)
+            // Forme simple unique (ligne, texte, ou groupe forme+texte initial)
             hideToolbar();
+             // Désactiver Groupe/Dégroupe
              if(groupBtn) groupBtn.disabled = true;
-             if(ungroupBtn) ungroupBtn.disabled = true; // On ne peut dégrouper qu'un objet simple
-            // Optionnel: Mettre à jour les contrôles de style
+             if(ungroupBtn) ungroupBtn.disabled = true;
         }
     }
 
      function handleSelectionCleared() {
          console.log("Sélection effacée.");
         hideToolbar();
-        redrawAllTagsHighlight();
+        redrawAllTagsHighlight(); // S'assurer que le highlight est enlevé
          // Désactiver boutons groupe/dégroupe
+         const groupBtn = document.getElementById('group-btn');
+         const ungroupBtn = document.getElementById('ungroup-btn');
          if(groupBtn) groupBtn.disabled = true;
          if(ungroupBtn) ungroupBtn.disabled = true;
     }
 
     function restrictTagTransform(e) {
-        // ... (inchangé) ...
         if (e.target && e.target.customData?.isGeoTag) {
             const t = e.transform;
             t.lockScalingX = true; t.lockScalingY = true; t.lockRotation = true;
@@ -520,7 +577,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** Crée les objets Fabric pour les tags géo initiaux */
     function createInitialGeoTagsFromData(codesData) {
-        // ... (inchangé) ...
         console.log("Création des tags géo initiaux..."); let tagsCreatedCount = 0;
         codesData.forEach(code => {
             if (code.placements) {
@@ -538,23 +594,49 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** Charge les annotations JSON sur le canvas */
     function loadJsonAnnotations(jsonData) {
-        // ... (inchangé) ...
         return new Promise((resolve, reject) => {
-            if (!jsonData || typeof jsonData !== 'object') { resolve(); return; }
+            if (!jsonData || typeof jsonData !== 'object') {
+                console.warn("loadJsonAnnotations: Données JSON invalides ou vides.");
+                resolve(); 
+                return; 
+            }
             console.log("Chargement annotations JSON...");
             fabricCanvas.loadFromJSON(jsonData, () => {
                 console.log("Annotations JSON chargées.");
                 fabricCanvas.getObjects().forEach(obj => {
+                    // Appliquer les propriétés post-chargement
                     if (!obj.customData?.isGeoTag && !obj.isGridLine && !obj.isPageGuide) {
                         obj.set({
                             selectable: true, evented: true, hasControls: true, hasBorders: true,
+                            // Recalculer le strokeWidth basé sur baseStrokeWidth et zoom actuel
                             strokeWidth: obj.baseStrokeWidth ? (obj.baseStrokeWidth / fabricCanvas.getZoom()) : (obj.strokeWidth || 1)
                         });
+                        // Si c'est un groupe forme+texte, ajuster aussi le texte interne
+                         if (obj.type === 'group' && obj._objects?.length === 2 && obj._objects[1].type === 'i-text') {
+                             const shape = obj._objects[0];
+                             const text = obj._objects[1];
+                             const zoom = fabricCanvas.getZoom();
+                             shape.set({ strokeWidth: obj.baseStrokeWidth ? (obj.baseStrokeWidth / zoom) : (shape.strokeWidth || 1) });
+                             text.set({
+                                 fontSize: (text.fontSize || 16) / zoom,
+                                 left: (text.left || 5) / zoom,
+                                 top: (text.top || 5) / zoom,
+                                 padding: (text.padding || 2) / zoom,
+                                 selectable: false, // Non sélectionnable individuellement par défaut
+                                 evented: false
+                             });
+                             obj.addWithUpdate(); // Recalculer le groupe
+                         }
                         obj.setCoords();
                     }
                 });
-                console.log("Objets JSON configurés."); fabricCanvas.renderAll(); resolve();
-            }, (o, object) => { console.log("Reviver JSON:", object.type); });
+                console.log("Objets JSON configurés."); 
+                fabricCanvas.renderAll(); 
+                resolve();
+            }, (o, object) => { 
+                // Reviver (peut être utilisé pour des ajustements fins pendant le chargement)
+                // console.log("Reviver JSON:", object.type); 
+            });
         });
     }
 
@@ -613,10 +695,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                  // Le message d'erreur est déjà affiché par handleSaveRequest
              } finally {
                  saveButton.disabled = false;
-                 // Restaurer le texte correct
-                 if (planType === 'image') saveButton.innerHTML = '<i class="bi bi-save"></i> Sauvegarder Annotations';
-                 else if (planType === 'svg') saveButton.innerHTML = '<i class="bi bi-save"></i> Sauvegarder SVG';
-                 else if (planType === 'svg_creation') saveButton.innerHTML = '<i class="bi bi-save"></i> Enregistrer Nouveau Plan';
+                 // Restaurer le texte correct (basé sur le texte initial du bouton)
+                 const iconHtml = '<i class="bi bi-save"></i>';
+                 if (planType === 'svg_creation') saveButton.innerHTML = `${iconHtml} Enregistrer Nouveau Plan`;
+                 else saveButton.innerHTML = `${iconHtml} Sauvegarder`; // Texte générique
              }
          });
      }
@@ -632,7 +714,6 @@ document.addEventListener('DOMContentLoaded', async () => {
          // Exclure grille et guide de page
          const svgString = fabricCanvas.toSVG(['baseStrokeWidth'], obj => !obj.isGridLine && !obj.isPageGuide);
          const newPlanId = await createSvgPlan(planName, svgString);
-         // Le message de succès et la redirection sont gérés dans handleSaveRequest
          // Rediriger vers la page d'édition du nouveau plan
          window.location.href = `index.php?action=manageCodes&id=${newPlanId}`;
      }
@@ -657,28 +738,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         const ratio = ratios[selectedFormat];
         if (!ratio) return;
 
-        // Utiliser les dimensions *actuelles* du canvas pour calculer la taille du guide
-        const canvasWidth = fabricCanvas.getWidth();
-        const canvasHeight = fabricCanvas.getHeight();
+        // Adapter le rectangle à la taille du canvas en gardant le ratio
+        const canvasWidth = fabricCanvas.getWidth() / fabricCanvas.getZoom(); // Dimensions réelles (non zoomées)
+        const canvasHeight = fabricCanvas.getHeight() / fabricCanvas.getZoom();
         const canvasRatio = canvasWidth / canvasHeight;
         let guideWidth, guideHeight;
 
-        if (ratio > canvasRatio) {
-            guideWidth = canvasWidth * 0.95; guideHeight = guideWidth / ratio;
-        } else {
-            guideHeight = canvasHeight * 0.95; guideWidth = guideHeight * ratio;
+        if (ratio > canvasRatio) { // Plus large que le canvas -> adapter à la largeur
+            guideWidth = canvasWidth * 0.95; // Laisser une petite marge
+            guideHeight = guideWidth / ratio;
+        } else { // Plus haut que le canvas -> adapter à la hauteur
+            guideHeight = canvasHeight * 0.95; // Laisser une petite marge
+            guideWidth = guideHeight * ratio;
         }
 
         const zoom = fabricCanvas.getZoom();
         pageGuideRect = new fabric.Rect({
-            width: guideWidth / zoom, height: guideHeight / zoom, // Taille non zoomée
-            left: 0, top: 0, // Positionné par viewport transform
+            width: guideWidth, 
+            height: guideHeight,
             fill: 'transparent',
-            stroke: 'rgba(200, 0, 0, 0.5)',
-            strokeWidth: 2 / zoom,
+            stroke: 'rgba(200, 0, 0, 0.5)', // Rouge semi-transparent
+            strokeWidth: 2 / zoom, // Adapter au zoom
             strokeDashArray: [5 / zoom, 5 / zoom],
             selectable: false, evented: false, excludeFromExport: true,
-            originX: 'center', originY: 'center', // Centré dans le viewport
+            originX: 'center', originY: 'center',
             isPageGuide: true
         });
 
@@ -691,7 +774,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         fabricCanvas.add(pageGuideRect);
         pageGuideRect.moveTo(0); // Mettre en arrière-plan
         fabricCanvas.renderAll();
-        console.log(`Guide de page ajouté: ${guideWidth.toFixed(0)}x${guideHeight.toFixed(0)} (affiché)`);
+        console.log(`Guide de page ajouté: ${guideWidth.toFixed(0)}x${guideHeight.toFixed(0)} (pixels réels)`);
      }
 
      /** Met à jour l'épaisseur du trait du guide au zoom */
@@ -713,7 +796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast("Sélectionnez une forme ou un groupe (non géo-tag) à sauvegarder.", "warning"); return;
         }
         const assetName = prompt("Nom pour cet asset :");
-        if (!assetName) return;
+        if (!assetName || assetName.trim() === '') return;
 
         const assetData = activeObject.toObject(['baseStrokeWidth']); // Inclure baseStrokeWidth
 
@@ -761,17 +844,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const center = fabricCanvas.getCenter();
                 const vpt = fabricCanvas.viewportTransform;
                 const zoomedCenter = fabric.util.transformPoint(center, fabric.util.invertTransform(vpt));
+                const zoom = fabricCanvas.getZoom();
 
                 newObject.set({
                     left: zoomedCenter.x, top: zoomedCenter.y, originX: 'center', originY: 'center',
                     selectable: true, evented: true
                 });
+                
+                // Ajuster le strokeWidth si baseStrokeWidth est présent
                 if (newObject.baseStrokeWidth) {
-                     newObject.set({ strokeWidth: newObject.baseStrokeWidth / fabricCanvas.getZoom() });
+                     newObject.set({ strokeWidth: newObject.baseStrokeWidth / zoom });
                 }
+                
                 // Si c'est un groupe forme+texte, ajuster le texte interne
                  if (newObject.type === 'group' && newObject._objects?.length === 2 && newObject._objects[1].type === 'i-text') {
-                      newObject._objects[1].set({ selectable: false, evented: false });
+                      const shape = newObject._objects[0];
+                      const text = newObject._objects[1];
+                      shape.set({ strokeWidth: newObject.baseStrokeWidth ? (newObject.baseStrokeWidth / zoom) : (shape.strokeWidth || 1) });
+                      text.set({
+                         fontSize: (text.fontSize || 16) / zoom,
+                         left: (text.left || 5) / zoom,
+                         top: (text.top || 5) / zoom,
+                         padding: (text.padding || 2) / zoom,
+                         selectable: false, 
+                         evented: false
+                      });
+                      newObject.addWithUpdate();
                  }
 
                 fabricCanvas.add(newObject);
@@ -782,7 +880,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if(offcanvasInstance) offcanvasInstance.hide();
             }, '');
 
-         } catch (error) { showToast(`Erreur chargement asset: ${error.message}`, "danger"); }
+         } catch (error) { 
+             console.error("Erreur chargement asset:", error);
+             showToast(`Erreur chargement asset: ${error.message}`, "danger"); 
+         }
      }
 
 
