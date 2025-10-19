@@ -1,4 +1,4 @@
-/* public/js/app.js (Version DataTables + List.js - Vérifications Robustes et Correction QR Code + Correction Responsive) */
+/* public/js/app.js (Version DataTables + List.js - Avec Extensions + Corrections) */
 
 window.addEventListener('load', () => {
 
@@ -33,21 +33,16 @@ window.addEventListener('load', () => {
      * Génère les QR codes pour les conteneurs visibles et vides dans la vue fiches.
      */
     function generateVisibleQrCodes() {
-        // Sélectionne uniquement les conteneurs QR visibles dans la liste List.js ET qui sont vides
         document.querySelectorAll('#fiches-list-js .list .geo-card-qr:empty').forEach(qrContainer => {
             const codeText = qrContainer.dataset.code;
             try {
                 if (codeText && typeof QRCode !== 'undefined') {
-                    // Vérification supplémentaire que le conteneur est bien vide avant de générer
                     if (qrContainer.innerHTML === '') {
                         new QRCode(qrContainer, { text: codeText, width: 90, height: 90 });
-                        // console.log(`QR Code généré pour ${codeText}`); // Optionnel: pour débug
                     }
                 }
             } catch (e) {
                 console.error(`Erreur QRCode pour ${codeText}:`, e);
-                // Optionnel: afficher un message d'erreur dans le conteneur
-                // qrContainer.innerHTML = '<small class="text-danger">Erreur QR</small>';
             }
         });
     }
@@ -59,7 +54,7 @@ window.addEventListener('load', () => {
                 valueNames: [ 'code_geo', 'libelle', 'univers', 'zone', 'unplaced' ],
                 page: 15,
                 pagination: { paginationClass: "pagination", item: '<li class="page-item"><a class="page-link" href="#"></a></li>', activeClass: 'active' },
-                listClass: 'list' // Classe des éléments à paginer/filtrer/trier
+                listClass: 'list'
             };
             cardList = new List('fiches-list-js', options);
 
@@ -68,18 +63,12 @@ window.addEventListener('load', () => {
                 sortBySelect.addEventListener('change', (e) => cardList.sort(e.target.value, { order: "asc" }));
             } else { console.warn("Élément #sort-by non trouvé pour List.js"); }
 
-            // Générer les QR Codes initiaux
-            generateVisibleQrCodes(); // Appel initial
-
-            // Ajouter un écouteur pour les mises à jour de List.js
-            cardList.on('updated', function () {
-                // console.log('List.js updated, regenerating QR Codes...'); // Optionnel: pour débug
-                generateVisibleQrCodes(); // Rappeler la fonction après chaque update (filtre, pagination, tri)
-            });
+            generateVisibleQrCodes();
+            cardList.on('updated', generateVisibleQrCodes);
 
         } catch (e) {
             console.error("Erreur lors de l'initialisation de List.js:", e);
-            cardList = null; // S'assurer que cardList est null en cas d'erreur
+            cardList = null;
         }
     } else {
         console.error("List.js n'a pas pu être initialisé (DOM ou Librairie manquante).");
@@ -101,55 +90,47 @@ window.addEventListener('load', () => {
     // --- Initialisation de DataTables ---
     if (tableElement && typeof $ !== 'undefined' && $.fn.dataTable) {
         try {
+            // Documentation DOM: https://datatables.net/reference/option/dom
+            // P: SearchPanes, Q: SearchBuilder, B: Buttons, l: length, f: filtering, r: processing, t: table, i: info, p: pagination
+            const dataTableDom =
+                "<'row'<'col-sm-12 col-md-12'P>>" + // SearchPanes on top row
+                "<'row'<'col-sm-12 col-md-12'Q>>" + // SearchBuilder below SearchPanes
+                "<'row mb-3 align-items-center'<'col-sm-12 col-md-6'B><'col-sm-12 col-md-6'f>>" + // Buttons and default filtering input
+                "<'row'<'col-sm-12'tr>>" + // The table itself
+                "<'row mt-3 align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>"; // Info and pagination
+
             dataTable = $(tableElement).DataTable({
-                language: {
-                    "sEmptyTable":     "Aucune donnée disponible dans le tableau",
-                    "sInfo":           "Affichage de l'élément _START_ à _END_ sur _TOTAL_ éléments",
-                    "sInfoEmpty":      "Affichage de l'élément 0 à 0 sur 0 élément",
-                    "sInfoFiltered":   "(filtré à partir de _MAX_ éléments au total)",
-                    "sInfoPostFix":    "",
-                    "sInfoThousands":  ",",
-                    "sLengthMenu":     "Afficher _MENU_ éléments",
-                    "sLoadingRecords": "Chargement...",
-                    "sProcessing":     "Traitement...",
-                    "sSearch":         "Rechercher :",
-                    "sZeroRecords":    "Aucun élément correspondant trouvé",
-                    "oPaginate": {
-                        "sFirst":    "Premier",
-                        "sLast":     "Dernier",
-                        "sNext":     "Suivant",
-                        "sPrevious": "Précédent"
-                    },
-                    "oAria": {
-                        "sSortAscending":  ": activer pour trier la colonne par ordre croissant",
-                        "sSortDescending": ": activer pour trier la colonne par ordre décroissant"
-                    },
-                    "select": {
-                        "rows": {
-                            "_": "%d lignes sélectionnées",
-                            "0": "Aucune ligne sélectionnée",
-                            "1": "1 ligne sélectionnée"
-                        }
-                    }
+                language: { /* ... Vos traductions ... */
+                    searchBuilder: { title: 'Construction de recherche', add: 'Ajouter condition', button: 'Filtre avancé (%d)', clearAll: 'Effacer tout', condition: 'Condition', data: 'Champ', deleteTitle: 'Supprimer règle', value: 'Valeur', logicAnd: 'ET', logicOr: 'OU' },
+                    searchPanes: { title: { _: 'Filtres actifs - %d', 0: 'Aucun filtre actif' }, clearMessage: 'Effacer tout', collapse: { 0: 'Filtres rapides', _: 'Filtres rapides (%d)' }, count: '{total}', countFiltered: '{shown} ({total})', emptyPanes: 'Aucun panneau de filtre disponible', loadMessage: 'Chargement...' },
+                    select: { rows: { _: '%d lignes sélectionnées', 0: '', 1: '1 ligne sélectionnée' } }
                 },
-                "columnDefs": [
-                    { "orderable": false, "targets": [3, 4] }, // Colonnes Placement et Actions non triables
-                    { "searchable": false, "targets": [3, 4] } // Colonnes Placement et Actions non cherchables par DataTables
+                columnDefs: [
+                    { orderable: false, targets: [3, 4] }, // Placements, Actions
+                    { searchable: false, targets: [4] }, // Actions
+                    // Configurer SearchPanes pour la colonne Univers (index 2)
+                    { searchPanes: { show: true }, targets: [2] },
+                    { searchPanes: { show: false }, targets: [0, 1, 3, 4] } // Cacher pour les autres
                 ],
-                "order": [[ 2, "asc" ]], // Tri par défaut sur la colonne Univers (index 2)
-                "responsive": true, // Activer la responsivité
-                "dom": "<'row mb-3 align-items-center'<'col-sm-12 col-md-6'B><'col-sm-12 col-md-6'f>>" +
-                       "<'row'<'col-sm-12'tr>>" +
-                       "<'row mt-3 align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
-                "buttons": [ // Configuration des boutons d'export (optionnel)
-                    { extend: 'copyHtml5', text: 'Copier', exportOptions: { columns: ':visible:not(.no-print)' } },
-                    { extend: 'excelHtml5', text: 'Excel', exportOptions: { columns: ':visible:not(.no-print)' } },
-                    { extend: 'csvHtml5', text: 'CSV', exportOptions: { columns: ':visible:not(.no-print)' } },
-                    { extend: 'pdfHtml5', text: 'PDF', exportOptions: { columns: ':visible:not(.no-print)' } },
-                    { extend: 'print', text: 'Imprimer', exportOptions: { columns: ':visible:not(.no-print)' } }
+                order: [[ 2, "asc" ]], // Tri par défaut sur Univers
+                responsive: true,
+                fixedHeader: true, // Activer FixedHeader
+                select: true,      // Activer Select
+                searchBuilder: true,// Activer SearchBuilder
+                // searchPanes: true, // On l'active via le DOM
+                dom: dataTableDom,
+                buttons: [ /* ... Vos boutons d'export ... */
+                    'copyHtml5', 'excelHtml5', 'csvHtml5', 'pdfHtml5', 'print'
                 ]
             });
-            $('.dataTables_filter').hide(); // Cacher la recherche par défaut de DataTables
+
+            // Masquer la barre de recherche globale par défaut (on utilise SearchBuilder/SearchPanes)
+            $('.dataTables_filter').hide();
+
+            // S'assurer que les boutons et autres éléments s'affichent correctement
+            dataTable.buttons().container().appendTo( $('.col-md-6:eq(0)', dataTable.table().container() ) );
+
+
         } catch (e) {
             console.error("Erreur lors de l'initialisation de DataTables:", e);
             dataTable = null;
@@ -158,46 +139,46 @@ window.addEventListener('load', () => {
         console.error("ERREUR CRITIQUE : jQuery ou DataTables n'a pas pu être initialisé.");
     }
 
-    // --- Filtre personnalisé pour DataTables ---
+    // --- Filtre personnalisé pour DataTables (ajusté pour SearchBuilder/Panes) ---
+    // Note: SearchBuilder et SearchPanes gèrent leur propre filtrage.
+    // Ce filtre personnalisé est toujours utile pour notre logique de zone et univers via les pilules/onglets.
     if (dataTable && $.fn.dataTable) {
         $.fn.dataTable.ext.search.push(
-            function(settings, data, dataIndex) {
+            function(settings, data, dataIndex, rowData, counter) { // ajout rowData et counter
                 if (!dataTable) return true;
-                if (settings.nTableId !== 'geo-table') return true; // S'applique seulement à notre tableau
+                if (settings.nTableId !== 'geo-table') return true;
 
                 const filters = getActiveFilters();
                 const rowNode = dataTable.row(dataIndex).node();
-                if (!rowNode) return false; // Ne devrait pas arriver
+                if (!rowNode) return false;
 
-                // Lire les données depuis les attributs data-* de la ligne <tr>
                 const rowUnivers = rowNode.dataset.univers || '';
                 const rowZone = rowNode.dataset.zone || '';
-                const rowSearchable = (rowNode.dataset.searchable || '').toLowerCase(); // Utilise l'attribut data-searchable
+                // Note: La recherche texte (filters.searchTerm) est maintenant gérée par DataTables/SearchBuilder/SearchPanes
+                // On pourrait la réintégrer si besoin, mais attention aux conflits
 
-                // 1. Vérifier la correspondance de la recherche
-                const searchMatch = rowSearchable.includes(filters.searchTerm);
-                if (!searchMatch) return false;
-
-                // 2. Vérifier la correspondance de la zone
+                // 1. Filtre Zone (via onglets)
                 let zoneMatch = false;
                 if (filters.activeZone === 'all') {
                     zoneMatch = true;
                 } else if (filters.activeZone === 'unplaced') {
-                    // Vérifie le contenu texte de la colonne "Placements" (index 3)
-                    const placementText = data[3] || '';
-                    zoneMatch = /aucun/i.test(placementText); // Affiche si 'Aucun' est présent
+                    // Vérifie le contenu HTML de la colonne "Placements" (index 3) dans la ligne originale (rowData)
+                    const placementHtml = rowData[3] || '';
+                    zoneMatch = /aucun/i.test(placementHtml);
                 } else {
                     zoneMatch = (rowZone === filters.activeZone);
                 }
                 if (!zoneMatch) return false;
 
-                // 3. Vérifier la correspondance de l'univers (seulement si une zone spécifique ou 'all' est sélectionnée)
-                let universMatch = true; // Vrai par défaut
+                // 2. Filtre Univers (via pilules), seulement si pas 'unplaced'
+                let universMatch = true;
                 if (filters.activeZone !== 'unplaced' && filters.filterByUnivers) {
                     universMatch = filters.activeUniversFilters.has(rowUnivers);
                 }
 
-                return universMatch; // La ligne est visible si toutes les conditions sont remplies
+                // Si toutes les conditions personnalisées sont ok, on retourne true
+                // Les filtres SearchBuilder/SearchPanes s'appliqueront en plus par DataTables
+                return universMatch;
             }
         );
     } else {
@@ -205,9 +186,15 @@ window.addEventListener('load', () => {
     }
 
     // --- GESTION DES ÉVÉNEMENTS (Filtrage) ---
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(applyAllFilters, 250));
-    } else {
+    // La recherche globale est maintenant gérée par DataTables, mais on peut la lier à notre input si besoin
+    if (searchInput && dataTable) {
+        searchInput.addEventListener('input', debounce(() => {
+            // Appliquer le terme de recherche global de DataTables
+            dataTable.search(searchInput.value).draw();
+            // Appliquer aussi les filtres List.js (car DataTables ne filtre que son tableau)
+            if(cardList) { applyFiltersToListJs(); }
+        }, 300));
+    } else if (!searchInput) {
         console.warn("Élément #recherche non trouvé.");
     }
 
@@ -236,26 +223,25 @@ window.addEventListener('load', () => {
             if (viewTableBtn) viewTableBtn.classList.add('active');
             if (cardSortControls) cardSortControls.style.display = 'none';
 
-            // Important: Redessiner DataTables pour ajuster les colonnes si elles étaient cachées
-            // AJOUT DE LA VÉRIFICATION ROBUSTE ICI
-            if (dataTable && typeof dataTable.responsive === 'object' && typeof dataTable.responsive.recalc === 'function') { // Vérifie si l'extension responsive est chargée
+            // Recalculer dimensions pour DataTables et ses extensions
+            if (dataTable) {
                  try {
-                     // Recalculer la responsivité ET ajuster les colonnes
-                     dataTable.columns.adjust().responsive.recalc();
+                     dataTable.columns.adjust(); // Ajuste largeur colonnes
+                     if (typeof dataTable.responsive === 'object' && typeof dataTable.responsive.recalc === 'function') {
+                         dataTable.responsive.recalc(); // Recalcule responsivité
+                     }
+                     if (typeof dataTable.fixedHeader === 'object' && typeof dataTable.fixedHeader.adjust === 'function') {
+                         dataTable.fixedHeader.adjust(); // Ajuste FixedHeader
+                     }
+                      // Recalculer SearchPanes si nécessaire (peut être gourmand)
+                     // if (typeof dataTable.searchPanes === 'object' && typeof dataTable.searchPanes.rebuildPane === 'function') {
+                     //    dataTable.searchPanes.rebuildPane();
+                     // }
                  } catch(e) {
-                     console.error("Error during DataTables responsive recalc:", e);
+                     console.error("Error during DataTables adjustments:", e);
                  }
-            } else if (dataTable) {
-                // Si responsive n'existe pas mais dataTable oui, juste ajuster les colonnes
-                try {
-                    dataTable.columns.adjust();
-                } catch(e) {
-                    console.error("Error during DataTables column adjust:", e);
-                }
-                console.warn("DataTables Responsive extension not detected during switchView, only adjusting columns.");
             }
         }
-        // Appliquer les filtres à la nouvelle vue affichée
         applyAllFilters();
     }
 
@@ -265,14 +251,12 @@ window.addEventListener('load', () => {
         document.querySelectorAll('.filter-pill[data-zone]').forEach(pill => {
             const pillZone = pill.dataset.zone;
             pill.style.display = (activeZone === 'all' || pillZone === activeZone) ? '' : 'none';
-            // Déselectionner si caché
             if (pill.style.display === 'none' && pill.classList.contains('active')) {
                 syncPillStates(pill.dataset.filter, false);
             }
         });
-        // Vérifier s'il faut réactiver "Tout voir"
         const anyVisibleActive = document.querySelector('.filter-pill.active[data-zone]:not([style*="display: none"])');
-        syncPillStates('all', !anyVisibleActive); // Activer "Tout voir" si aucun autre filtre spécifique visible n'est actif
+        syncPillStates('all', !anyVisibleActive);
     }
 
     function syncPillStates(filter, isActive) {
@@ -283,18 +267,14 @@ window.addEventListener('load', () => {
         const clickedPill = e.currentTarget;
         const filterValue = clickedPill.dataset.filter;
         if (filterValue === 'all') {
-            // Activer "all", désactiver les autres visibles
             syncPillStates('all', true);
             document.querySelectorAll('.filter-pill[data-zone].active:not([style*="display: none"])').forEach(p => syncPillStates(p.dataset.filter, false));
         } else {
-            // Basculer l'état du filtre cliqué
             const newState = !clickedPill.classList.contains('active');
             syncPillStates(filterValue, newState);
-            // Si on vient d'activer un filtre, désactiver "all"
             if (newState) {
                 syncPillStates('all', false);
             } else {
-                // Si on a désactivé le dernier filtre actif, réactiver "all"
                 const anyActive = document.querySelector('.filter-pill.active[data-zone]:not([style*="display: none"])');
                 if (!anyActive) {
                     syncPillStates('all', true);
@@ -306,34 +286,34 @@ window.addEventListener('load', () => {
 
     function handleZoneClick(e) {
         const zoneValue = e.currentTarget.dataset.zone;
-        // Mettre à jour l'état actif des onglets (desktop et mobile)
         document.querySelectorAll('.zone-tab, .zone-tabs-mobile > button').forEach(t => t.classList.remove('active'));
         document.querySelectorAll(`.zone-tab[data-zone="${zoneValue}"], .zone-tabs-mobile > button[data-zone="${zoneValue}"]`).forEach(t => t.classList.add('active'));
 
         const showUnivers = (zoneValue !== 'unplaced');
-        // Afficher/cacher les conteneurs de filtres d'univers
         ['#filtres-univers', '#filtres-univers-mobile'].forEach(sel => {
             const el = document.querySelector(sel);
             if(el) el.style.display = showUnivers ? (sel.includes('mobile') ? 'flex' : 'block') : 'none';
         });
 
         if (showUnivers) {
-            updateUniversFiltersVisibility(); // Ajuste la visibilité et l'état des pilules
+            updateUniversFiltersVisibility();
         }
         applyAllFilters();
     }
 
     /**
-     * Fonction principale qui applique les filtres aux deux vues.
+     * Fonction principale qui applique les filtres personnalisés.
      */
     function applyAllFilters() {
+        // Appliquer aux fiches (List.js)
         if (cardList) {
             applyFiltersToListJs();
         } else {
              console.warn("Tentative d'appliquer les filtres List.js, mais cardList n'est pas initialisé.");
         }
+        // Redessiner le tableau (DataTables) - Ceci déclenche le filtre personnalisé $.fn.dataTable.ext.search
         if (dataTable) {
-            dataTable.draw(); // Déclenche le filtre personnalisé DataTables
+            dataTable.draw();
         } else {
             console.warn("Tentative d'appliquer les filtres DataTables, mais dataTable n'est pas initialisé.");
         }
@@ -347,22 +327,20 @@ window.addEventListener('load', () => {
         const filters = getActiveFilters();
 
         cardList.filter((item) => {
-            // Les séparateurs sont toujours gardés initialement, on gère leur visibilité après
             if (item.elm.classList.contains('univers-separator')) {
                 return true;
             }
 
             const itemValues = item.values();
-            // Assurer que les valeurs existent avant de les utiliser
             const codeGeo = itemValues.code_geo || '';
             const libelle = itemValues.libelle || '';
             const univers = itemValues.univers || '';
             const zone = itemValues.zone || '';
-            const isUnplaced = itemValues.unplaced === 'true'; // Comparaison stricte
+            const isUnplaced = itemValues.unplaced === 'true';
 
             const searchableText = `${codeGeo} ${libelle} ${univers}`.toLowerCase();
 
-            // 1. Filtre recherche
+            // 1. Filtre recherche (via notre input custom)
             const searchMatch = searchableText.includes(filters.searchTerm);
             if (!searchMatch) return false;
 
@@ -372,31 +350,25 @@ window.addEventListener('load', () => {
             } else if (filters.activeZone !== 'all') {
                 if (zone !== filters.activeZone) return false;
             }
-             // Si on est sur 'unplaced', on ignore le filtre univers
-            if (filters.activeZone === 'unplaced') {
-                return true; // Déjà filtré par search et isUnplaced
-            }
 
-            // 3. Filtre univers (seulement si une zone ou 'all' est sélectionnée)
-            if (filters.filterByUnivers) {
+            // 3. Filtre univers (si pas 'unplaced')
+            if (filters.activeZone !== 'unplaced' && filters.filterByUnivers) {
                 if (!filters.activeUniversFilters.has(univers)) return false;
             }
 
-            return true; // L'élément passe tous les filtres
+            return true;
         });
 
-        // Gérer la visibilité des séparateurs après le filtrage principal
+        // Gérer visibilité des séparateurs après filtrage
         const visibleUnivers = new Set();
         cardList.visibleItems.forEach(item => {
             if (!item.elm.classList.contains('univers-separator')) {
                 visibleUnivers.add(item.values().univers);
             }
         });
-
         cardList.items.forEach(item => {
             if (item.elm.classList.contains('univers-separator')) {
                 const separatorUnivers = item.values().univers;
-                // Affiche le séparateur seulement si au moins un item de cet univers est visible
                 item.elm.style.display = visibleUnivers.has(separatorUnivers) ? 'block' : 'none';
             }
         });
@@ -405,8 +377,7 @@ window.addEventListener('load', () => {
     // --- DÉMARRAGE ---
     const isTableViewHidden = tableView ? tableView.classList.contains('d-none') : true;
     const currentView = isTableViewHidden ? 'card' : 'table';
-    switchView(currentView); // Applique la vue correcte et les filtres initiaux
-    // S'assurer que les filtres univers sont corrects au départ
+    switchView(currentView);
     updateUniversFiltersVisibility();
 
 }); // Fin window.addEventListener('load')
