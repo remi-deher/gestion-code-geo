@@ -88,3 +88,17 @@
         display: none; /* Pas besoin de label pour la cellule des actions */
     }
 }
+
+.dt-buttons .btn {
+    margin-left: 0.25rem;
+}
+
+/* Corriger l'alignement des infos et de la pagination */
+.dataTables_wrapper .row {
+    align-items: center;
+}
+
+/* Forcer la responsivité de la table générée */
+.dataTables_wrapper .dataTables_scrollBody {
+    overflow-x: auto;
+}

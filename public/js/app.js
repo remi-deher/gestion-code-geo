@@ -1,395 +1,287 @@
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('[DEBUG] DOMContentLoaded event fired.'); // Log: Début de l'exécution
+/* public/js/app.js (Version DataTables + List.js - Vérifications Robustes) */
 
-    const classeurSection = document.getElementById('classeur');
-    if (!classeurSection) {
-        console.warn('[DEBUG] Section #classeur non trouvée. Arrêt du script.'); // Log: Élément essentiel manquant
-        return;
+window.addEventListener('load', () => {
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
     }
 
-    // --- Récupération des éléments du DOM ---
-    console.log('[DEBUG] Récupération des éléments du DOM...');
-    const searchInput = document.getElementById('recherche');
+    const classeurSection = document.getElementById('classeur');
+    if (!classeurSection) return;
+
+    // --- Éléments du DOM ---
+    const searchInput = document.getElementById('recherche'); 
     const viewCardBtn = document.getElementById('view-card-btn');
     const viewTableBtn = document.getElementById('view-table-btn');
-    const cardView = document.getElementById('card-view');
     const tableView = document.getElementById('table-view');
-    const sortBySelect = document.getElementById('sort-by');
-
+    const cardSortControls = document.getElementById('card-sort-controls'); 
+    const listJsElement = document.getElementById('fiches-list-js'); 
+    
     const allFilterPills = document.querySelectorAll('.filter-pill');
     const allZoneTabs = document.querySelectorAll('.zone-tab, .zone-tabs-mobile > button');
+    
+    const tableElement = document.getElementById('geo-table');
+    let dataTable = null; 
+    let cardList = null;  
 
-    const allGeoCards = cardView ? Array.from(cardView.querySelectorAll('.geo-card')) : [];
-    const allTableRows = tableView ? Array.from(tableView.querySelectorAll('tbody tr')) : [];
+    // --- Initialisation de List.js ---
+    if (listJsElement && typeof List !== 'undefined') {
+        try {
+            const options = {
+                valueNames: [ 'code_geo', 'libelle', 'univers', 'zone', 'unplaced' ],
+                page: 15,
+                pagination: { paginationClass: "pagination", item: '<li class="page-item"><a class="page-link" href="#"></a></li>', activeClass: 'active' },
+                listClass: 'list'
+            };
+            cardList = new List('fiches-list-js', options);
+            
+            const sortBySelect = document.getElementById('sort-by');
+            if (sortBySelect) {
+                sortBySelect.addEventListener('change', (e) => cardList.sort(e.target.value, { order: "asc" }));
+                // Tri initial appliqué par List.js
+            } else { console.warn("Élément #sort-by non trouvé pour List.js"); }
+            
+            // Initialiser les QR Codes
+            document.querySelectorAll('#fiches-list-js .geo-card-qr').forEach(qrContainer => { 
+                 const codeText = qrContainer.dataset.code;
+                 try {
+                     if (codeText && typeof QRCode !== 'undefined') { new QRCode(qrContainer, { text: codeText, width: 90, height: 90 }); }
+                 } catch (e) { console.error(`Erreur QRCode pour ${codeText}:`, e); }
+             });
+        } catch (e) {
+            console.error("Erreur lors de l'initialisation de List.js:", e);
+            cardList = null; // S'assurer que cardList est null en cas d'erreur
+        }
+    } else {
+        console.error("List.js n'a pas pu être initialisé (DOM ou Librairie manquante).");
+    }
 
-    console.log(`[DEBUG] Éléments trouvés: searchInput=${!!searchInput}, viewCardBtn=${!!viewCardBtn}, viewTableBtn=${!!viewTableBtn}, cardView=${!!cardView}, tableView=${!!tableView}, sortBySelect=${!!sortBySelect}, allFilterPills=${allFilterPills.length}, allZoneTabs=${allZoneTabs.length}, allGeoCards=${allGeoCards.length}, allTableRows=${allTableRows.length}`);
+    // --- Fonction pour récupérer les filtres actifs ---
+    function getActiveFilters() {
+        // VÉRIFICATION ROBUSTE : Utiliser des valeurs par défaut si les éléments n'existent pas
+        const searchTerm = (searchInput && searchInput.value) ? searchInput.value.toLowerCase().trim() : ''; 
+        const activeZoneEl = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active');
+        const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
+        const activeUniversPills = document.querySelectorAll('.filter-pill.active[data-zone]');
+        const allUniversPillActive = document.querySelector('.filter-pill[data-filter="all"].active');
+        const filterByUnivers = !allUniversPillActive && activeUniversPills.length > 0;
+        const activeUniversFilters = new Set(Array.from(activeUniversPills).map(p => p.dataset.filter));
+        
+        // Log pour déboguer si les filtres ne fonctionnent pas
+        // console.log('Filtres Actifs:', { searchTerm, activeZone, filterByUnivers, activeUniversFilters: Array.from(activeUniversFilters) });
+        
+        return { searchTerm, activeZone, filterByUnivers, activeUniversFilters };
+    }
 
-    // --- GESTION DES ÉVÉNEMENTS ---
-    console.log('[DEBUG] Ajout des écouteurs d\'événements...');
+    // --- Initialisation de DataTables ---
+    if (tableElement && typeof $ !== 'undefined' && $.fn.dataTable) {
+        try {
+            dataTable = $(tableElement).DataTable({
+                language: { "sZeroRecords": "Aucun élément correspondant trouvé", /* ... autres traductions ... */ },
+                "columnDefs": [ { "orderable": false, "targets": [3, 4] }, { "searchable": false, "targets": [3, 4] } ],
+                "order": [[ 2, "asc" ]],
+                "responsive": true,
+                "dom": "<'row mb-3 align-items-center'<'col-sm-12 col-md-6'B><'col-sm-12 col-md-6'f>>" + // Ajout align-items-center
+                       "<'row'<'col-sm-12'tr>>" +
+                       "<'row mt-3 align-items-center'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>", // Ajout align-items-center
+                "buttons": [ /* ... exports ... */ ]
+            });
+            $('.dataTables_filter').hide(); 
+        } catch (e) {
+            console.error("Erreur lors de l'initialisation de DataTables:", e);
+            dataTable = null; // S'assurer que dataTable est null en cas d'erreur
+        }
+    } else {
+        console.error("ERREUR CRITIQUE : jQuery ou DataTables n'a pas pu être initialisé.");
+    }
 
+    // --- Filtre personnalisé pour DataTables ---
+    if (dataTable && $.fn.dataTable) {
+        $.fn.dataTable.ext.search.push(
+            function(settings, data, dataIndex) {
+                // Vérifier si dataTable existe toujours (sécurité)
+                if (!dataTable) return true; 
+
+                if (settings.nTableId !== 'geo-table') return true;
+                const filters = getActiveFilters(); // Appeler la fonction ici est sûr
+                const rowNode = dataTable.row(dataIndex).node(); 
+                if (!rowNode) return false;
+
+                const rowUnivers = rowNode.dataset.univers || '';
+                const rowZone = rowNode.dataset.zone || '';
+                const rowSearchable = (rowNode.dataset.searchable || '').toLowerCase();
+                const searchMatch = rowSearchable.includes(filters.searchTerm);
+                let isVisible = false;
+
+                if (filters.activeZone === 'unplaced') {
+                    const placementText = data[3] || ''; 
+                    const hasPlacements = !/aucun/i.test(placementText); 
+                    isVisible = searchMatch && !hasPlacements;
+                } else {
+                    const universMatch = !filters.filterByUnivers || filters.activeUniversFilters.has(rowUnivers);
+                    const zoneMatch = (filters.activeZone === 'all' || rowZone === filters.activeZone);
+                    isVisible = searchMatch && universMatch && zoneMatch;
+                }
+                return isVisible;
+            }
+        );
+    } else {
+         console.warn("Le filtre personnalisé DataTables n'a pas pu être enregistré car dataTable n'est pas initialisé.");
+    }
+
+    // --- GESTION DES ÉVÉNEMENTS (Filtrage) ---
+    if (searchInput) { 
+        searchInput.addEventListener('input', debounce(applyAllFilters, 250));
+    } else {
+        console.warn("Élément #recherche non trouvé.");
+    }
+
+    allFilterPills.forEach(pill => pill.addEventListener('click', handlePillClick)); // Simplifié
+    allZoneTabs.forEach(tab => tab.addEventListener('click', handleZoneClick));     // Simplifié
+    
+    // Événements pour changer de vue
     if (viewCardBtn && viewTableBtn) {
         viewCardBtn.addEventListener('click', () => switchView('card'));
         viewTableBtn.addEventListener('click', () => switchView('table'));
-        console.log('[DEBUG] Écouteurs pour switchView ajoutés.');
-    } else {
-        console.warn('[DEBUG] Boutons de changement de vue manquants.');
     }
-
-    if (searchInput) {
-         searchInput.addEventListener('input', applyFiltersAndSort);
-         console.log('[DEBUG] Écouteur pour searchInput ajouté.');
-    } else {
-        console.warn('[DEBUG] Champ de recherche manquant.');
-    }
-    if (sortBySelect) {
-         sortBySelect.addEventListener('change', applyFiltersAndSort);
-         console.log('[DEBUG] Écouteur pour sortBySelect ajouté.');
-    } else {
-        console.warn('[DEBUG] Sélecteur de tri manquant.');
-    }
-
-    allFilterPills.forEach(pill => pill.addEventListener('click', handlePillClick));
-    console.log(`[DEBUG] Écouteurs ajoutés pour ${allFilterPills.length} pilules de filtre.`);
-    allZoneTabs.forEach(tab => tab.addEventListener('click', handleZoneClick));
-    console.log(`[DEBUG] Écouteurs ajoutés pour ${allZoneTabs.length} onglets de zone.`);
 
     // --- LOGIQUE DES FONCTIONS ---
 
     function switchView(view) {
-        console.log(`[DEBUG] switchView appelé avec view='${view}'.`);
-        if (!cardView || !tableView || !viewCardBtn || !viewTableBtn) {
-            console.error('[DEBUG] Éléments manquants pour switchView.');
-            return;
-        }
-        if (view === 'card') {
-            cardView.classList.remove('d-none');
-            tableView.classList.add('d-none');
-            viewCardBtn.classList.add('active');
-            viewTableBtn.classList.remove('active');
-            console.log('[DEBUG] Vue Fiches activée.');
+         if (view === 'card') {
+            if (listJsElement) listJsElement.style.display = 'block'; 
+            if (tableView) tableView.classList.add('d-none');
+            if (viewCardBtn) viewCardBtn.classList.add('active');
+            if (viewTableBtn) viewTableBtn.classList.remove('active');
+            if (cardSortControls) cardSortControls.style.display = 'flex'; 
         } else { // view === 'table'
-            cardView.classList.add('d-none');
-            tableView.classList.remove('d-none');
-            viewCardBtn.classList.remove('active');
-            viewTableBtn.classList.add('active');
-            console.log('[DEBUG] Vue Tableau activée.');
+            if (listJsElement) listJsElement.style.display = 'none'; 
+            if (tableView) tableView.classList.remove('d-none');
+            if (viewCardBtn) viewCardBtn.classList.remove('active');
+            if (viewTableBtn) viewTableBtn.classList.add('active');
+            if (cardSortControls) cardSortControls.style.display = 'none'; 
         }
     }
 
-    function updateUniversFiltersVisibility() {
-        console.log('[DEBUG] updateUniversFiltersVisibility appelé.');
+    function updateUniversFiltersVisibility() { 
         const activeZone = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active')?.dataset.zone || 'all';
-        console.log(`[DEBUG] Zone active détectée: '${activeZone}'.`);
-        const universPills = document.querySelectorAll('.filter-pill[data-zone]');
-        let visiblePillsCount = 0;
-
-        universPills.forEach(pill => {
-            const pillZone = pill.dataset.zone;
-            if (activeZone === 'all' || pillZone === activeZone) {
-                pill.style.display = ''; // Utiliser '' pour réinitialiser au style par défaut (visible)
-                visiblePillsCount++;
-            } else {
-                pill.style.display = 'none';
-                // Si la pilule est cachée mais active, on la désactive pour éviter les incohérences
-                if (pill.classList.contains('active')) {
-                    pill.classList.remove('active');
-                    console.log(`[DEBUG] Pilule '${pill.dataset.filter}' désactivée car cachée.`);
-                }
+        document.querySelectorAll('.filter-pill[data-zone]').forEach(pill => {
+            pill.style.display = (activeZone === 'all' || pill.dataset.zone === activeZone) ? '' : 'none';
+            if (pill.style.display === 'none' && pill.classList.contains('active')) {
+                pill.classList.remove('active');
             }
         });
-        console.log(`[DEBUG] ${visiblePillsCount} pilules d'univers sont visibles pour la zone '${activeZone}'.`);
-
-        // Gérer l'état "Tout voir" en fonction des pilules visibles *et* actives
         document.querySelectorAll('#filtres-univers, #filtres-univers-mobile').forEach(container => {
-            // Compte les pilules spécifiques (pas "Tout voir") qui sont actives ET visibles
-            const activeVisibleSpecificPills = container.querySelectorAll('.filter-pill.active[data-zone]:not([style*="display: none"])').length;
-            const toutVoirPill = container.querySelector('.filter-pill[data-filter="all"]');
-            if (toutVoirPill) {
-                // Activer "Tout voir" SEULEMENT si AUCUNE pilule spécifique n'est active parmi les visibles
-                const shouldToutVoirBeActive = activeVisibleSpecificPills === 0;
-                toutVoirPill.classList.toggle('active', shouldToutVoirBeActive);
-                console.log(`[DEBUG] Conteneur ${container.id}: ${activeVisibleSpecificPills} pilules spécifiques actives et visibles. "Tout voir" est ${shouldToutVoirBeActive ? 'actif' : 'inactif'}.`);
-            }
+            const activeVisibleSpecific = container.querySelectorAll('.filter-pill.active[data-zone]:not([style*="display: none"])').length;
+            const toutVoir = container.querySelector('.filter-pill[data-filter="all"]');
+            if(toutVoir) toutVoir.classList.toggle('active', activeVisibleSpecific === 0);
         });
     }
 
-     /**
-     * Synchronise l'état 'active' pour tous les filtres ayant la même valeur data-filter.
-     * @param {string} filter - La valeur de data-filter à synchroniser.
-     * @param {boolean} isActive - L'état actif à appliquer (true ou false).
-     */
-     function syncPillStates(filter, isActive) {
-        console.log(`[DEBUG] syncPillStates appelé pour filter='${filter}', isActive=${isActive}.`);
-        const pillsToSync = document.querySelectorAll(`.filter-pill[data-filter="${filter}"]`);
-        pillsToSync.forEach(p => {
-            const changed = p.classList.contains('active') !== isActive;
-            p.classList.toggle('active', isActive);
-            //if (changed) console.log(`[DEBUG]   - État de ${p.closest('.filter-pills')?.id || 'conteneur inconnu'}->${filter} mis à ${isActive}.`);
+    function syncPillStates(filter, isActive) { 
+        document.querySelectorAll(`.filter-pill[data-filter="${filter}"]`).forEach(p => p.classList.toggle('active', isActive));
+     }
+
+    function handlePillClick(e) { 
+        const clickedPill = e.currentTarget;
+        const filterValue = clickedPill.dataset.filter;
+        if (filterValue === 'all') {
+            syncPillStates('all', true);
+            document.querySelectorAll('.filter-pill[data-zone].active').forEach(p => syncPillStates(p.dataset.filter, false));
+        } else {
+            const newState = !clickedPill.classList.contains('active');
+            syncPillStates(filterValue, newState);
+            if (newState) {
+                syncPillStates('all', false);
+            } else if (!document.querySelector('.filter-pill.active[data-zone]')) {
+                syncPillStates('all', true);
+            }
+        }
+        applyAllFilters(); // Appliquer après modification
+     }
+    function handleZoneClick(e) { 
+        const zoneValue = e.currentTarget.dataset.zone;
+        document.querySelectorAll('.zone-tab, .zone-tabs-mobile > button').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll(`.zone-tab[data-zone="${zoneValue}"], .zone-tabs-mobile > button[data-zone="${zoneValue}"]`).forEach(t => t.classList.add('active'));
+        const showUnivers = (zoneValue !== 'unplaced');
+        ['#filtres-univers', '#filtres-univers-mobile'].forEach(sel => {
+            const el = document.querySelector(sel);
+            if(el) el.style.display = showUnivers ? (sel.includes('mobile') ? 'flex' : 'block') : 'none';
         });
-        console.log(`[DEBUG] Synchronisation terminée pour '${filter}'. ${pillsToSync.length} éléments affectés.`);
+        if (showUnivers) updateUniversFiltersVisibility();
+        applyAllFilters(); // Appliquer après modification
     }
 
     /**
-     * Gère le clic sur une pilule de filtre (Univers).
-     * @param {Event} e - L'événement de clic.
+     * Fonction principale qui applique les filtres
      */
-     function handlePillClick(e) {
-        const clickedPill = e.currentTarget;
-        const filterValue = clickedPill.dataset.filter;
-        console.log(`[DEBUG] handlePillClick: Clic sur '${filterValue}'.`);
-
-        if (filterValue === 'all') {
-            console.log('[DEBUG] Clic sur "Tout voir".');
-            // 1. Activer tous les boutons "Tout voir"
-            syncPillStates('all', true);
-            // 2. Désactiver tous les autres filtres d'univers (visibles ou non)
-            document.querySelectorAll('.filter-pill[data-zone]').forEach(p => {
-                 if (p.classList.contains('active')) {
-                     syncPillStates(p.dataset.filter, false); // Désactive et synchronise
-                 }
-            });
+    function applyAllFilters() {
+        // Appliquer aux fiches (List.js)
+        if (cardList) {
+            applyFiltersToListJs();
         } else {
-            console.log(`[DEBUG] Clic sur filtre spécifique '${filterValue}'.`);
-            const wasActive = clickedPill.classList.contains('active');
-            const newStateIsActive = !wasActive; // Le nouvel état après toggle
-            console.log(`[DEBUG] Nouvel état pour '${filterValue}' sera: ${newStateIsActive}.`);
+             console.warn("Tentative d'appliquer les filtres List.js, mais cardList n'est pas initialisé.");
+        }
+        
+        // Redessiner le tableau (DataTables)
+        if (dataTable) {
+            dataTable.draw(); // Déclenche le filtre personnalisé DataTables
+        } else {
+            console.warn("Tentative d'appliquer les filtres DataTables, mais dataTable n'est pas initialisé.");
+        }
+    }
+    
+    /**
+     * Logique de filtrage pour List.js
+     */
+    function applyFiltersToListJs() {
+        if (!cardList) return; // Sécurité
+        const filters = getActiveFilters(); 
 
-            // 1. Synchroniser l'état (activé/désactivé) de ce filtre spécifique sur les deux vues
-            syncPillStates(filterValue, newStateIsActive);
-
-            if (newStateIsActive) {
-                // 2. Si on active un filtre, désactiver "Tout voir" partout
-                console.log('[DEBUG] Activation filtre spécifique -> Désactivation de "Tout voir".');
-                syncPillStates('all', false);
-            } else {
-                // 3. Si on désactive un filtre, vérifier s'il reste d'autres filtres actifs *dans n'importe quel conteneur*
-                //    On cherche un filtre actif qui n'est pas "Tout voir"
-                const anyOtherActive = document.querySelector('.filter-pill.active[data-zone]');
-                console.log(`[DEBUG] Désactivation filtre spécifique. Reste-t-il d'autres actifs ? ${!!anyOtherActive}`);
-                if (!anyOtherActive) {
-                    // S'il n'y a plus aucun filtre spécifique actif, réactiver "Tout voir" partout
-                    console.log('[DEBUG] Aucun autre filtre spécifique actif -> Réactivation de "Tout voir".');
-                    syncPillStates('all', true);
-                }
+        cardList.filter((item) => {
+            // Garder les séparateurs SAUF si aucun item de cet univers n'est visible
+            if (item.elm.classList.contains('univers-separator')) {
+                return true; 
             }
-        }
+            const itemValues = item.values(); 
+            const searchableText = `${itemValues.code_geo} ${itemValues.libelle} ${itemValues.univers}`.toLowerCase();
+            const searchMatch = searchableText.includes(filters.searchTerm);
+            if (!searchMatch) return false;
 
-        // Appliquer les filtres et le tri après avoir mis à jour les états
-        console.log('[DEBUG] Appel de applyFiltersAndSort depuis handlePillClick.');
-        applyFiltersAndSort();
-    }
-
-
-    function handleZoneClick(e) {
-        const zoneValue = e.currentTarget.dataset.zone;
-        console.log(`[DEBUG] handleZoneClick: Zone sélectionnée='${zoneValue}'.`);
-        allZoneTabs.forEach(t => t.classList.remove('active'));
-        // Appliquer 'active' à tous les boutons correspondants (desktop + mobile)
-        document.querySelectorAll(`.zone-tab[data-zone="${zoneValue}"], .zone-tabs-mobile > button[data-zone="${zoneValue}"]`).forEach(t => t.classList.add('active'));
-        console.log(`[DEBUG] Classe 'active' appliquée aux onglets pour la zone '${zoneValue}'.`);
-
-        const universFiltersDesktop = document.querySelector('#filtres-univers');
-        const universFiltersMobile = document.querySelector('#filtres-univers-mobile');
-
-        const showUniversFilters = (zoneValue !== 'unplaced');
-        console.log(`[DEBUG] Afficher les filtres univers ? ${showUniversFilters}`);
-
-        if (universFiltersDesktop) universFiltersDesktop.style.display = showUniversFilters ? 'block' : 'none';
-        if (universFiltersMobile) universFiltersMobile.style.display = showUniversFilters ? 'flex' : 'none';
-
-        if (showUniversFilters) {
-            console.log('[DEBUG] Appel de updateUniversFiltersVisibility depuis handleZoneClick.');
-            updateUniversFiltersVisibility(); // Met à jour la visibilité ET l'état "Tout voir" si besoin
-        }
-
-        console.log('[DEBUG] Appel de applyFiltersAndSort depuis handleZoneClick.');
-        applyFiltersAndSort();
-    }
-
-function applyFiltersAndSort() {
-        console.log('[DEBUG] applyFiltersAndSort appelé.');
-        const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-        const activeZoneEl = document.querySelector('.zone-tab.active, .zone-tabs-mobile > button.active');
-        const activeZone = activeZoneEl ? activeZoneEl.dataset.zone : 'all';
-
-        const activeUniversPills = document.querySelectorAll('.filter-pill.active[data-zone]');
-        let activeUniversFilters = new Set(Array.from(activeUniversPills).map(p => p.dataset.filter));
-
-        const allUniversPillActive = document.querySelector('.filter-pill[data-filter="all"].active');
-        const filterByUnivers = !allUniversPillActive && activeUniversPills.length > 0;
-
-        // --- NOUVEAU LOG : Afficher les filtres actifs exactement comme dans le Set ---
-        if (filterByUnivers) {
-            console.log('[DEBUG] Filtres univers actifs dans le Set:', JSON.stringify(Array.from(activeUniversFilters)));
-        } else {
-            console.log('[DEBUG] Condition "Tout voir" active ou aucun filtre spécifique.');
-            activeUniversFilters.clear();
-        }
-        // --- FIN NOUVEAU LOG ---
-
-        console.log(`[DEBUG] applyFiltersAndSort: Zone='${activeZone}', Terme='${searchTerm}', FilterByUnivers=${filterByUnivers}.`);
-
-        let visibleCardsCount = 0;
-        let visibleRowsCount = 0;
-
-        // --- NOUVEAU LOG : Fonction pour afficher les codes des caractères ---
-        const logCharCodes = (label, str) => {
-            const codes = Array.from(str).map(char => char.charCodeAt(0)).join(', ');
-            console.log(`[DEBUG CHARCODES] ${label}: "${str}" [${codes}]`);
-        };
-        // --- FIN NOUVEAU LOG ---
-
-        allGeoCards.forEach((card, index) => {
-            const cardUnivers = card.dataset.univers || '';
-            const cardZone = card.dataset.zone || '';
-            const cardSearchable = (card.dataset.searchable || '').toLowerCase();
-            const searchMatch = cardSearchable.includes(searchTerm);
-            let isVisible = false;
-
-            if (activeZone === 'unplaced') {
-                const hasPlacements = card.querySelector('.info-placements') !== null;
-                isVisible = searchMatch && !hasPlacements;
+            if (filters.activeZone === 'unplaced') {
+                if (itemValues.unplaced !== 'true') return false;
             } else {
-                const universMatch = !filterByUnivers || activeUniversFilters.has(cardUnivers);
-                const zoneMatch = (activeZone === 'all' || cardZone === activeZone);
-                isVisible = searchMatch && universMatch && zoneMatch;
-
-                // --- MODIFICATION LOG DÉTAILLÉ ---
-                if (filterByUnivers && index < 2) { // Log only for first 2 cards when filtering
-                    console.log(`[DEBUG CARD ${index}] Code: ${card.dataset.code_geo}, Univers: "${cardUnivers}", Zone: "${cardZone}", Search: ${searchMatch}, UniversMatch: ${universMatch} (Set has: ${activeUniversFilters.has(cardUnivers)}), ZoneMatch: ${zoneMatch}, IsVisible: ${isVisible}`);
-                    // Log des codes caractères pour comparaison
-                    logCharCodes(`  Card Univers`, cardUnivers);
-                    if (activeUniversPills.length > 0) {
-                        logCharCodes(`  First Active Filter`, activeUniversPills[0].dataset.filter);
-                    }
-                }
-                // --- FIN MODIFICATION LOG ---
+                if (filters.activeZone !== 'all' && itemValues.zone !== filters.activeZone) return false;
+                if (filters.filterByUnivers && !filters.activeUniversFilters.has(itemValues.univers)) return false;
             }
-            card.style.display = isVisible ? 'grid' : 'none';
-            if(isVisible) visibleCardsCount++;
+            return true; 
         });
-
-        allTableRows.forEach((row, index) => {
-             const rowUnivers = row.dataset.univers || '';
-             const rowZone = row.dataset.zone || '';
-             const rowSearchable = (row.dataset.searchable || '').toLowerCase();
-             const searchMatch = rowSearchable.includes(searchTerm);
-             let isVisible = false;
-
-             if (activeZone === 'unplaced') {
-                 const placementCell = row.querySelector('td[data-label="Placements"]');
-                 const hasPlacements = placementCell && placementCell.textContent.trim() !== 'Aucun';
-                 isVisible = searchMatch && !hasPlacements;
-             } else {
-                 const universMatch = !filterByUnivers || activeUniversFilters.has(rowUnivers);
-                 const zoneMatch = (activeZone === 'all' || rowZone === activeZone);
-                 isVisible = searchMatch && universMatch && zoneMatch;
-
-                  // --- MODIFICATION LOG DÉTAILLÉ ---
-                 if (filterByUnivers && index < 2) { // Log only for first 2 rows when filtering
-                       console.log(`[DEBUG ROW ${index}] Code: ${row.dataset.code_geo}, Univers: "${rowUnivers}", Zone: "${rowZone}", Search: ${searchMatch}, UniversMatch: ${universMatch} (Set has: ${activeUniversFilters.has(rowUnivers)}), ZoneMatch: ${zoneMatch}, IsVisible: ${isVisible}`);
-                       logCharCodes(`  Row Univers`, rowUnivers);
-                       if (activeUniversPills.length > 0) {
-                          logCharCodes(`  First Active Filter`, activeUniversPills[0].dataset.filter);
-                       }
-                 }
-                 // --- FIN MODIFICATION LOG ---
-             }
-             row.style.display = isVisible ? '' : 'none';
-              if(isVisible) visibleRowsCount++;
+        
+        // Gérer la visibilité des séparateurs après filtrage
+        let visibleSeparators = {};
+        cardList.visibleItems.forEach(item => {
+            if (!item.elm.classList.contains('univers-separator')) {
+                visibleSeparators[item.values().univers] = true;
+            }
         });
-
-
-        console.log(`[DEBUG] applyFiltersAndSort: ${visibleCardsCount} cartes visibles, ${visibleRowsCount} lignes visibles.`);
-
-        sortVisibleElements();
-    }
-
-    function sortVisibleElements() {
-        if (!sortBySelect) {
-             console.warn('[DEBUG] sortVisibleElements: Sélecteur de tri non trouvé.');
-             return;
-        }
-        const sortBy = sortBySelect.value;
-        const [key, direction] = sortBy.split('-'); // ex: 'univers', 'asc'
-        const isAsc = direction === 'asc';
-        console.log(`[DEBUG] sortVisibleElements: Tri par '${key}' direction '${direction}'.`);
-
-        // Tri des cartes visibles
-        if (cardView) {
-            const visibleCards = allGeoCards.filter(card => card.style.display !== 'none');
-            visibleCards.sort((a, b) => {
-                const valA = a.dataset[key] || '';
-                const valB = b.dataset[key] || '';
-                const comparison = valA.localeCompare(valB, undefined, { sensitivity: 'base' });
-                return isAsc ? comparison : -comparison;
-            });
-
-            // Vider et réinsérer les cartes triées, en gérant les séparateurs d'univers si nécessaire
-            cardView.innerHTML = '';
-            let lastUnivers = null;
-            visibleCards.forEach(card => {
-                const currentUnivers = card.dataset.univers;
-                // Ajouter séparateur seulement si trié par univers ASC
-                if (key === 'univers' && isAsc && currentUnivers !== lastUnivers) {
-                    const separator = document.createElement('h3');
-                    separator.className = 'univers-separator'; // Assurez-vous que cette classe existe dans votre CSS
-                    separator.textContent = currentUnivers || 'Univers non défini';
-                    cardView.appendChild(separator);
-                    lastUnivers = currentUnivers;
-                    //console.log(`[DEBUG] Ajout séparateur pour univers '${currentUnivers}'.`);
-                }
-                cardView.appendChild(card);
-            });
-             console.log(`[DEBUG] ${visibleCards.length} cartes réinsérées dans cardView.`);
-        } else {
-            console.warn('[DEBUG] sortVisibleElements: Conteneur cardView non trouvé.');
-        }
-
-        // Tri des lignes visibles
-        const tableBody = tableView ? tableView.querySelector('tbody') : null;
-        if (tableBody) {
-            const visibleRows = allTableRows.filter(row => row.style.display !== 'none');
-            visibleRows.sort((a, b) => {
-                const valA = a.dataset[key] || '';
-                const valB = b.dataset[key] || '';
-                const comparison = valA.localeCompare(valB, undefined, { sensitivity: 'base' });
-                return isAsc ? comparison : -comparison;
-            });
-            // Vider et réinsérer les lignes triées
-            visibleRows.forEach(row => tableBody.appendChild(row)); // appendChild déplace l'élément s'il existe déjà
-            console.log(`[DEBUG] ${visibleRows.length} lignes réordonnées dans tableView.`);
-        } else {
-            console.warn('[DEBUG] sortVisibleElements: Conteneur tbody non trouvé.');
-        }
+        cardList.items.forEach(item => {
+            if (item.elm.classList.contains('univers-separator')) {
+                item.elm.style.display = visibleSeparators[item.values().univers] ? 'block' : 'none';
+            }
+        });
     }
 
     // --- DÉMARRAGE ---
-    console.log('[DEBUG] Initialisation des QR codes...');
-    allGeoCards.forEach(card => {
-        const qrContainer = card.querySelector('.geo-card-qr');
-        if(qrContainer) {
-            const codeText = qrContainer.dataset.code;
-            try {
-                if (codeText) {
-                    // Vérifier si QRCode est défini avant de l'utiliser
-                    if (typeof QRCode !== 'undefined') {
-                        new QRCode(qrContainer, { text: codeText, width: 90, height: 90 });
-                    } else {
-                        console.error('[DEBUG] Librairie QRCode non chargée.');
-                        qrContainer.textContent = 'QR Error';
-                    }
-                }
-            } catch (e) {
-                console.error(`[DEBUG] Erreur lors de la génération du QRCode pour ${codeText}:`, e);
-                qrContainer.textContent = 'QR Error';
-            }
-        }
-    });
-    console.log('[DEBUG] QR codes initialisés (ou tentative).');
+    // Les filtres sont appliqués par défaut par l'initialisation des librairies elles-mêmes
+    
+    // Afficher la vue correcte au chargement
+    const isTableViewHidden = tableView ? tableView.classList.contains('d-none') : true; 
+    const currentView = isTableViewHidden ? 'card' : 'table';
+    switchView(currentView);
 
-    console.log('[DEBUG] Appel initial de applyFiltersAndSort.');
-    applyFiltersAndSort(); // Appliquer les filtres et le tri par défaut au chargement
-
-    console.log('[DEBUG] Script app.js initialisé complètement.');
-});
+}); // Fin du 'window.addEventListener('load')'
