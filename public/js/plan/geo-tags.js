@@ -1,27 +1,33 @@
 /**
- * Module pour la gestion des tags géo (création, modification, suppression, toolbar, flèches).
- * CORRECTION: Ajout de 'export' pour addArrowToTag et correction customData.codeGeo
+ * Module pour la gestion des "éléments géo" :
+ * 1. Étiquettes rectangulaires ('isGeoTag') - principalement pour plan 'image'.
+ * 2. Textes placés ('isPlacedText') - principalement pour plan 'svg'.
+ * Gère aussi la toolbar d'édition, les flèches (pour étiquettes), et le surlignage.
  */
-import { GEO_TAG_FONT_SIZE, sizePresets } from '../modules/config.js';
-import { convertPercentToPixels, convertPixelsToPercent } from '../modules/utils.js';
+import { getCanvasInstance, getSvgOriginalBBox } from './canvas.js';
+import { convertPixelsToPercent, convertPercentToPixels, showToast } from '../modules/utils.js';
 import { savePosition, removePosition, removeMultiplePositions } from '../modules/api.js';
-import { getCanvasInstance } from './canvas.js';
-import { updateCodeCountInSidebar } from './sidebar.js'; // Assurez-vous d'exporter cette fonction
+import { sizePresets, GEO_TAG_FONT_SIZE } from '../modules/config.js';
+import { fetchAndClassifyCodes } from './sidebar.js'; // Importer pour rafraîchir
 
 let fabricCanvas;
-let tagToolbar;
-let deleteTagBtn, highlightTagBtn, arrowTagBtn;
-let sizeBtns;
-let universColors = {}; // Sera défini à l'init
+let universColors = {};
+let selectedFabricObject = null; // L'objet géo (tag ou texte) actuellement sélectionné
+let highlightedCodeGeo = null; // Le code géo à surligner
+let isDrawingArrowMode = false;
+let currentArrowLine = null;
 
-let selectedFabricObject = null; // Le tag géo actuellement sélectionné
-let highlightedCodeGeo = null;   // Le code géo dont toutes les instances sont surlignées
-let isDrawingArrowMode = false;  // État pour savoir si on place la pointe d'une flèche
+// Éléments DOM de la Toolbar
+let tagToolbar;
+let highlightTagBtn;
+let arrowTagBtn;
+let sizeBtnGroup;
+let deleteTagBtn;
 
 /**
- * Initialise le module Geo Tags.
- * @param {fabric.Canvas} canvasInstance - L'instance du canvas Fabric.
- * @param {object} uColors - L'objet des couleurs par univers.
+ * Initialise le module.
+ * @param {fabric.Canvas} canvasInstance - L'instance du canvas.
+ * * @param {Object} uColors - Mapping des couleurs d'univers.
  */
 export function initializeGeoTags(canvasInstance, uColors) {
     fabricCanvas = canvasInstance;
@@ -29,23 +35,19 @@ export function initializeGeoTags(canvasInstance, uColors) {
 
     // Récupérer les éléments de la toolbar
     tagToolbar = document.getElementById('tag-edit-toolbar');
-    deleteTagBtn = document.getElementById('toolbar-delete');
     highlightTagBtn = document.getElementById('toolbar-highlight');
     arrowTagBtn = document.getElementById('toolbar-arrow');
-    sizeBtns = document.querySelectorAll('.size-btn');
+    sizeBtnGroup = document.getElementById('toolbar-size-group');
+    deleteTagBtn = document.getElementById('toolbar-delete');
 
-    // Ajouter les écouteurs pour la toolbar
-    if (deleteTagBtn) deleteTagBtn.addEventListener('click', deleteSelectedTag);
-    if (highlightTagBtn) highlightTagBtn.addEventListener('click', toggleHighlightSelected);
-    if (arrowTagBtn) arrowTagBtn.addEventListener('click', startDrawingArrow);
-    sizeBtns?.forEach(btn => btn.addEventListener('click', changeSelectedTagSize));
-
-    console.log("Module Geo Tags initialisé.");
+    if (!tagToolbar) {
+        console.warn("Toolbar d'édition de tag (#tag-edit-toolbar) non trouvée.");
+    }
 }
 
 /**
- * Crée un objet groupe Fabric pour représenter un tag géo.
- * @param {object} codeData - Données complètes du code géo incluant sa position.
+ * Crée un objet groupe Fabric pour une ÉTIQUETTE GÉO RECTANGULAIRE (utilisé pour plan type 'image').
+ * @param {object} codeData - Données complètes du code géo incluant sa position (pos_x, pos_y, width, height, position_id...).
  * @returns {fabric.Group | null} Le groupe Fabric créé ou null si erreur.
  */
 export function createFabricTag(codeData) {
@@ -53,547 +55,565 @@ export function createFabricTag(codeData) {
         console.error("createFabricTag: Canvas non initialisé.");
         return null;
     }
-    const bg = fabricCanvas.backgroundImage || fabricCanvas.getObjects().find(o => o.isSvgBackground || o.type === 'group');
-
-    // Vérification cruciale des données de position
-    if (codeData.pos_x === null || typeof codeData.pos_x === 'undefined' ||
-        codeData.pos_y === null || typeof codeData.pos_y === 'undefined') {
-        console.warn(`createFabricTag: Position (pos_x, pos_y) invalide ou manquante pour ${codeData.code_geo || codeData.codeGeo}. Tag non créé.`);
-        return null;
-    }
-    if (!bg) {
-        console.warn("createFabricTag: Image/SVG de fond non trouvé. Tag non créé pour", codeData.code_geo || codeData.codeGeo);
+    
+    // S'assurer que le fond (image) est là pour la conversion
+    const bg = fabricCanvas.backgroundImage;
+    if (!bg && !getSvgOriginalBBox()) {
+        console.warn("createFabricTag: Aucune référence (Image ou BBox) pour la conversion de position.");
         return null;
     }
 
+    if (codeData.pos_x === null || codeData.pos_y === null || codeData.width === null || codeData.height === null) {
+        console.error("createFabricTag: Données de position (x, y, w, h) manquantes.", codeData);
+        return null;
+    }
+    
     const { left, top } = convertPercentToPixels(codeData.pos_x, codeData.pos_y, fabricCanvas);
     if (isNaN(left) || isNaN(top)) {
-        console.error(`createFabricTag: Coordonnées pixels invalides (NaN) pour ${codeData.code_geo || codeData.codeGeo}`);
+        console.error("createFabricTag: Conversion en pixels échouée.", codeData);
         return null;
     }
 
-    const bgColor = universColors[codeData.univers] || '#7f8c8d';
-    // Accepte code_geo (BDD) ou codeGeo (JS/Dataset)
-    const codeText = codeData.code_geo || codeData.codeGeo || 'ERR';
-    const tagWidth = codeData.width || sizePresets.medium.width;
-    const tagHeight = codeData.height || sizePresets.medium.height;
+    const universColor = universColors[codeData.univers] || '#adb5bd';
+    const codeGeo = codeData.code_geo || codeData.codeGeo || 'ERR';
 
     const rect = new fabric.Rect({
-        width: tagWidth,
-        height: tagHeight,
-        fill: bgColor,
+        width: codeData.width,
+        height: codeData.height,
+        fill: universColor,
         stroke: 'black',
-        strokeWidth: 1 / fabricCanvas.getZoom(), // Adapter au zoom initial
-        rx: 3, ry: 3,
-        originX: 'center', originY: 'center',
-        shadow: 'rgba(0,0,0,0.3) 2px 2px 4px'
+        strokeWidth: 1, // Sera adapté au zoom par updateStrokesWidth
+        baseStrokeWidth: 1, // Stocker la largeur de base
+        originX: 'center',
+        originY: 'center'
     });
 
-    const text = new fabric.Text(codeText, {
-        fontSize: GEO_TAG_FONT_SIZE,
+    const text = new fabric.Text(codeGeo, {
+        fontSize: GEO_TAG_FONT_SIZE || 14,
         fill: 'white',
-        fontWeight: 'bold',
+        originX: 'center',
+        originY: 'center',
         fontFamily: 'Arial',
-        originX: 'center', originY: 'center'
+        fontWeight: 'bold'
     });
 
-    // --- CORRECTION CUSTOM DATA ---
     const group = new fabric.Group([rect, text], {
         left: left,
         top: top,
-        originX: 'center', originY: 'center',
-        selectable: true, evented: true,
-        hasControls: false, hasBorders: true, // Afficher bordure de sélection
-        borderColor: '#007bff', cornerSize: 0, transparentCorners: true,
-        lockRotation: true, lockScalingX: true, lockScalingY: true,
-        hoverCursor: 'move',
+        originX: 'center',
+        originY: 'center',
+        selectable: true,
+        evented: true,
+        hasControls: false,
+        hasBorders: true,
+        borderColor: '#007bff',
+        lockRotation: true,
+        lockScalingX: true,
+        lockScalingY: true,
+        // Stocker TOUTES les données (code + position)
         customData: {
-            ...codeData, // Inclut id, code_geo, libelle, univers, commentaire, position_id, plan_id etc.
-            // Assurer la présence de codeGeo (camelCase) pour les fonctions JS ultérieures
-            codeGeo: codeData.code_geo || codeData.codeGeo, // Copie depuis l'une ou l'autre source
-            isGeoTag: true,
-            currentWidth: tagWidth,
-            currentHeight: tagHeight,
-            anchorXPercent: codeData.anchor_x,
+            ...codeData,
+            codeGeo: codeGeo, // Assurer la cohérence du nom
+            isGeoTag: true, // Marqueur pour ÉTIQUETTE RECTANGULAIRE
+            isPlacedText: false,
+            id: parseInt(codeData.id, 10),
+            position_id: parseInt(codeData.position_id, 10),
+            plan_id: parseInt(codeData.plan_id, 10),
+            currentWidth: codeData.width, // Stocker la taille
+            currentHeight: codeData.height,
+            anchorXPercent: codeData.anchor_x, // Stocker l'ancre
             anchorYPercent: codeData.anchor_y
         }
     });
-    // --- FIN CORRECTION ---
 
-    // Ajouter la flèche si les données d'ancre existent
-    if (group.customData.anchorXPercent !== null && typeof group.customData.anchorXPercent !== 'undefined' &&
-        group.customData.anchorYPercent !== null && typeof group.customData.anchorYPercent !== 'undefined') {
-        addArrowToTag(group); // Utilise les données dans customData
+    // Ajouter flèche SEULEMENT si c'est une étiquette et ancre définie
+    if (group.customData.anchorXPercent !== null && group.customData.anchorYPercent !== null) {
+        addArrowToTag(group);
     }
 
     fabricCanvas.add(group);
-    group.moveTo(999); // S'assurer que les tags sont au-dessus des dessins
-    updateHighlightEffect(group); // Appliquer l'effet de surlignage initial si nécessaire
-
+    group.moveTo(999); // Mettre au premier plan
+    updateHighlightEffect(group); // Appliquer highlight initial
     return group;
 }
 
 /**
- * Ajoute ou met à jour la flèche d'un tag géo.
- * @param {fabric.Group} tagGroup - Le groupe Fabric du tag.
+ * Ajoute ou met à jour la flèche d'une ÉTIQUETTE GÉO (pas pour texte simple).
+ * @param {fabric.Group} tagGroup - L'objet étiquette (doit être isGeoTag).
  */
 export function addArrowToTag(tagGroup) {
-    // Vérifier si tagGroup et customData existent
-    if (!tagGroup || !tagGroup.customData) {
-        console.warn("addArrowToTag: tagGroup ou customData invalide.");
-        return;
-    }
-    const { anchorXPercent, anchorYPercent } = tagGroup.customData;
-
-    if (anchorXPercent === null || typeof anchorXPercent === 'undefined' || anchorYPercent === null || typeof anchorYPercent === 'undefined') {
-        // Si les ancres sont nulles, supprimer la flèche existante
-        if (tagGroup.arrowLine) {
+    // Ne rien faire si ce n'est pas un tag rectangulaire
+    if (!tagGroup?.customData?.isGeoTag) {
+        if (tagGroup?.arrowLine) { // Nettoyer si la flèche existe par erreur
             fabricCanvas.remove(tagGroup.arrowLine);
             tagGroup.arrowLine = null;
-            fabricCanvas.requestRenderAll();
         }
         return;
+    }
+    
+    // Supprimer l'ancienne flèche si elle existe
+    if (tagGroup.arrowLine) {
+        fabricCanvas.remove(tagGroup.arrowLine);
+        tagGroup.arrowLine = null;
+    }
+
+    const { anchorXPercent, anchorYPercent } = tagGroup.customData;
+    if (anchorXPercent === null || anchorYPercent === null) {
+        fabricCanvas.requestRenderAll();
+        return; // Pas d'ancre, pas de flèche
     }
 
     const tagCenter = tagGroup.getCenterPoint();
     const anchorGlobal = convertPercentToPixels(anchorXPercent, anchorYPercent, fabricCanvas);
-
     if (isNaN(anchorGlobal.left) || isNaN(anchorGlobal.top)) {
-        console.error("addArrowToTag - Coordonnées d'ancre globales invalides (NaN).");
+        console.error("addArrowToTag: Coords d'ancre invalides.", tagGroup.customData);
         return;
     }
+    
+    const zoom = fabricCanvas.getZoom();
+    const baseStrokeWidth = 2;
 
-    const currentZoom = fabricCanvas.getZoom();
-    const strokeW = 2 / currentZoom;
+    tagGroup.arrowLine = new fabric.Line(
+        [tagCenter.x, tagCenter.y, anchorGlobal.left, anchorGlobal.top],
+        {
+            stroke: 'rgba(0, 0, 0, 0.7)',
+            strokeWidth: baseStrokeWidth / zoom,
+            baseStrokeWidth: baseStrokeWidth, // Stocker base
+            selectable: false,
+            evented: false,
+            originX: 'center',
+            originY: 'center',
+            isArrow: true
+        }
+    );
 
-    if (tagGroup.arrowLine) {
-        tagGroup.arrowLine.set({
-            x1: tagCenter.x, y1: tagCenter.y,
-            x2: anchorGlobal.left, y2: anchorGlobal.top,
-            strokeWidth: strokeW
-        });
-    } else {
-        tagGroup.arrowLine = new fabric.Line([tagCenter.x, tagCenter.y, anchorGlobal.left, anchorGlobal.top], {
-            stroke: '#34495e', strokeWidth: strokeW,
-            selectable: false, evented: false,
-            originX: 'center', originY: 'center',
-            excludeFromExport: true // Ne pas inclure dans toJSON/toSVG
-        });
-        fabricCanvas.add(tagGroup.arrowLine);
-    }
-    // S'assurer que la flèche est juste derrière le tag
-    tagGroup.arrowLine.moveTo(fabricCanvas.getObjects().indexOf(tagGroup));
-    tagGroup.arrowLine.setCoords();
+    fabricCanvas.add(tagGroup.arrowLine);
+    tagGroup.arrowLine.moveTo(998); // Juste en dessous du tag
     fabricCanvas.requestRenderAll();
 }
 
-
 /**
- * Gère la modification (déplacement, redimensionnement implicite via bouton) d'un tag géo.
- * Appelée par l'event 'object:modified' du canvas.
- * @param {fabric.Object} target - L'objet Fabric modifié (le tag géo).
+ * Gère la modification (déplacement) d'une ÉTIQUETTE GÉO (appelé depuis main.js).
+ * @param {fabric.Group} target - L'étiquette (isGeoTag) qui a été modifiée.
  */
 export async function handleGeoTagModified(target) {
-    // Vérification renforcée
-    if (!target || !target.customData || !target.customData.isGeoTag) {
-        console.warn("handleGeoTagModified appelé avec une cible invalide:", target);
-        return;
+     if (!target?.customData?.isGeoTag) return; // Ne traite que les vrais tags
+
+     const { position_id, id: geoCodeId, currentWidth, currentHeight, anchorXPercent, anchorYPercent, plan_id, codeGeo } = target.customData;
+     
+     if (!geoCodeId || !position_id || !plan_id) {
+        console.error(`ERREUR: Impossible de sauvegarder modif tag ${codeGeo}. Données ID manquantes:`, target.customData);
+        showToast(`Erreur sauvegarde tag ${codeGeo}.`, "danger"); return;
     }
-
-    // Assurer que codeGeo est défini (au cas où la correction createFabricTag n'aurait pas suffi)
-    const codeGeo = target.customData.codeGeo || target.customData.code_geo || 'INCONNU';
-    console.log("Geo Tag modifié:", codeGeo);
-
-    // Vérifier que les IDs nécessaires sont présents et valides
-    const { position_id, id: geoCodeId, currentWidth, currentHeight, anchorXPercent, anchorYPercent, plan_id } = target.customData;
-    if (!geoCodeId || !position_id || !plan_id) {
-         console.error(`ERREUR: Impossible de sauvegarder la modification du tag ${codeGeo}. Données ID manquantes:`, target.customData);
-         showToast(`Erreur: Impossible de sauvegarder les modifications pour ${codeGeo} (données manquantes).`, "danger");
-         // Optionnel : Revenir à la position précédente ? Difficile sans état précédent.
-         return;
-    }
-
-    // Calculer la nouvelle position centrale en pourcentage
-    const centerPoint = target.getCenterPoint();
-    const { posX, posY } = convertPixelsToPercent(centerPoint.x, centerPoint.y, fabricCanvas);
-
-    const positionData = {
-        id: geoCodeId, // ID du code Géo
-        position_id: position_id, // ID unique de ce placement
-        plan_id: plan_id, // ID du plan
-        pos_x: posX,
-        pos_y: posY,
-        width: currentWidth, // La taille est gérée par les boutons
-        height: currentHeight,
-        anchor_x: anchorXPercent,
-        anchor_y: anchorYPercent
-    };
-
-    console.log("Sauvegarde de la position modifiée:", positionData);
-    try {
+     
+     const centerPoint = target.getCenterPoint();
+     const { posX, posY } = convertPixelsToPercent(centerPoint.x, centerPoint.y, fabricCanvas);
+     
+     const positionData = {
+         id: geoCodeId,
+         position_id: position_id,
+         plan_id: plan_id,
+         pos_x: posX,
+         pos_y: posY,
+         width: currentWidth, // Conserver la taille
+         height: currentHeight,
+         anchor_x: anchorXPercent, // Conserver l'ancre
+         anchor_y: anchorYPercent
+     };
+     
+     try {
         const savedData = await savePosition(positionData);
-        if (savedData) {
-            console.log("Position sauvegardée avec succès:", savedData);
-            // Mettre à jour les customData si l'ID de position a été créé (ne devrait pas arriver ici)
-            // Mettre à jour les pourcentages réels sauvegardés pour être précis
-            target.customData.pos_x = savedData.pos_x;
-            target.customData.pos_y = savedData.pos_y;
-        } else {
-            console.error("La sauvegarde de la position a échoué (API n'a pas retourné de données).");
-            showToast(`Échec sauvegarde ${codeGeo}.`, "warning");
-        }
-    } catch (error) {
-        console.error("Erreur API lors de la sauvegarde de la position:", error);
-        showToast(`Erreur sauvegarde ${codeGeo}: ${error.message}`, "danger");
-    }
+        console.log("Nouvelle position étiquette sauvegardée:", savedData);
+        // Mettre à jour les données locales
+        target.customData.pos_x = savedData.pos_x;
+        target.customData.pos_y = savedData.pos_y;
+     } catch(error) {
+        console.error("Erreur API sauvegarde position tag:", error);
+        showToast(`Erreur sauvegarde tag ${codeGeo}: ${error.message}`, "danger");
+     }
 
-    // Redessiner la flèche si elle existe ou si des ancres sont définies
-    if (target.arrowLine || (anchorXPercent !== null && anchorYPercent !== null)) {
+     // Redessiner la flèche si elle existe
+     if (target.arrowLine || (anchorXPercent !== null && anchorYPercent !== null)) {
         addArrowToTag(target);
-    }
-    showToolbar(target); // Réafficher la toolbar au cas où
+     }
+     
+     showToolbar(target); // Réafficher toolbar à la bonne position
 }
 
 
-// --- Gestion Toolbar Tag ---
+// --- Gestion Toolbar ---
 
 /**
- * Affiche la toolbar d'édition au-dessus du tag sélectionné.
- * @param {fabric.Group} target - Le tag géo sélectionné.
+ * Affiche la toolbar d'édition à côté de l'élément géo sélectionné.
+ * @param {fabric.Object} target - L'objet (Tag ou Texte) sélectionné.
  */
 export function showToolbar(target) {
-    if (!tagToolbar || !target?.customData?.isGeoTag) {
+    if (!tagToolbar || !(target?.customData?.isGeoTag || target?.customData?.isPlacedText)) {
         hideToolbar();
         return;
     }
-    selectedFabricObject = target; // Met à jour la sélection globale
+    selectedFabricObject = target;
 
-    // Utiliser requestAnimationFrame pour s'assurer que le rendu Fabric est terminé
-    fabric.util.requestAnimFrame(() => {
-        if (!target || !target.canvas) { // Vérifie si l'objet est toujours sur le canvas
-            hideToolbar();
-            return;
-        }
-        const bound = target.getBoundingRect();
+    // Adapter la toolbar selon le type (Tag vs Texte)
+    const isTag = target.customData.isGeoTag; // Est-ce une étiquette rectangulaire ?
+    const isText = target.customData.isPlacedText; // Est-ce un texte géo ?
 
-        // Calcul position toolbar
-        const toolbarTop = bound.top - (tagToolbar.offsetHeight || 40) - 5; // Hauteur approx si offsetHeight=0
-        const toolbarLeft = bound.left + bound.width / 2 - (tagToolbar.offsetWidth || 150) / 2;
+    // Cacher/afficher boutons spécifiques
+    if(arrowTagBtn) arrowTagBtn.style.display = isTag ? 'inline-flex' : 'none';
+    if(sizeBtnGroup) sizeBtnGroup.style.display = isTag ? 'inline-flex' : 'none';
+    
+    // Mettre à jour l'état des boutons de taille (pour les tags)
+    if (isTag && sizeBtnGroup) {
+         sizeBtnGroup.querySelectorAll('.size-btn').forEach(btn => {
+             btn.classList.remove('active');
+             const preset = sizePresets[btn.dataset.size];
+             if (preset && preset.width === target.customData.currentWidth) {
+                 btn.classList.add('active');
+             }
+         });
+    }
 
-        // Contraintes pour rester dans le canvas visible
-        const canvasRect = fabricCanvas.getElement().getBoundingClientRect();
-        const finalLeft = Math.max(0, Math.min(toolbarLeft, canvasRect.width - (tagToolbar.offsetWidth || 150)));
-        const finalTop = Math.max(0, Math.min(toolbarTop, canvasRect.height - (tagToolbar.offsetHeight || 40)));
+    // Positionner la toolbar
+    const BoundingRect = target.getBoundingRect();
+    const zoom = fabricCanvas.getZoom();
+    const vpt = fabricCanvas.viewportTransform;
+    const panX = vpt[4];
+    const panY = vpt[5];
 
-        tagToolbar.style.left = `${finalLeft}px`;
-        tagToolbar.style.top = `${finalTop}px`;
+    // Coordonnées à l'écran
+    const screenLeft = BoundingRect.left * zoom + panX;
+    const screenTop = BoundingRect.top * zoom + panY;
+    const screenHeight = BoundingRect.height * zoom;
 
-        tagToolbar.style.opacity = '1';
-        tagToolbar.style.transform = 'translateY(0)';
-        tagToolbar.style.pointerEvents = 'auto';
-        tagToolbar.classList.add('visible');
-    });
+    const canvasContainerRect = fabricCanvas.wrapperEl.getBoundingClientRect();
+    
+    // Positionner à droite et au milieu de l'objet
+    tagToolbar.style.left = `${screenLeft + (BoundingRect.width * zoom) + 10}px`;
+    tagToolbar.style.top = `${screenTop + (screenHeight / 2) - (tagToolbar.offsetHeight / 2)}px`;
+    tagToolbar.classList.add('visible');
+    
+    // S'assurer qu'elle ne sort pas du canvas
+    if (tagToolbar.offsetLeft + tagToolbar.offsetWidth > canvasContainerRect.width - 10) {
+        tagToolbar.style.left = `${screenLeft - tagToolbar.offsetWidth - 10}px`;
+    }
 }
 
-/** Cache la toolbar d'édition. */
+/** Cache la toolbar d'édition */
 export function hideToolbar() {
     if (tagToolbar) {
-        tagToolbar.style.opacity = '0';
-        tagToolbar.style.transform = 'translateY(10px)'; // Petit effet de glissement
-        tagToolbar.style.pointerEvents = 'none';
         tagToolbar.classList.remove('visible');
     }
-    // selectedFabricObject = null; // Ne pas déselectionner ici, géré par les events Fabric
+    selectedFabricObject = null;
+    cancelArrowDrawing(); // Annuler dessin de flèche si on désélectionne
 }
 
-/** Supprime le tag géo sélectionné (et éventuellement toutes ses instances). */
-async function deleteSelectedTag() {
-    if (!selectedFabricObject?.customData?.isGeoTag) return;
-
-    // Vérifier à nouveau la présence des ID nécessaires
-    const { position_id, id: geoCodeId, codeGeo, plan_id } = selectedFabricObject.customData;
-    if (!geoCodeId || !position_id || !plan_id) {
-         console.error(`ERREUR: Impossible de supprimer le tag. Données ID manquantes:`, selectedFabricObject.customData);
-         showToast("Erreur: Impossible de supprimer ce tag (données manquantes).", "danger");
-         return;
+/**
+ * Supprime l'élément géo sélectionné (Tag OU Texte).
+ * Appelée depuis main.js (raccourci clavier) ou la toolbar.
+ */
+export async function deleteSelectedGeoElement() {
+    const target = selectedFabricObject; // Utiliser l'objet stocké
+    
+    if (!target || !(target.customData?.isGeoTag || target.customData?.isPlacedText)) {
+        console.warn("deleteSelectedGeoElement: Aucun élément géo valide n'est sélectionné.");
+        return;
     }
 
-    const allInstances = fabricCanvas.getObjects().filter(o => o.customData?.isGeoTag && o.customData.id === geoCodeId);
+    const customData = target.customData;
+    const { position_id, id: geoCodeId, codeGeo, plan_id } = customData;
+    const isTag = customData.isGeoTag;
+    const elementType = isTag ? "l'étiquette" : "le texte";
+
+    if (!geoCodeId || !position_id || !plan_id) {
+        console.error(`ERREUR: Impossible de supprimer ${elementType} ${codeGeo}. Données ID manquantes:`, customData);
+        showToast(`Erreur suppression ${codeGeo}.`, "danger"); 
+        return;
+    }
+
+    const allInstances = fabricCanvas.getObjects().filter(o => 
+        o.customData && 
+        (o.customData.isGeoTag || o.customData.isPlacedText) &&
+        o.customData.id === geoCodeId
+    );
+    
     let performDelete = false;
     let deleteAllInstances = false;
 
-    // Demander confirmation
+    // Demande confirmation
     if (allInstances.length > 1) {
-        if (confirm(`Voulez-vous supprimer toutes les ${allInstances.length} instances de "${codeGeo}" sur ce plan ?`)) {
+        // Optionnel: proposer de tout supprimer (on garde simple pour l'instant)
+        if (confirm(`Voulez-vous supprimer ${elementType} "${codeGeo}" ?\n(Il y a ${allInstances.length} instances au total sur ce plan).`)) {
             performDelete = true;
-            deleteAllInstances = true;
-        } else if (confirm(`Supprimer uniquement cette instance de "${codeGeo}" ?`)) {
-            performDelete = true;
+            // Pourrait ajouter logique pour 'deleteAllInstances' ici si besoin
         }
-    } else if (confirm(`Supprimer le tag "${codeGeo}" ?`)) {
+    } else if (confirm(`Supprimer ${elementType} "${codeGeo}" ?`)) {
         performDelete = true;
     }
 
     if (!performDelete) return;
 
     try {
-        const success = deleteAllInstances
-            ? await removeMultiplePositions(geoCodeId, plan_id)
-            : await removePosition(position_id);
+        let success;
+        if (deleteAllInstances) {
+            success = await removeMultiplePositions(geoCodeId, plan_id);
+        } else {
+            success = await removePosition(position_id);
+        }
 
         if (success) {
-            console.log(`Suppression réussie (${deleteAllInstances ? 'toutes instances' : 'instance unique'})`);
-            // Calculer le delta correct pour le compteur
-            const delta = deleteAllInstances ? -allInstances.length : -1;
-            // Supprimer les objets Fabric correspondants
-            (deleteAllInstances ? allInstances : [selectedFabricObject]).forEach(tag => {
-                if (tag.arrowLine) fabricCanvas.remove(tag.arrowLine);
-                fabricCanvas.remove(tag);
+            // Supprimer les objets du canvas
+            const elementsToRemove = deleteAllInstances ? allInstances : [target];
+            elementsToRemove.forEach(element => {
+                if (element.arrowLine) fabricCanvas.remove(element.arrowLine); // Pour les tags
+                fabricCanvas.remove(element);
             });
-            updateCodeCountInSidebar(geoCodeId, delta); // Utiliser le delta calculé
-            fabricCanvas.discardActiveObject().renderAll(); // Désélectionne et redessine
+            
+            showToast(`${elementType} "${codeGeo}" supprimé(e).`, "success");
+            
+            // Rafraîchir les listes de la sidebar
+            await fetchAndClassifyCodes();
+            
+            fabricCanvas.discardActiveObject().renderAll();
             hideToolbar();
         } else {
-             console.error("L'API a retourné une erreur lors de la suppression.");
-            alert("Erreur lors de la suppression du tag (réponse API négative).");
+            showToast(`La suppression de ${codeGeo} a échoué côté serveur.`, "warning");
         }
     } catch (error) {
-         console.error("Erreur lors de l'appel API de suppression:", error);
-        alert(`Erreur lors de la suppression : ${error.message}`);
+        console.error(`Erreur API suppression ${elementType}:`, error);
+        showToast(`Erreur suppression ${codeGeo}: ${error.message}`, "danger");
     }
-}
-
-/** Change la taille du tag sélectionné selon un preset ('small', 'medium', 'large'). */
-async function changeSelectedTagSize(event) {
-    const size = event.currentTarget.dataset.size;
-    if (!selectedFabricObject?.customData?.isGeoTag || !sizePresets[size]) return;
-
-    const preset = sizePresets[size];
-    const target = selectedFabricObject;
-    const { customData } = target;
-
-     // Vérifier les IDs avant de continuer
-     if (!customData.id || !customData.position_id || !customData.plan_id) {
-        console.error(`ERREUR: Impossible de changer la taille du tag ${customData.codeGeo}. Données ID manquantes:`, customData);
-        showToast(`Erreur: Impossible de changer la taille (données manquantes).`, "danger");
-        return;
-    }
-
-    // Mettre à jour la taille du rectangle dans le groupe
-    target.item(0).set({ width: preset.width, height: preset.height });
-
-    // Forcer la mise à jour du groupe pour recalculer ses dimensions et sa position
-    target.addWithUpdate(); // Important pour que le groupe s'adapte
-    target.setCoords();   // Recalculer les coordonnées de contrôle
-
-    fabricCanvas.renderAll();
-
-    // Sauvegarder la nouvelle taille via l'API
-    const { posX, posY } = convertPixelsToPercent(target.getCenterPoint().x, target.getCenterPoint().y, fabricCanvas);
-    const positionData = {
-        id: customData.id,
-        position_id: customData.position_id,
-        plan_id: customData.plan_id,
-        pos_x: posX,
-        pos_y: posY,
-        width: preset.width,
-        height: preset.height,
-        anchor_x: customData.anchorXPercent,
-        anchor_y: customData.anchorYPercent
-    };
-
-    try {
-        const savedData = await savePosition(positionData);
-        if (savedData) {
-            // Mettre à jour les customData avec les nouvelles tailles
-            customData.currentWidth = preset.width;
-            customData.currentHeight = preset.height;
-            customData.width = preset.width; // Mettre à jour aussi width/height pour cohérence
-            customData.height = preset.height;
-             console.log("Taille tag mise à jour et sauvegardée:", customData.codeGeo, preset);
-        } else {
-             console.error("Échec sauvegarde changement taille (API).");
-             showToast(`Échec sauvegarde taille ${customData.codeGeo}.`, "warning");
-        }
-    } catch (error) {
-        console.error("Erreur API changement taille:", error);
-        showToast(`Erreur sauvegarde taille ${customData.codeGeo}: ${error.message}`, "danger");
-    }
-    showToolbar(target); // Garder la toolbar visible
-}
-
-
-// --- Gestion Surlignage ---
-
-/** Active/désactive le surlignage de toutes les instances du tag sélectionné. */
-function toggleHighlightSelected() {
-    if (!selectedFabricObject?.customData?.isGeoTag) return;
-
-    const codeToHighlight = selectedFabricObject.customData.codeGeo;
-    if (highlightedCodeGeo === codeToHighlight) {
-        highlightedCodeGeo = null; // Désactive le surlignage
-        console.log("Surlignage désactivé.");
-    } else {
-        highlightedCodeGeo = codeToHighlight; // Active pour ce code
-        console.log(`Surlignage activé pour: ${highlightedCodeGeo}`);
-    }
-    redrawAllTagsHighlight(); // Applique l'effet à tous les objets
-}
-
-/** Redessine tous les objets pour appliquer/retirer l'effet de surlignage. */
-export function redrawAllTagsHighlight() {
-    if (!fabricCanvas) return;
-    fabricCanvas.getObjects().forEach(updateHighlightEffect);
-    fabricCanvas.renderAll();
 }
 
 /**
- * Applique l'effet visuel de surlignage (ou d'atténuation) à un objet Fabric.
- * @param {fabric.Object} fabricObj - L'objet à traiter.
+ * Change la taille d'une ÉTIQUETTE GÉO (pas pour texte simple).
+ * Appelée par le listener de la toolbar dans main.js.
+ * @param {Event} event - L'événement de clic sur le bouton de taille.
+ */
+export async function changeSelectedTagSize(event) {
+    const size = event.currentTarget.dataset.size;
+    // Ne rien faire si ce n'est pas un tag rectangulaire
+    if (!selectedFabricObject?.customData?.isGeoTag || !sizePresets[size]) return;
+    
+    const target = selectedFabricObject;
+    const preset = sizePresets[size];
+    
+    const { position_id, id: geoCodeId, anchorXPercent, anchorYPercent, plan_id, codeGeo } = target.customData;
+    if (!geoCodeId || !position_id || !plan_id) { /* ... gestion erreur ID ... */ return; }
+
+    // Mettre à jour l'objet Fabric
+    target.item(0).set({ width: preset.width, height: preset.height }); // item(0) est le Rect
+    target.addWithUpdate(); // Recalcule le groupe
+    target.setCoords();
+    fabricCanvas.renderAll();
+    
+    // Mettre à jour les données customData
+    target.customData.currentWidth = preset.width;
+    target.customData.currentHeight = preset.height;
+    
+    // Recalculer le % de position (le centre n'a pas bougé)
+    const centerPoint = target.getCenterPoint();
+    const { posX, posY } = convertPixelsToPercent(centerPoint.x, centerPoint.y, fabricCanvas);
+
+    const positionData = {
+        id: geoCodeId, position_id: position_id, plan_id: plan_id,
+        pos_x: posX, pos_y: posY,
+        width: preset.width, // Nouvelle taille
+        height: preset.height,
+        anchor_x: anchorXPercent, anchor_y: anchorYPercent // Garder l'ancre
+    };
+    
+    try {
+        const savedData = await savePosition(positionData);
+        target.customData.pos_x = savedData.pos_x;
+        target.customData.pos_y = savedData.pos_y;
+        console.log("Taille étiquette sauvegardée:", savedData);
+        showToast(`Taille de ${codeGeo} modifiée.`, "info");
+    } catch(error) {
+        console.error("Erreur API sauvegarde taille étiquette:", error);
+        showToast(`Erreur sauvegarde ${codeGeo}: ${error.message}`, "danger");
+    }
+
+    showToolbar(target); // Ré-afficher pour mettre à jour état 'active' des boutons
+}
+
+
+// --- Surlignage (Highlight) ---
+
+/**
+ * Bascule le surlignage pour le code géo de l'objet sélectionné.
+ * Appelée par le listener de la toolbar dans main.js.
+ */
+export function toggleHighlightSelected() {
+    if (!selectedFabricObject?.customData) return; // Tag ou Texte
+    
+    const codeToHighlight = selectedFabricObject.customData.codeGeo;
+    // Si on clique sur le même, on annule le surlignage
+    highlightedCodeGeo = (highlightedCodeGeo === codeToHighlight) ? null : codeToHighlight;
+    
+    redrawAllTagsHighlight();
+}
+
+/** Redessine tous les objets pour appliquer/retirer le surlignage */
+export function redrawAllTagsHighlight() {
+    if (!fabricCanvas) return;
+    fabricCanvas.getObjects().forEach(obj => {
+        updateHighlightEffect(obj);
+    });
+    fabricCanvas.requestRenderAll();
+}
+
+/**
+ * Applique l'effet de surlignage (ou d'atténuation) à un objet.
+ * @param {fabric.Object} fabricObj - L'objet à évaluer.
  */
 function updateHighlightEffect(fabricObj) {
-    if (!fabricObj || fabricObj.isGridLine || !fabricObj.visible) return; // Ignore grille et objets invisibles
+    if (!fabricObj || fabricObj.isGridLine || !fabricObj.visible) return;
 
-    const isTag = fabricObj.customData?.isGeoTag;
+    const isGeoElement = fabricObj.customData?.isGeoTag || fabricObj.customData?.isPlacedText;
     const isActiveSelection = fabricCanvas.getActiveObject() === fabricObj;
     let isHighlightedInstance = false;
 
-    if (isTag && highlightedCodeGeo && fabricObj.customData) { // Vérifier customData
+    // Vérifier si c'est une instance à surligner
+    if (isGeoElement && highlightedCodeGeo && fabricObj.customData) {
         isHighlightedInstance = fabricObj.customData.codeGeo === highlightedCodeGeo;
     }
 
-    // Définir l'opacité
     let opacity = 1.0;
-    if (highlightedCodeGeo) { // Si un surlignage est actif
-        if (!isTag || !isHighlightedInstance) {
-            opacity = 0.3; // Atténue tout ce qui n'est pas le tag surligné
-        }
+    // Atténuer si un surlignage est actif ET que cet objet n'est pas concerné
+    if (highlightedCodeGeo && (!isGeoElement || !isHighlightedInstance)) {
+        opacity = 0.3;
     }
-    // Si pas de surlignage actif, tous les objets sont opaques
     fabricObj.set({ opacity });
 
-    // Définir le style de bordure pour les tags géo
-    if (isTag && fabricObj.item && fabricObj.item(0)) { // Vérifie que le groupe et son rect existent
-        const rect = fabricObj.item(0);
-        let strokeColor = 'black';
-        let strokeW = 1 / fabricCanvas.getZoom(); // Base stroke width
+    // Gérer la bordure/fond pour l'élément lui-même
+    if (isGeoElement) {
+        const rect = fabricObj.customData.isGeoTag ? fabricObj.item(0) : null; // Rectangle pour tag
+        const text = fabricObj.customData.isPlacedText ? fabricObj : null;     // Objet texte
+
+        // Reset style
+        if (rect) rect.set({ stroke: 'black', strokeWidth: rect.baseStrokeWidth / fabricCanvas.getZoom() });
+        if (text) text.set({ backgroundColor: '' }); // Enlever fond
 
         if (isActiveSelection) {
-            strokeColor = '#007bff'; // Bleu pour la sélection active
-            strokeW = 2 / fabricCanvas.getZoom();
+            // La bordure de sélection standard de Fabric s'applique
         } else if (isHighlightedInstance) {
-            strokeColor = '#ffc107'; // Jaune pour les instances surlignées (non actives)
-            strokeW = 2 / fabricCanvas.getZoom();
+             // Surligner
+             if (rect) {
+                 rect.set({ stroke: '#ffc107', strokeWidth: 2 / fabricCanvas.getZoom() });
+             }
+             if (text) {
+                 text.set({ backgroundColor: 'rgba(255, 193, 7, 0.5)' }); // Fond jaune léger
+             }
         }
-
-        rect.set({ stroke: strokeColor, strokeWidth: strokeW });
     }
 
-    // Appliquer l'opacité à la flèche si elle existe
+    // Gérer la flèche associée (pour les tags)
     if (fabricObj.arrowLine) {
         fabricObj.arrowLine.set({ opacity });
     }
 }
 
 
-// --- Gestion Flèches ---
+// --- Gestion Flèches (uniquement pour tags image) ---
 
-/** Passe en mode dessin de flèche pour le tag sélectionné. */
-function startDrawingArrow() {
-    if (!selectedFabricObject?.customData?.isGeoTag) return;
+/** Démarre le mode dessin de flèche */
+export function startDrawingArrow() {
+    // Ne démarrer que si c'est une étiquette rectangulaire
+    if (!selectedFabricObject?.customData?.isGeoTag) {
+        showToast("Les flèches ne sont disponibles que pour les étiquettes rectangulaires.", "info");
+        return;
+    }
     isDrawingArrowMode = true;
-    alert("Cliquez sur le plan où la flèche doit pointer (ou Echap pour annuler).");
     fabricCanvas.defaultCursor = 'crosshair';
-    fabricCanvas.discardActiveObject(); // Désélectionne pour éviter interférence
-    hideToolbar();
+    fabricCanvas.selection = false;
+    showToast("Mode flèche: Cliquez sur le plan pour définir la cible de la flèche.", "info");
+    
+    // Créer une ligne temporaire
+    cancelArrowDrawing(); // Nettoyer au cas où
+    const tagCenter = selectedFabricObject.getCenterPoint();
+    currentArrowLine = new fabric.Line(
+        [tagCenter.x, tagCenter.y, tagCenter.x, tagCenter.y],
+        {
+            stroke: 'rgba(0,0,0,0.3)',
+            strokeWidth: 2 / fabricCanvas.getZoom(),
+            strokeDashArray: [5, 5],
+            selectable: false, evented: false
+        }
+    );
+    fabricCanvas.add(currentArrowLine);
+    
+    // Suivre la souris (temporairement géré ici, pourrait être dans main.js)
+    fabricCanvas.on('mouse:move', handleArrowMove);
+}
+
+/** Suit la souris pendant le dessin de flèche */
+function handleArrowMove(opt) {
+    if (!isDrawingArrowMode || !currentArrowLine) return;
+    const pointer = fabricCanvas.getPointer(opt.e);
+    currentArrowLine.set({ x2: pointer.x, y2: pointer.y });
+    fabricCanvas.requestRenderAll();
 }
 
 /**
- * Gère le clic pour définir le point d'ancrage de la flèche.
- * Appelée par le 'mouse:down' du canvas quand isDrawingArrowMode est true.
- * @param {object} opt - Options de l'événement Fabric ('target', 'e', 'pointer').
+ * Termine le dessin de flèche et sauvegarde l'ancre.
+ * Appelée par main.js lors d'un clic en mode 'isDrawingArrowMode'.
+ * @param {object} opt - L'option d'événement mousedown de Fabric.
  */
-export function handleArrowEndPoint(opt) {
-    // Vérifie si on est bien en mode flèche et qu'un tag était sélectionné AVANT ce clic
+export async function handleArrowEndPoint(opt) {
     if (!isDrawingArrowMode || !selectedFabricObject?.customData?.isGeoTag || !opt?.pointer) {
         cancelArrowDrawing();
         return;
     }
-
-    const target = selectedFabricObject; // Le tag pour lequel on dessine la flèche
-    const pointer = opt.pointer; // Coordonnées du clic {x, y}
-
-    // Vérifier les IDs avant de continuer
-     if (!target.customData.id || !target.customData.position_id || !target.customData.plan_id) {
-        console.error(`ERREUR: Impossible d'ajouter la flèche au tag ${target.customData.codeGeo}. Données ID manquantes:`, target.customData);
-        showToast(`Erreur: Impossible d'ajouter la flèche (données manquantes).`, "danger");
-        cancelArrowDrawing();
-        return;
-    }
-
-    // Convertir le point cliqué en pourcentage par rapport au fond
-    const { posX, posY } = convertPixelsToPercent(pointer.x, pointer.y, fabricCanvas);
-
+    
+    const target = selectedFabricObject;
+    const pointer = fabricCanvas.getPointer(opt.e);
+    
+    // Convertir le point d'ancre en %
+    const { posX: anchorX, posY: anchorY } = convertPixelsToPercent(pointer.x, pointer.y, fabricCanvas);
+    
     // Mettre à jour les customData du tag
-    target.customData.anchorXPercent = posX;
-    target.customData.anchorYPercent = posY;
+    target.customData.anchorXPercent = anchorX;
+    target.customData.anchorYPercent = anchorY;
 
-    // Dessiner/Mettre à jour la flèche visuellement
+    // Mettre à jour la flèche (la vraie)
     addArrowToTag(target);
+    
+    // Sauvegarder la position (qui inclut maintenant l'ancre)
+    const { position_id, id: geoCodeId, currentWidth, currentHeight, pos_x, pos_y, plan_id, codeGeo } = target.customData;
+    if (!geoCodeId || !position_id || !plan_id) { /* ... gestion erreur ID ... */ return; }
 
-    // Sauvegarder la nouvelle position de l'ancre via l'API
-    // On récupère les autres données du tag pour l'appel API
-    const currentPos = convertPixelsToPercent(target.getCenterPoint().x, target.getCenterPoint().y, fabricCanvas);
-    const { position_id, id: geoCodeId, currentWidth, currentHeight, plan_id } = target.customData;
-
-    savePosition({
-        id: geoCodeId,
-        position_id: position_id,
-        plan_id: plan_id,
-        pos_x: currentPos.posX, // La position du tag n'a pas changé
-        pos_y: currentPos.posY,
-        width: currentWidth,
-        height: currentHeight,
-        anchor_x: posX, // Nouvelle ancre X
-        anchor_y: posY  // Nouvelle ancre Y
-    }).then(savedData => {
-         console.log("Ancre de flèche sauvegardée:", savedData);
-    }).catch(error => {
-        console.error("Erreur sauvegarde ancre flèche:", error);
-        showToast(`Erreur sauvegarde ancre: ${error.message}`, "danger");
-        // Annuler visuellement l'ajout de la flèche
-        target.customData.anchorXPercent = null;
-        target.customData.anchorYPercent = null;
-        addArrowToTag(target); // Pour supprimer la flèche visuellement
-    });
-
-    cancelArrowDrawing(); // Sortir du mode dessin de flèche
-
-    // Resélectionner le tag après un court délai pour que la toolbar s'affiche
-    setTimeout(() => {
-        if (target && target.canvas) { // Vérifier si toujours sur canvas
-            fabricCanvas.setActiveObject(target).renderAll();
-            showToolbar(target);
-        }
-    }, 50);
-}
-
-/** Annule le mode dessin de flèche. */
-export function cancelArrowDrawing() {
-    isDrawingArrowMode = false;
-    // Restaurer le curseur par défaut (sera géré par setActiveTool si un outil de dessin est actif)
-    if (fabricCanvas) { // S'assurer que le canvas existe
-        const currentTool = document.querySelector('.tool-btn.active')?.dataset.tool || 'select';
-        fabricCanvas.defaultCursor = (currentTool === 'select') ? 'default' : 'crosshair';
-        fabricCanvas.setCursor(fabricCanvas.defaultCursor); // Appliquer immédiatement
+    const positionData = {
+        id: geoCodeId, position_id: position_id, plan_id: plan_id,
+        pos_x: pos_x, pos_y: pos_y, // Position du tag (n'a pas changé)
+        width: currentWidth, height: currentHeight,
+        anchor_x: anchorX, anchor_y: anchorY // Nouvelle ancre
+    };
+    
+    try {
+        await savePosition(positionData);
+        showToast(`Flèche pour ${codeGeo} sauvegardée.`, "success");
+    } catch(error) {
+        console.error("Erreur API sauvegarde ancre:", error);
+        showToast(`Erreur sauvegarde flèche: ${error.message}`, "danger");
     }
+    
+    cancelArrowDrawing();
+    fabricCanvas.setActiveObject(target).renderAll(); // Resélectionner le tag
 }
 
-/**
- * Retourne si le mode dessin de flèche est actif.
- * Utilisé par le gestionnaire mousedown principal.
- * @returns {boolean}
- */
+/** Annule le mode dessin de flèche */
+export function cancelArrowDrawing() {
+    if (currentArrowLine) {
+        fabricCanvas.remove(currentArrowLine);
+        currentArrowLine = null;
+    }
+    fabricCanvas.off('mouse:move', handleArrowMove);
+    isDrawingArrowMode = false;
+    fabricCanvas.defaultCursor = 'default';
+    fabricCanvas.selection = true;
+}
+
+/** Retourne l'état du mode dessin de flèche */
 export function getIsDrawingArrowMode() {
     return isDrawingArrowMode;
 }

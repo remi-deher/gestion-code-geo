@@ -1,183 +1,252 @@
 /**
- * Fonctions pour interagir avec l'API backend (actions PHP).
+ * Module API
+ * Gère toutes les requêtes fetch vers le backend.
  */
+import { showToast } from './utils.js';
+
+// Récupérer le token CSRF (supposant qu'il est stocké dans window.planData)
+function getCsrfToken() {
+    return window.planData?.csrfToken || '';
+}
 
 /**
- * Effectue une requête fetch vers le backend.
- * @param {string} action - L'action du contrôleur PHP (ex: 'savePosition').
- * @param {object} data - Les données à envoyer dans le corps de la requête (sera JSONifié).
- * @param {string} method - La méthode HTTP ('POST' par défaut).
- * @returns {Promise<object>} La réponse JSON parsée du serveur.
- * @throws {Error} Lance une erreur en cas de problème réseau ou de réponse non-OK.
+ * Envoie une requête fetch à l'API avec gestion des erreurs et CSRF.
+ * @param {string} url - L'URL de l'API.
+ * @param {object} options - Les options de fetch (method, headers, body).
+ * @returns {Promise<any>} La réponse JSON de l'API.
+ * @throws {Error} Si la réponse n'est pas OK ou si le JSON est invalide.
  */
-async function apiRequest(action, data = {}, method = 'POST') {
-    console.log(`apiRequest: action=${action}, method=${method}, data=`, data);
+async function apiFetch(url, options = {}) {
+    const defaultHeaders = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': getCsrfToken() // Ajout du token CSRF
+    };
+
+    const config = {
+        ...options,
+        headers: {
+            ...defaultHeaders,
+            ...options.headers
+        }
+    };
+
+    // Si le corps est un objet, le stringify
+    if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {
+        config.body = JSON.stringify(config.body);
+    }
+    
     try {
-        const options = {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                // Ajoutez ici un header CSRF si nécessaire, ex: 'X-CSRF-TOKEN': window.planData.csrfToken
-            },
-        };
-        // N'ajoute le corps que pour les méthodes qui le permettent
-        if (method !== 'GET' && method !== 'HEAD') {
-            options.body = JSON.stringify(data);
-        }
-
-        // Construit l'URL avec les paramètres GET si besoin
-        let url = `index.php?action=${action}`;
-        if (method === 'GET' && Object.keys(data).length > 0) {
-            // Pour les requêtes GET, les 'data' sont ajoutés comme paramètres d'URL
-            // Note: `action` peut déjà contenir des paramètres GET (ex: getAsset&id=X)
-            const params = new URLSearchParams(data);
-            url += (url.includes('?') ? '&' : '?') + params.toString();
-        }
-
-        const response = await fetch(url, options);
-
-        console.log(`apiRequest ${action} - Status: ${response.status}`);
-        const responseText = await response.text(); // Lire en texte d'abord pour le debug
-        console.log(`apiRequest ${action} - Response Text (début):`, responseText.substring(0, 150) + "...");
+        const response = await fetch(url, config);
 
         if (!response.ok) {
-            let errorMsg = `HTTP Error ${response.status}`;
+            let errorMsg = `Erreur HTTP: ${response.status} ${response.statusText}`;
             try {
-                const errorJson = JSON.parse(responseText);
-                errorMsg += `: ${errorJson.message || errorJson.error || 'Erreur inconnue'}`;
+                // Essayer de parser une réponse d'erreur JSON
+                const errorData = await response.json();
+                errorMsg = errorData.error || errorData.message || errorMsg;
             } catch (e) {
-                // Si la réponse n'est pas du JSON valide, utiliser le texte brut
-                if(responseText.length < 200) errorMsg += `: ${responseText}`; // Limite la taille si texte brut
+                // Pas de JSON, utiliser le statusText
             }
-             console.error(`apiRequest ${action} - Failed:`, errorMsg);
             throw new Error(errorMsg);
         }
 
-        try {
-            const result = JSON.parse(responseText);
-             console.log(`apiRequest ${action} - Success, Result:`, result);
-            return result;
-        } catch (e) {
-             console.error(`apiRequest ${action} - Failed to parse JSON response:`, responseText);
-            throw new Error('Réponse serveur invalide (JSON mal formé).');
+        // Gérer les réponses sans contenu (ex: 204 No Content)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+             if (response.status === 204 || response.status === 200) {
+                return { success: true, message: "Opération réussie (pas de contenu)." };
+             }
         }
+        
+        // Gérer les réponses JSON
+        const data = await response.json();
+        
+        // L'API peut renvoyer { success: false, error: "..." } même avec un status 200
+        if (data.success === false && data.error) {
+            throw new Error(data.error);
+        }
+
+        return data; // Devrait être { success: true, ... } ou les données directes
 
     } catch (error) {
-        console.error(`apiRequest ${action} - Network or processing error:`, error);
-        // Remonte l'erreur pour que l'appelant puisse la gérer (ex: afficher un message)
-        throw error;
+        console.error(`Erreur API Fetch sur ${url}:`, error);
+        // Ne pas afficher de toast ici, laisser l'appelant gérer
+        throw error; // Propager l'erreur
     }
 }
 
-// --- Fonctions spécifiques pour chaque action ---
+// --- API GeoCode ---
 
-export async function savePosition(positionData) {
-    const result = await apiRequest('savePosition', positionData);
-    if (result.status === 'success' && result.position_data) {
-        return result.position_data; // Retourne l'objet position complet
-    } else {
-        throw new Error(result.message || 'Erreur lors de la sauvegarde de la position.');
-    }
-}
-
-export async function removePosition(positionId) {
-    const result = await apiRequest('removePosition', { id: parseInt(positionId, 10) });
-    return result.status === 'success';
-}
-
-export async function removeMultiplePositions(geoCodeId, planId) {
-    const result = await apiRequest('removeMultiplePositions', {
-        geo_code_id: parseInt(geoCodeId, 10),
-        plan_id: parseInt(planId, 10)
-    });
-    return result.status === 'success';
-}
-
+/**
+ * Récupère les codes géo disponibles pour un plan (ceux non encore placés).
+ * Utilisé par la modale de sélection ET la sidebar (liste 'dispo').
+ * @param {number} planId - ID du plan.
+ * @returns {Promise<Array>} Liste des codes disponibles.
+ */
 export async function fetchAvailableCodes(planId) {
-    // Utilise GET avec ID dans l'action string
-    return await apiRequest(`getAvailableCodesForPlan&id=${planId}`, {}, 'GET');
+    const data = await apiFetch(`index.php?action=apiGetAvailableCodes&plan_id=${planId}`);
+    return data.codes || []; // S'assurer de renvoyer un tableau
 }
 
+/**
+ * Sauvegarde un nouveau code géo dans la base de données (pas sur un plan).
+ * @param {object} codeData - Données du code (code_geo, libelle, univers_id...).
+ * @returns {Promise<object>} Le nouveau code géo créé.
+ */
 export async function saveNewGeoCode(codeData) {
-    const result = await apiRequest('addGeoCodeFromPlan', codeData);
-    // L'API est censée retourner directement le nouvel objet code géo si succès
-    if (result && result.id) {
-        return result;
-    } else {
-        throw new Error(result.error || 'Erreur lors de la création du code géo.');
-    }
-}
-
-export async function saveDrawingData(planId, drawingData) {
-    const result = await apiRequest('saveDrawing', {
-        plan_id: planId,
-        drawing_data: drawingData // Peut être null si vide
+    const data = await apiFetch('index.php?action=apiCreateGeoCode', {
+        method: 'POST',
+        body: codeData
     });
-    // L'API saveDrawing renvoie juste status: success/error
-    if (result.status === 'success') {
-        return true;
-    } else {
-        throw new Error(result.message || 'Erreur lors de la sauvegarde des annotations.');
-    }
+    return data.code; // Renvoie le code créé
 }
 
-export async function createSvgPlan(planName, svgContent) {
-    const result = await apiRequest('createSvgPlan', { nom: planName, svgContent: svgContent });
-    if (result.status === 'success' && result.new_plan_id) {
-        return result.new_plan_id;
-    } else {
-        throw new Error(result.message || 'Erreur lors de la création du plan SVG.');
-    }
+// --- API Plan & Position ---
+
+/**
+ * Sauvegarde (crée ou met à jour) la position d'un élément géo sur un plan.
+ * @param {object} positionData - Données de position (id, position_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y).
+ * @returns {Promise<object>} Les données de position sauvegardées (incluant position_id).
+ */
+export async function savePosition(positionData) {
+    // Nettoyer les données pour autoriser 'null'
+     const body = {
+        id: positionData.id, // ID du code géo
+        plan_id: positionData.plan_id,
+        pos_x: positionData.pos_x,
+        pos_y: positionData.pos_y,
+        // Autoriser 'null' pour width/height (cas des textes)
+        width: positionData.width !== undefined ? positionData.width : null,
+        height: positionData.height !== undefined ? positionData.height : null,
+        anchor_x: positionData.anchor_x !== undefined ? positionData.anchor_x : null,
+        anchor_y: positionData.anchor_y !== undefined ? positionData.anchor_y : null,
+        // position_id est optionnel (sera 'null' ou 'undefined' à la création)
+        position_id: positionData.position_id
+    };
+
+    const data = await apiFetch('index.php?action=apiSavePosition', {
+        method: 'POST',
+        body: body
+    });
+    return data.position; // Renvoie la position sauvegardée (avec position_id)
 }
 
-export async function updateSvgPlan(planId, svgContent) {
-    const result = await apiRequest('updateSvgPlan', { plan_id: planId, svgContent: svgContent });
-    // L'API updateSvgPlan renvoie juste status: success/error
-    if (result.status === 'success') {
-        return true;
-    } else {
-        throw new Error(result.message || 'Erreur lors de la mise à jour du plan SVG.');
-    }
+/**
+ * Supprime une position spécifique d'un élément géo.
+ * @param {number} positionId - L'ID de la position (geo_positions.id).
+ * @returns {Promise<boolean>} True si succès.
+ */
+export async function removePosition(positionId) {
+    const data = await apiFetch('index.php?action=apiRemovePosition', {
+        method: 'POST',
+        body: { position_id: positionId }
+    });
+    return data.success === true;
 }
 
-
-// --- Fonctions spécifiques pour les Assets ---
-
-export async function saveAsset(assetName, assetData) {
-    const result = await apiRequest('saveAsset', { name: assetName, data: assetData });
-    if (result.status === 'success' && result.asset_id) {
-        return result.asset_id;
-    } else {
-        throw new Error(result.message || 'Erreur lors de la sauvegarde de l\'asset.');
-    }
+/**
+ * Supprime TOUTES les positions d'un code géo sur un plan.
+ * @param {number} geoCodeId - L'ID du code géo (geo_codes.id).
+ * @param {number} planId - L'ID du plan.
+ * @returns {Promise<boolean>} True si succès.
+ */
+export async function removeMultiplePositions(geoCodeId, planId) {
+    const data = await apiFetch('index.php?action=apiRemoveAllPositions', {
+        method: 'POST',
+        body: { id: geoCodeId, plan_id: planId }
+    });
+    return data.success === true;
 }
 
-export async function listAssets() {
-    // Utilise GET, pas de corps
-    return await apiRequest('listAssets', {}, 'GET');
-}
-
-export async function getAssetData(assetId) {
-    // Utilise GET avec ID dans l'action string
-    const result = await apiRequest(`getAsset&id=${assetId}`, {}, 'GET');
-    // L'API renvoie {id: ..., name: ..., data: '{...}'}
-    if (result && result.data) {
-        try {
-            // Tente de parser la chaîne JSON contenue dans 'data'
-            const parsedData = JSON.parse(result.data);
-            return { id: result.id, name: result.name, data: parsedData }; // Renvoie l'objet JS
-        } catch(e) {
-            console.error("Erreur parsing JSON de l'asset:", e);
-            throw new Error("Données de l'asset reçues corrompues.");
+/**
+ * Sauvegarde les données de dessin (annotations JSON) pour un plan 'image'.
+ * @param {number} planId - ID du plan.
+ * @param {object | null} drawingData - Objet JSON de Fabric.js (ou null pour effacer).
+ * @returns {Promise<object>} Réponse de l'API.
+ */
+export async function saveDrawingData(planId, drawingData) {
+    const data = await apiFetch('index.php?action=apiSaveDrawing', {
+        method: 'POST',
+        body: {
+            plan_id: planId,
+            drawing_data: drawingData
         }
-    } else {
-        throw new Error(result.error || 'Asset non trouvé ou données manquantes.');
-    }
+    });
+    return data;
 }
 
-// Optionnel: Ajouter une fonction deleteAsset(assetId)
-// export async function deleteAsset(assetId) {
-//     const result = await apiRequest('deleteAsset', { id: parseInt(assetId, 10) });
-//     return result.status === 'success';
-// }
+/**
+ * Crée un nouveau plan de type SVG (mode 'svg_creation').
+ * @param {string} planName - Nom du plan.
+ * @param {string} svgString - Contenu SVG (incluant dessins).
+ * @param {Array<number>} universIds - Tableau d'IDs d'univers.
+ * @returns {Promise<object>} Réponse de l'API (incluant plan_id).
+ */
+export async function createSvgPlan(planName, svgString, universIds) {
+    const data = await apiFetch('index.php?action=apiCreateSvgPlan', {
+        method: 'POST',
+        body: {
+            nom: planName,
+            svg_content: svgString,
+            univers_ids: universIds
+        }
+    });
+    return data; // Devrait renvoyer { success: true, plan_id: ... }
+}
+
+/**
+ * Met à jour le contenu SVG d'un plan existant (plan 'svg').
+ * @param {number} planId - ID du plan.
+ * @param {string} svgString - Contenu SVG (formes natives + dessins).
+ * @returns {Promise<object>} Réponse de l'API.
+ */
+export async function updateSvgPlan(planId, svgString) {
+     const data = await apiFetch('index.php?action=apiUpdateSvgPlan', {
+        method: 'POST',
+        body: {
+            plan_id: planId,
+            svg_content: svgString
+        }
+    });
+    return data;
+}
+
+// --- API Assets ---
+
+/**
+ * Sauvegarde une sélection (objet JSON Fabric) comme Asset.
+ * @param {string} assetName - Nom de l'asset.
+ * @param {object} assetData - Données JSON de l'objet/groupe.
+ * @returns {Promise<object>} L'asset créé.
+ */
+export async function saveAsset(assetName, assetData) {
+    const data = await apiFetch('index.php?action=apiSaveAsset', {
+        method: 'POST',
+        body: {
+            nom: assetName,
+            data: assetData // L'objet sera stringifié par apiFetch
+        }
+    });
+    return data.asset;
+}
+
+/**
+ * Récupère la liste des assets disponibles.
+ * @returns {Promise<Array>} Liste des assets (id, nom).
+ */
+export async function listAssets() {
+    const data = await apiFetch('index.php?action=apiListAssets');
+    return data.assets || [];
+}
+
+/**
+ * Récupère les données JSON complètes d'un asset.
+ * @param {number} assetId - ID de l'asset.
+ * @returns {Promise<object>} L'asset complet (id, nom, data).
+ */
+export async function getAssetData(assetId) {
+     const data = await apiFetch(`index.php?action=apiGetAsset&id=${assetId}`);
+     return data.asset;
+}

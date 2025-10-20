@@ -1,77 +1,105 @@
 /**
- * Module pour la gestion des éléments généraux de l'interface utilisateur de l'éditeur de plan
- * (hors canvas principal, sidebar et outils de dessin spécifiques).
- * Gère: Fullscreen, boutons Zoom, toggle Sidebar, Modal ajout code.
+ * Module pour la gestion des interactions UI générales (hors canvas/sidebar).
+ * Gère le basculement de la sidebar et le mode plein écran.
  */
-import { zoom, resetZoom } from './canvas.js';
-// Note: La sauvegarde du nouveau code est maintenant gérée dans sidebar.js via l'API
-
-let fullscreenBtn;
-let zoomInBtn, zoomOutBtn, zoomResetBtn;
-let toggleSidebarBtn;
-let planPageContainer;
 
 /**
- * Initialise les éléments et écouteurs d'événements de l'UI générale.
+ * Initialise les écouteurs d'événements pour l'UI générale.
  */
 export function initializeUI() {
-    fullscreenBtn = document.getElementById('fullscreen-btn');
-    zoomInBtn = document.getElementById('zoom-in-btn');
-    zoomOutBtn = document.getElementById('zoom-out-btn');
-    zoomResetBtn = document.getElementById('zoom-reset-btn');
-    toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
-    planPageContainer = document.querySelector('.plan-page-container'); // Conteneur global
+    const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    const planPageContainer = document.querySelector('.plan-page-container');
 
-    addEventListeners();
-    console.log("Module UI initialisé.");
+    if (toggleSidebarBtn && planPageContainer) {
+        toggleSidebarBtn.addEventListener('click', () => {
+            planPageContainer.classList.toggle('sidebar-collapsed');
+            
+            // Mettre à jour l'icône du bouton
+            const icon = toggleSidebarBtn.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('bi-chevron-left');
+                icon.classList.toggle('bi-chevron-right');
+            }
+            
+            // Redimensionner le canvas après l'animation (si besoin)
+            setTimeout(() => {
+                // On pourrait appeler resizeCanvas() ici, mais c'est géré par
+                // un ResizeObserver dans main.js ou un listener window.resize
+                // Pour l'instant, on suppose que le CSS gère le redimensionnement.
+                // Si le canvas ne se redimensionne pas, il faut appeler:
+                // import { resizeCanvas } from './canvas.js'; resizeCanvas();
+            }, 300); // 300ms = durée de transition CSS
+        });
+    }
+
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', toggleFullScreen);
+    }
+    
+    // Écouteur pour sortir du plein écran (touche Échap)
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullScreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullScreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullScreenChange);
+
+    console.log("UI (sidebar toggle, fullscreen) initialisée.");
 }
 
-/** Ajoute les écouteurs pour les boutons de l'UI */
-function addEventListeners() {
-    if (fullscreenBtn) fullscreenBtn.addEventListener('click', toggleFullscreen);
-    if (zoomInBtn) zoomInBtn.addEventListener('click', () => zoom(1.2));
-    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => zoom(0.8));
-    if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetZoom);
-    if (toggleSidebarBtn) toggleSidebarBtn.addEventListener('click', toggleSidebar);
+/**
+ * Bascule le mode plein écran pour le conteneur principal de la page.
+ */
+function toggleFullScreen() {
+    const docElement = document.documentElement;
+    const fullscreenBtnIcon = document.getElementById('fullscreen-btn')?.querySelector('i');
 
-    // Écouteur pour sortir du mode plein écran avec la touche Echap
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-}
-
-/** Active/désactive le mode plein écran pour le conteneur principal */
-function toggleFullscreen() {
-    if (!planPageContainer) return;
-
-    if (!document.fullscreenElement) {
-        planPageContainer.requestFullscreen()
-            .catch(err => console.error(`Erreur passage plein écran: ${err.message}`));
+    if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        // Entrer en plein écran
+        if (docElement.requestFullscreen) {
+            docElement.requestFullscreen();
+        } else if (docElement.msRequestFullscreen) {
+            docElement.msRequestFullscreen();
+        } else if (docElement.mozRequestFullScreen) {
+            docElement.mozRequestFullScreen();
+        } else if (docElement.webkitRequestFullscreen) {
+            docElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+        }
+        if (fullscreenBtnIcon) {
+            fullscreenBtnIcon.classList.remove('bi-arrows-fullscreen');
+            fullscreenBtnIcon.classList.add('bi-fullscreen-exit');
+        }
     } else {
+        // Sortir du plein écran
         if (document.exitFullscreen) {
             document.exitFullscreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+            document.mozCancelFullScreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+         if (fullscreenBtnIcon) {
+            fullscreenBtnIcon.classList.remove('bi-fullscreen-exit');
+            fullscreenBtnIcon.classList.add('bi-arrows-fullscreen');
         }
     }
-    // La mise à jour de l'icône et le resize sont gérés par handleFullscreenChange
 }
 
-/** Met à jour l'icône du bouton plein écran lors d'un changement d'état */
-function handleFullscreenChange() {
-    if (!fullscreenBtn) return;
-    const icon = fullscreenBtn.querySelector('i');
-    if (document.fullscreenElement) {
-        icon.classList.remove('bi-arrows-fullscreen');
-        icon.classList.add('bi-arrows-angle-contract');
-        fullscreenBtn.title = "Quitter le plein écran";
+/**
+ * Met à jour l'icône du bouton plein écran lorsque l'état change (ex: touche Échap).
+ */
+function handleFullScreenChange() {
+    const fullscreenBtnIcon = document.getElementById('fullscreen-btn')?.querySelector('i');
+    if (!fullscreenBtnIcon) return;
+
+    if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        // On n'est PLUS en plein écran
+        fullscreenBtnIcon.classList.remove('bi-fullscreen-exit');
+        fullscreenBtnIcon.classList.add('bi-arrows-fullscreen');
     } else {
-        icon.classList.add('bi-arrows-fullscreen');
-        icon.classList.remove('bi-arrows-angle-contract');
-        fullscreenBtn.title = "Plein écran";
+        // On EST en plein écran
+        fullscreenBtnIcon.classList.remove('bi-arrows-fullscreen');
+        fullscreenBtnIcon.classList.add('bi-fullscreen-exit');
     }
-    // Redimensionner le canvas après un délai pour laisser le temps au navigateur
-    //setTimeout(resizeCanvas, 300); // resizeCanvas est dans canvas.js, appelé par main.js si besoin
-}
-
-/** Affiche/cache la sidebar */
-function toggleSidebar() {
-    planPageContainer?.classList.toggle('sidebar-hidden');
-    // Le style CSS gère l'animation et le déplacement du bouton/icône
 }
