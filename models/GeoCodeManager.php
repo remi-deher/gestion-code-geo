@@ -58,6 +58,7 @@ class GeoCodeManager {
     public function countCodesByZone(): array {
         $counts = [];
         try {
+            // Utilise COALESCE et NULLIF pour regrouper les zones vides/NULL
             $sql = "SELECT COALESCE(NULLIF(zone, ''), 'Non spécifiée') AS zone_name, COUNT(*) AS count 
                     FROM geo_codes 
                     GROUP BY zone_name 
@@ -103,7 +104,7 @@ class GeoCodeManager {
             
         } catch (Exception $e) {
             error_log("Erreur getCodesCountByUnivers: " . $e->getMessage());
-            $counts['__ErreurExecution__'] = 0; 
+            $counts['__ErreurExecution__'] = 0; // Indication d'erreur pour le debug
         }
         return $counts;
     }
