@@ -10,7 +10,7 @@ import {
     getSvgOriginalBBox // Récupérer la BBox
 } from './canvas.js';
 import {
-    initializeSidebar, updateSidebarLists, updatePlacedCodesList, // Fonctions principales de la sidebar
+    initializeSidebar, // Fonctions principales de la sidebar
     fetchAndClassifyCodes, // Fonction pour charger et classer
     populateUniversSelectInModal, // Pour la modale d'ajout
     handleSaveNewCodeInModal // Pour la modale d'ajout

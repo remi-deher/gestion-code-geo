@@ -46,7 +46,7 @@
         'csrfToken' => $_SESSION['csrf_token'] ?? '' // Assurez-vous d'avoir un token CSRF en session
     ]); ?>
     </script>
-    <script type="module" src="public/js/plan/main.js"></script>
+    <script type="module" src="js/plan/main.js"></script>
 <?php $body_scripts = ob_get_clean(); ?>
 
 <div class="plan-page-container">

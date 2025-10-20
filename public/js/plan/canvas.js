@@ -97,7 +97,7 @@ export function loadSvgPlan(url) {
         fabric.loadSVGFromURL(url, (objects, options) => {
             if (!objects) {
                 console.error("Échec du chargement SVG (objets null):", url);
-                return reject(new Error("Impossible de charger le SVG: "L + url));
+                return reject(new Error("Impossible de charger le SVG: " + url));
             }
             console.log(`SVG chargé, ${objects.length} objets trouvés.`);
 
