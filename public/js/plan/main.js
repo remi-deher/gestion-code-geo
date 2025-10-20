@@ -1,1119 +1,1047 @@
-/**
- * Point d'entrée principal pour l'éditeur de plan.
- * VERSION REFACTORISÉE avec clic droit, modale, SVG éditable, Texte vs Étiquette.
- */
+// --- IMPORTS ---
 import {
-    initializeCanvas, getCanvasInstance, loadBackgroundImage, loadSvgPlan, resizeCanvas,
-    handleMouseWheel, startPan, handlePanMove, stopPan, snapObjectToGrid, getIsSnapEnabled,
-    toggleGrid, toggleSnap, drawGrid, removeGrid, snapToGrid, updateStrokesWidth,
-    resetZoom as resetCanvasZoom, zoom as zoomCanvas, toggleSvgLock, isSvgLocked,
-    getSvgOriginalBBox // Récupérer la BBox
+    initializeCanvas, loadSvgPlan, loadPlanImage,
+    getCanvasInstance, resizeCanvas,
+    resetZoom, setCanvasLock, getCanvasLock,
+    findSvgShapeByCodeGeo, toggleSnapToGrid, getSnapToGrid
 } from './canvas.js';
+
+// *** CORRECTION 1: Imports Sidebar ***
 import {
-    initializeSidebar, // Fonctions principales de la sidebar
+    initializeSidebar,
     fetchAndClassifyCodes, // Fonction pour charger et classer
     populateUniversSelectInModal, // Pour la modale d'ajout
     handleSaveNewCodeInModal // Pour la modale d'ajout
 } from './sidebar.js';
+// *** FIN CORRECTION 1 ***
+
 import {
-    initializeGeoTags, createFabricTag, handleGeoTagModified, showToolbar, hideToolbar,
-    getIsDrawingArrowMode, handleArrowEndPoint, cancelArrowDrawing, redrawAllTagsHighlight,
-    addArrowToTag, deleteSelectedGeoElement, // Renommée pour gérer Tag ET Texte
-    changeSelectedTagSize, toggleHighlightSelected // Ajouté pour les listeners
-} from './geo-tags.js';
-import {
-    initializeDrawingTools, setActiveTool, getCurrentDrawingTool, startDrawing, continueDrawing,
-    stopDrawing, getIsDrawing, groupSelectedObjects, ungroupSelectedObject, copyShape,
-    pasteShape, deleteSelectedDrawingShape, // Renommée
-    setStrokeColor, setFillColor, setTransparentFill // Ajouté pour les listeners
+    initializeDrawingTools, // Outils de dessin (rectangle, etc.)
+    setDrawingMode, // Activer/désactiver un mode
+    getCurrentDrawingMode // Obtenir le mode actuel
 } from './drawing-tools.js';
-import { initializeUI } from './ui.js';
+
 import {
-    savePosition, saveDrawingData, createSvgPlan, updateSvgPlan,
-    fetchAvailableCodes as fetchCodesForModal, // API pour la modale
-    saveAsset, listAssets, getAssetData,
-    saveNewGeoCode // API pour modale d'ajout
-} from '../modules/api.js';
-import { convertPixelsToPercent, showToast, convertPercentToPixels } from '../modules/utils.js';
-import { PAGE_FORMATS, sizePresets, GEO_TAG_FONT_SIZE } from '../modules/config.js'; // Ajout PAGE_FORMATS
+    initializeUI, // Boutons (toggle sidebar, fullscreen)
+    showToast, // Afficher une notification
+    showLoading, hideLoading // Indicateur de chargement
+} from './ui.js';
 
+import {
+    createFabricTag, // Création d'étiquette rectangulaire
+    updateFabricTag, // Mise à jour d'étiquette
+    GEO_TAG_DEFAULT_WIDTH, GEO_TAG_DEFAULT_HEIGHT, // Constantes
+    GEO_TEXT_FONT_SIZE // Constante
+} from './geo-tags.js';
+
+// *** CORRECTION 3: Suppression de l'import pour api.js ***
+// import {
+//     savePosition, deletePosition, // API
+//     convertPixelsToPercent, convertPercentToPixels // Utilitaires
+// } from './api.js';
+// *** FIN CORRECTION 3 ***
+
+
+// --- INITIALISATION GLOBALE ---
+console.log("Plan Editor v2 (Clic Droit) - DOMContentLoaded");
+
+let fabricCanvas; // Instance du canvas Fabric
+let currentPlanId; // ID du plan en cours
+let planType; // 'svg' ou 'image'
+let planImageUrl; // URL de l'image (si type 'image')
+let planSvgUrl; // URL du SVG (si type 'svg')
+let initialPlacedGeoCodes; // Données des codes géo déjà placés
+let universColors; // Mapping des couleurs par univers
+
+// Récupération des données PHP injectées
+try {
+    const phpData = window.PHP_DATA || {};
+    initialPlacedGeoCodes = phpData.placedGeoCodes || [];
+    universColors = phpData.universColors || {};
+    currentPlanId = phpData.currentPlanId;
+    planType = phpData.planType;
+    planImageUrl = phpData.planImageUrl;
+    planSvgUrl = phpData.planSvgUrl;
+
+    if (!currentPlanId || !planType) {
+        throw new Error("Données PHP essentielles (planId, planType) manquantes.");
+    }
+    console.log("Données initiales:", phpData);
+
+} catch (error) {
+    console.error("Erreur lors de la récupération des données PHP:", error);
+    showToast("Erreur critique: Données initiales non chargées.", 'error');
+    // Arrêter l'exécution si les données critiques manquent
+    // return; // Ne fonctionne pas au niveau global, mais on devrait stopper
+}
+
+
+// --- DÉMARRAGE ---
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Plan Editor v2 (Clic Droit) - DOMContentLoaded");
-
-    // --- Récupération des données initiales ---
-    const planDataElement = document.getElementById('plan-data');
-    if (!planDataElement) {
-        console.error("ERREUR: Élément #plan-data non trouvé.");
-        showToast("Erreur critique: Données du plan non trouvées.", "danger");
-        return;
-    }
-    const planData = JSON.parse(planDataElement.textContent);
-    console.log("Données initiales:", planData);
-    window.planData = planData; // Rendre global pour un accès facile (ex: sidebar)
-
-    const { planType, currentPlanId, currentPlan, universColors, planUnivers, placedGeoCodes, initialDrawingData } = planData;
-    if (!planType || planType === 'unknown' || !currentPlanId) {
-        console.error("ERREUR: Données planType ou currentPlanId manquantes.", planData);
-        showToast("Erreur: Données du plan invalides.", "danger");
-        return;
-    }
-
-    // --- Initialisation Canvas ---
-    const canvasEl = document.getElementById('plan-canvas');
-    if (!canvasEl) {
-        console.error("ERREUR: Élément #plan-canvas non trouvé.");
-        showToast("Erreur critique: Canvas non trouvé.", "danger");
-        return;
-    }
-    const fabricCanvas = initializeCanvas(canvasEl, planType);
-    if (!fabricCanvas) {
-         console.error("ERREUR: Initialisation Fabric.js échouée.");
-         showToast("Erreur: Impossible de démarrer l'éditeur.", "danger");
-        return;
-    }
-
-    // --- Initialisation Modules ---
-    initializeSidebar(currentPlanId, planUnivers, universColors);
-    initializeGeoTags(fabricCanvas, universColors);
-    initializeDrawingTools(fabricCanvas);
-    initializeUI(); // Gère sidebar toggle, fullscreen, etc.
-
-    // --- Éléments UI spécifiques à main.js ---
-    const codeSelectModalEl = document.getElementById('codeSelectModal');
-    const codeSelectModal = codeSelectModalEl ? new bootstrap.Modal(codeSelectModalEl) : null;
-    const modalCodeList = document.getElementById('modal-code-list');
-    const modalCodeSearch = document.getElementById('modal-code-search');
-    const toggleLockSvgBtn = document.getElementById('toggle-lock-svg-btn');
-    const pageFormatSelect = document.getElementById('page-format-select');
-    let pageGuideRect = null; // Pour guide
-    const saveAssetBtn = document.getElementById('save-asset-btn');
-    const assetsListEl = document.getElementById('assets-list');
-    const assetsOffcanvasEl = document.getElementById('assetsOffcanvas');
-    
-    // Toolbar dessin
-    const toolButtons = document.querySelectorAll('.tool-btn');
-    const groupBtn = document.getElementById('group-btn');
-    const ungroupBtn = document.getElementById('ungroup-btn');
-    const copyBtn = document.getElementById('copy-btn');
-    const pasteBtn = document.getElementById('paste-btn');
-    const gridToggle = document.getElementById('grid-toggle');
-    const snapToggle = document.getElementById('snap-toggle');
-    const strokeColorPicker = document.getElementById('stroke-color-picker');
-    const fillColorPicker = document.getElementById('fill-color-picker');
-    const fillTransparentBtn = document.getElementById('fill-transparent-btn');
-
-    // Modale ajout code
-    const addCodeBtn = document.getElementById('add-code-btn');
-    const addCodeModalEl = document.getElementById('add-code-modal');
-    const addCodeModal = addCodeModalEl ? new bootstrap.Modal(addCodeModalEl) : null;
-    const saveNewCodeBtn = document.getElementById('save-new-code-btn');
-    const addCodeForm = document.getElementById('add-code-form');
-    const universSelectInModal = document.getElementById('new-univers-id');
-
-
-    let isGridVisible = gridToggle?.checked || false;
-
-    // --- Variables d'état ---
-    let contextMenuTarget = null; // Cible du clic droit (forme SVG ou null pour image)
-    let contextMenuCoords = null; // Coordonnées du clic droit (par rapport au canvas)
-
-    // --- Chargement Plan ---
-    const loader = document.getElementById('plan-loader');
-    if(loader) loader.style.display = 'block';
-    
+    showLoading("Initialisation du plan...");
     try {
-        if (planType === 'svg_creation') {
-            console.log("Mode création SVG vierge.");
-            // Pas de fond à charger
+        // 1. Initialiser le Canvas Fabric
+        fabricCanvas = initializeCanvas('plan-canvas');
+        if (!fabricCanvas) {
+            throw new Error("Impossible d'initialiser le canvas Fabric.");
         }
-        else if (planType === 'svg' && currentPlan?.nom_fichier) {
-            await loadSvgPlan(`uploads/plans/${currentPlan.nom_fichier}`);
-            toggleSvgLock(true); // Verrouiller par défaut
-        } else if (planType === 'image' && currentPlan?.nom_fichier) {
-            const mapImageEl = document.getElementById('map-image');
-            if (!mapImageEl) throw new Error("Élément <img> #map-image non trouvé.");
-            await loadBackgroundImage(mapImageEl);
-            if (initialDrawingData) {
-                console.log("Chargement annotations JSON (pour plan image)...");
-                await loadJsonAnnotations(initialDrawingData);
-            }
+        console.log("Canvas Fabric initialisé dans canvas.js");
+
+        // 2. Initialiser les modules UI (Sidebar, Outils, Boutons)
+        // Note: La sidebar a besoin de 'fabricCanvas' et des 'universColors'
+        initializeSidebar(fabricCanvas, universColors, currentPlanId, planType);
+        console.log("Sidebar (rôle info) initialisée.");
+
+        initializeDrawingTools(fabricCanvas, handleDrawingComplete);
+        console.log("Outils de dessin initialisés.");
+
+        initializeUI(fabricCanvas); // Toggle sidebar, fullscreen
+        console.log("UI (sidebar toggle, fullscreen) initialisée.");
+
+        // 3. Charger le plan (SVG ou Image)
+        // Cette étape charge le fond et redimensionne le canvas
+        if (planType === 'svg' && planSvgUrl) {
+            await loadSvgPlan(planSvgUrl);
+            // Pour SVG, on verrouille le fond par défaut
+            setCanvasLock(true);
+        } else if (planType === 'image' && planImageUrl) {
+            await loadPlanImage(planImageUrl);
+            // Pour Image, on verrouille aussi
+            setCanvasLock(true);
         } else {
-            throw new Error("Type de plan non géré ou fichier manquant.");
+            // Pas de plan chargé, on fait un resize standard
+            resizeCanvas();
+            showToast("Aucun plan (SVG/Image) n'a été chargé.", 'warning');
         }
 
-        // Créer les objets géo (tags/textes) APRES chargement fond/SVG
-        createInitialGeoElements(placedGeoCodes);
+        // 4. Attacher les écouteurs d'événements principaux
+        setupEventListeners();
 
-        resizeCanvas(); // Ajuste canvas et vue initiale
-        if (pageFormatSelect) updatePageGuide(); // Guide initial
+        // 5. Créer les éléments géo initiaux (après chargement du plan)
+        // Note: createInitialGeoElements dépend du type de plan (SVG vs Image)
+        // et doit être appelé APRÈS le chargement du plan (loadSvgPlan/loadPlanImage)
+        // car il peut nécessiter de trouver des formes SVG cibles.
+        createInitialGeoElements(initialPlacedGeoCodes, planType);
+
+        // 6. Remplir la sidebar (après création des éléments initiaux)
+        // fetchAndClassifyCodes(currentPlanId, planType); // Déplacé ? Non, nécessaire ici.
+        // updatePlacedCodesList(); // Met à jour la liste des codes placés (basé sur canvas)
+        // updateAvailableCodesList(); // Met à jour la liste des codes non placés (basé sur API)
+        // => Remplacé par:
+        await fetchAndClassifyCodes(); // Charge et met à jour les 2 listes
+
+        // 7. Remplir le sélecteur d'univers dans la modale "Ajouter Code"
+        // On suppose que les univers sont dans les données initiales
+        populateUniversSelectInModal(universColors);
+
+        // 8. Attacher l'événement au bouton "Sauvegarder" de la modale "Ajouter Code"
+        document.getElementById('saveNewGeoCodeBtn')?.addEventListener('click', async () => {
+            const success = await handleSaveNewCodeInModal(currentPlanId);
+            if (success) {
+                // Recharger les listes dans la sidebar
+                await fetchAndClassifyCodes();
+            }
+        });
+
 
     } catch (error) {
-        console.error("Erreur lors du chargement du plan:", error);
-        showToast(`Erreur chargement plan: ${error.message}`, "danger");
+        console.error("Erreur majeure lors de l'initialisation:", error);
+        showToast(`Erreur d'initialisation: ${error.message}`, 'error');
     } finally {
-        if(loader) loader.style.display = 'none';
+        hideLoading();
+        // S'assurer que le canvas est à la bonne taille même si le chargement du plan échoue
+        resizeCanvas();
+        resetZoom();
+        console.log("Fin initialisation main.js");
     }
+});
 
-    // --- Événements Canvas ---
-    fabricCanvas.on({
-        'mouse:down': handleCanvasMouseDown,
-        'mouse:move': handleCanvasMouseMove,
-        'mouse:up': handleCanvasMouseUp,
-        'mouse:out': handleCanvasMouseOut,
-        'mouse:dblclick': handleDoubleClick,
-        'object:moving': handleObjectMoving,
-        'object:modified': handleObjectModified,
-        'selection:created': handleSelectionChange,
-        'selection:updated': handleSelectionChange,
-        'selection:cleared': handleSelectionCleared,
-        'before:transform': restrictGeoElementTransform, // Appliquer aux tags ET textes
-        'viewport:transformed': handleViewportTransform,
-        'contextmenu': handleContextMenu // NOUVEAU: Clic Droit
-    });
 
-     // --- Écouteurs UI ---
-     // Modale Sélection Code
-     if (modalCodeSearch) modalCodeSearch.addEventListener('input', filterModalCodeList);
-     if (modalCodeList) modalCodeList.addEventListener('click', handleModalCodeSelection);
-     // Verrouillage SVG
-     if (toggleLockSvgBtn) toggleLockSvgBtn.addEventListener('click', handleToggleLockSvg);
-     // Guide Page
-     if (pageFormatSelect) pageFormatSelect.addEventListener('change', updatePageGuide);
-     // Assets
-     if (saveAssetBtn) saveAssetBtn.addEventListener('click', saveSelectionAsAsset);
-     if (assetsOffcanvasEl) assetsOffcanvasEl.addEventListener('show.bs.offcanvas', loadAssetsList);
-     if (assetsListEl) assetsListEl.addEventListener('click', handleAssetClick);
-     // Raccourcis clavier
-     document.addEventListener('keydown', handleKeyDown);
+/**
+ * Attache les écouteurs d'événements principaux au canvas et au document.
+ */
+function setupEventListeners() {
+    if (!fabricCanvas) return;
 
-    // Toolbar Dessin
-    toolButtons.forEach(btn => btn.addEventListener('click', () => setActiveTool(btn.dataset.tool)));
-    if (groupBtn) groupBtn.addEventListener('click', groupSelectedObjects);
-    if (ungroupBtn) ungroupBtn.addEventListener('click', ungroupSelectedObject);
-    if (copyBtn) copyBtn.addEventListener('click', copyShape);
-    if (pasteBtn) pasteBtn.addEventListener('click', pasteShape);
-    if (gridToggle) gridToggle.addEventListener('change', () => toggleGrid(gridToggle.checked));
-    if (snapToggle) snapToggle.addEventListener('change', () => toggleSnap(snapToggle.checked));
-    if (strokeColorPicker) strokeColorPicker.addEventListener('input', () => setStrokeColor(strokeColorPicker.value));
-    if (fillColorPicker) fillColorPicker.addEventListener('input', () => setFillColor(fillColorPicker.value));
-    if (fillTransparentBtn) fillTransparentBtn.addEventListener('click', setTransparentFill);
+    // --- Événements Souris sur le Canvas ---
 
-    // Modale Ajout Code
-    if (addCodeBtn) addCodeBtn.addEventListener('click', () => {
-        if(addCodeModal) {
-            populateUniversSelectInModal(universSelectInModal, planUnivers);
-            addCodeModal.show();
+    // Clic Droit (Menu Contextuel)
+    fabricCanvas.on('mouse:down', (options) => {
+        if (options.button === 3) { // Clic droit
+            handleRightClick(options);
         }
     });
-    if (saveNewCodeBtn) saveNewCodeBtn.addEventListener('click', async () => {
-        await handleSaveNewCodeInModal(addCodeForm, saveNewCodeBtn, saveNewGeoCode);
-        if (addCodeModal) addCodeModal.hide();
-        await fetchAndClassifyCodes(); // Recharger les listes de la sidebar
-    });
-     
-    // Toolbar Geo-Tags (via délégation car elle est cachée/affichée)
-    const tagToolbarEl = document.getElementById('tag-edit-toolbar');
-    if (tagToolbarEl) {
-        tagToolbarEl.addEventListener('click', (e) => {
-            const button = e.target.closest('button');
-            if (!button) return;
-            
-            if (button.id === 'toolbar-highlight') toggleHighlightSelected();
-            if (button.id === 'toolbar-arrow') startDrawingArrow(); // Fonction de geo-tags.js
-            if (button.id === 'toolbar-delete') deleteSelectedGeoElement();
-            if (button.classList.contains('size-btn')) changeSelectedTagSize(e);
-        });
-    }
 
-    // Init grille/snap
-    if(gridToggle) toggleGrid(gridToggle.checked);
-    if(snapToggle) toggleSnap(snapToggle.checked);
-
-
-    // --- Fonctions Principales ---
-
-    /** Gère le Clic Droit sur le Canvas */
-    async function handleContextMenu(opt) {
-        opt.e.preventDefault(); // Empêche menu navigateur
-        console.log("Clic droit détecté.");
-
-        const pointer = fabricCanvas.getPointer(opt.e);
-        const target = opt.target; // Objet cliqué (peut être null)
-
-        contextMenuTarget = null;
-        contextMenuCoords = { x: pointer.x, y: pointer.y }; // Stocke coords pour placement
-
-        if (planType === 'svg') {
-            // Clic sur une forme SVG ? (et non sur un tag/texte déjà placé, ou un dessin)
-            if (target && target.isSvgShape) {
-                 if (isSvgLocked()) {
-                     showToast("Le plan SVG est verrouillé. Déverrouillez-le (Ctrl+L) pour placer un code.", "info");
-                     return;
-                 }
-                 console.log("Clic droit sur forme SVG:", target);
-                contextMenuTarget = target; // Stocke la référence de la forme
-                await openCodeSelectionModal();
-            } else if (!target) {
-                // Clic droit dans le vide sur un plan SVG
-                 showToast("Clic droit sur une forme du plan SVG pour placer un code.", "info");
-            } else {
-                 console.log("Clic droit sur un objet non-SVG (tag, dessin...) - ignoré pour placement.");
-                 // On pourrait ouvrir un menu contextuel d'édition ici (suppr, copier...)
+    // Clic Gauche
+    fabricCanvas.on('mouse:down', (options) => {
+        if (options.button === 1) { // Clic gauche
+            // Clic sur le canvas (pas un objet)
+            if (!options.target) {
+                handleCanvasClick(options);
             }
-        } else if (planType === 'image') {
-            // Sur une image, on peut placer n'importe où
-            console.log("Clic droit sur image à", contextMenuCoords);
-            await openCodeSelectionModal(); // Toujours ouvrir pour image
+            // Clic sur un objet (géré par 'selection:created')
         }
+    });
+
+    // Mouvement de la souris (pour le magnétisme)
+    fabricCanvas.on('object:moving', (options) => {
+        if (getSnapToGrid()) {
+            const snapSize = 10; // Taille de la grille (en pixels)
+            const target = options.target;
+            target.set({
+                left: Math.round(target.left / snapSize) * snapSize,
+                top: Math.round(target.top / snapSize) * snapSize
+            });
+        }
+    });
+
+    // Fin du déplacement d'un objet (Mise à jour DB)
+    fabricCanvas.on('object:modified', (e) => {
+        const target = e.target;
+        if (target && (target.customData?.isGeoTag || target.customData?.isPlacedText)) {
+            console.log("Objet modifié (déplacé):", target.customData.codeGeo);
+            handleObjectMoved(target);
+        }
+    });
+
+    // Sélection d'un objet
+    fabricCanvas.on('selection:created', (e) => {
+        const target = e.selected[0]; // On gère la sélection unique
+        if (target && (target.customData?.isGeoTag || target.customData?.isPlacedText)) {
+            handleObjectSelected(target);
+        }
+    });
+
+    // Désélection
+    fabricCanvas.on('selection:cleared', (e) => {
+        handleObjectDeselected();
+    });
+
+
+    // --- Événements du Document (Menu Contextuel, Raccourcis) ---
+
+    // Clic global (pour fermer le menu contextuel)
+    document.addEventListener('click', () => {
+        const contextMenu = document.getElementById('custom-context-menu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+    });
+
+    // Empêcher le menu contextuel natif sur le canvas
+    fabricCanvas.upperCanvasEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+    });
+
+    // Raccourcis clavier
+    document.addEventListener('keydown', (e) => {
+        // Supprimer l'objet sélectionné avec la touche 'Delete' ou 'Backspace'
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            const activeObject = fabricCanvas.getActiveObject();
+            if (activeObject && (activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText)) {
+                e.preventDefault(); // Empêcher la navigation retour
+                console.log("Touche Suppr. - Suppression de :", activeObject.customData.codeGeo);
+                handleDeleteObject(activeObject);
+            }
+        }
+
+        // Échapper (Désélection, Annuler dessin)
+        if (e.key === 'Escape') {
+            // Annuler le mode dessin
+            if (getCurrentDrawingMode()) {
+                setDrawingMode(null);
+            }
+            // Désélectionner l'objet actif
+            fabricCanvas.discardActiveObject();
+            fabricCanvas.requestRenderAll();
+        }
+    });
+}
+
+// --- GESTIONNAIRES D'ÉVÉNEMENTS (Canvas) ---
+
+/**
+ * Gère le clic droit sur le canvas (affiche le menu contextuel).
+ * @param {object} options - Événement Fabric 'mouse:down'
+ */
+function handleRightClick(options) {
+    const contextMenu = document.getElementById('custom-context-menu');
+    if (!contextMenu) return;
+
+    // Masquer tous les items par défaut
+    contextMenu.querySelectorAll('li').forEach(item => item.style.display = 'none');
+
+    const target = options.target;
+    const pointer = fabricCanvas.getPointer(options.e);
+
+    if (target && (target.customData?.isGeoTag || target.customData?.isPlacedText)) {
+        // Clic droit sur un Géo Code (Tag ou Texte)
+        fabricCanvas.setActiveObject(target); // Sélectionner l'objet
+        document.getElementById('menu-item-delete').style.display = 'block';
+        document.getElementById('menu-item-info').style.display = 'block';
+        // Attacher l'objet cible aux actions du menu
+        document.getElementById('menu-action-delete').onclick = () => handleDeleteObject(target);
+        document.getElementById('menu-action-info').onclick = () => alert(JSON.stringify(target.customData, null, 2));
+
+    } else if (target && target.isSvgShape) {
+        // Clic droit sur une forme SVG (pour placement de texte)
+        document.getElementById('menu-item-place-text').style.display = 'block';
+        document.getElementById('menu-action-place-text').onclick = () => {
+            // Simule un "drop" de texte sur cette forme
+            // On récupère le code sélectionné dans la sidebar
+            const selectedCodeEl = document.querySelector('#available-codes-list .list-group-item.active');
+            if (selectedCodeEl) {
+                const codeData = JSON.parse(selectedCodeEl.dataset.code);
+                console.log("Placement (Menu Clic Droit) de:", codeData.code_geo, "sur SVG:", target.customData.svgId);
+                // On crée l'objet texte et on le sauvegarde
+                const textObject = placeTextOnSvg(codeData, target);
+                if (textObject) {
+                    handleObjectPlaced(textObject, codeData.id);
+                }
+            } else {
+                showToast("Veuillez sélectionner un code dans la liste 'Disponibles'.", 'info');
+            }
+        };
+
+    } else {
+        // Clic droit sur le canvas vide
+        document.getElementById('menu-item-add-tag').style.display = 'block';
+        document.getElementById('menu-item-toggle-grid').style.display = 'block';
+        document.getElementById('menu-item-toggle-lock').style.display = 'block';
+
+        // Mettre à jour le texte des items "toggle"
+        document.getElementById('menu-text-toggle-grid').textContent = getSnapToGrid() ? "Désactiver Magnétisme" : "Activer Magnétisme";
+        document.getElementById('menu-text-toggle-lock').textContent = getCanvasLock() ? "Déverrouiller le plan" : "Verrouiller le plan";
+
+        // Attacher les actions
+        document.getElementById('menu-action-add-tag').onclick = () => {
+            // Simule un "drop" de tag à cet endroit
+            const selectedCodeEl = document.querySelector('#available-codes-list .list-group-item.active');
+            if (selectedCodeEl) {
+                const codeData = JSON.parse(selectedCodeEl.dataset.code);
+                console.log("Placement (Menu Clic Droit) de:", codeData.code_geo, "en (x,y):", pointer.x, pointer.y);
+                const tagObject = placeTagAtPoint(codeData, pointer);
+                if (tagObject) {
+                    handleObjectPlaced(tagObject, codeData.id);
+                }
+            } else {
+                showToast("Veuillez sélectionner un code dans la liste 'Disponibles'.", 'info');
+            }
+        };
+        document.getElementById('menu-action-toggle-grid').onclick = () => toggleSnapToGrid();
+        document.getElementById('menu-action-toggle-lock').onclick = () => setCanvasLock(!getCanvasLock());
     }
 
-    /** Ouvre et peuple la modale de sélection de code */
-    async function openCodeSelectionModal() {
-        if (!codeSelectModal || !modalCodeList) {
-             console.error("Modale de sélection de code non trouvée.");
-             showToast("Erreur: Impossible d'ouvrir la sélection de code.", "danger");
-             return;
-        }
-        modalCodeList.innerHTML = '<p class="text-muted">Chargement...</p>'; // Indicateur
-        if (modalCodeSearch) modalCodeSearch.value = ''; // Vider recherche
-        codeSelectModal.show();
+    // Afficher le menu à la position du clic
+    contextMenu.style.left = `${options.e.clientX}px`;
+    contextMenu.style.top = `${options.e.clientY}px`;
+    contextMenu.style.display = 'block';
+}
 
-        try {
-            // Utilise l'API pour récupérer les codes DISPONIBLES (non encore placés)
-            // Note: fetchCodesForModal est un alias pour fetchAvailableCodes
-            const codes = await fetchCodesForModal(currentPlanId);
-            populateModalCodeList(codes);
-        } catch (error) {
-            console.error("Erreur chargement codes pour modale:", error);
-            modalCodeList.innerHTML = `<p class="text-danger">Erreur: ${error.message}</p>`;
-            showToast(`Erreur chargement codes: ${error.message}`, 'danger');
-        }
-    }
+/**
+ * Gère le clic gauche sur le canvas (pas sur un objet).
+ * Utilisé pour le dessin ou le placement.
+ * @param {object} options - Événement Fabric 'mouse:down'
+ */
+function handleCanvasClick(options) {
+    const mode = getCurrentDrawingMode();
+    const pointer = fabricCanvas.getPointer(options.e);
 
-    /** Remplit la liste dans la modale */
-    function populateModalCodeList(codes) {
-        if (!modalCodeList) return;
-        modalCodeList.innerHTML = '';
-        if (!codes || codes.length === 0) {
-            modalCodeList.innerHTML = '<p class="text-muted">Aucun code disponible pour ce plan.</p>'; 
+    if (mode === 'tag') {
+        // Mode "Placer Tag" activé (via sidebar)
+        const selectedCodeEl = document.querySelector('#available-codes-list .list-group-item.active');
+        if (!selectedCodeEl) {
+            showToast("Aucun code disponible sélectionné.", 'warning');
+            setDrawingMode(null); // Annuler le mode
             return;
         }
+        const codeData = JSON.parse(selectedCodeEl.dataset.code);
 
-        // Trier les codes pour l'affichage
-        codes.sort((a, b) => (a.code_geo || '').localeCompare(b.code_geo || ''));
-
-        codes.forEach(code => {
-            const item = document.createElement('a');
-            item.href = '#';
-            item.className = 'list-group-item list-group-item-action modal-code-item';
-            // Stocker TOUTES les données nécessaires pour le placement
-            item.dataset.id = code.id;
-            item.dataset.codeGeo = code.code_geo;
-            item.dataset.libelle = code.libelle || '';
-            item.dataset.univers = code.univers || ''; // Nom de l'univers
-            item.dataset.commentaire = code.commentaire || '';
-            item.dataset.zone = code.zone || ''; 
-            item.dataset.univers_id = code.univers_id; // Stocker ID univers
-            item.dataset.search = `${code.code_geo} ${code.libelle || ''} ${code.univers || ''}`.toLowerCase();
-
-            const universColor = universColors[code.univers] || '#adb5bd';
-            item.innerHTML = `
-                <div class="d-flex w-100 justify-content-between">
-                    <div>
-                        <strong style="color: ${universColor};">${code.code_geo}</strong>
-                        <small class="d-block text-muted">${code.libelle || '<i>(Sans libellé)</i>'}</small>
-                    </div>
-                    <span class="badge rounded-pill" style="background-color: ${universColor}; color: white;">${code.univers}</span>
-                </div>
-            `;
-            modalCodeList.appendChild(item);
-        });
-        filterModalCodeList(); // Appliquer le filtre initial (vide)
-    }
-
-    /** Filtre la liste des codes dans la modale */
-    function filterModalCodeList() {
-        if (!modalCodeSearch || !modalCodeList) return;
-        const term = modalCodeSearch.value.toLowerCase().trim();
-        const items = modalCodeList.querySelectorAll('.modal-code-item');
-        items.forEach(item => {
-            // Utiliser 'hidden' est plus performant que display:none
-            item.classList.toggle('hidden', !(item.dataset.search?.includes(term) ?? true));
-        });
-    }
-
-    /** Gère la sélection d'un code dans la modale */
-    async function handleModalCodeSelection(event) {
-        event.preventDefault();
-        const selectedItem = event.target.closest('.modal-code-item');
-        if (!selectedItem || !contextMenuCoords) return;
-
-        const codeData = { ...selectedItem.dataset }; // Copie les données
-        console.log("Code sélectionné dans modale:", codeData.codeGeo);
-        codeSelectModal.hide();
-
-        // Convertir les coordonnées du clic en %
-        const { posX, posY } = convertPixelsToPercent(contextMenuCoords.x, contextMenuCoords.y, fabricCanvas);
-        if (isNaN(posX) || isNaN(posY)) {
-            showToast("Erreur: Impossible de calculer la position.", "danger");
-            return;
+        // Créer le tag et le sauvegarder
+        console.log("Placement (Clic Gauche) de:", codeData.code_geo, "en (x,y):", pointer.x, pointer.y);
+        const tagObject = placeTagAtPoint(codeData, pointer);
+        if (tagObject) {
+            handleObjectPlaced(tagObject, codeData.id);
         }
 
-        let newElementData = { // Données communes pour l'API
-            id: parseInt(codeData.id, 10), // ID du code Géo
+        // Option: Désactiver le mode après un clic ?
+        // setDrawingMode(null);
+
+    } else if (mode === 'rect') {
+        // Mode "Dessin Rectangle" (géré par drawing-tools.js)
+        // Ne rien faire ici, la logique est dans drawing-tools
+    }
+}
+
+/**
+ * Gère la sélection d'un objet Géo (Tag ou Texte).
+ * @param {fabric.Object} target - Objet Fabric sélectionné.
+ */
+function handleObjectSelected(target) {
+    // Mettre en surbrillance l'item correspondant dans la sidebar "Placés"
+    const positionId = target.customData?.position_id;
+    if (!positionId) return;
+
+    document.querySelectorAll('#placed-codes-list .list-group-item').forEach(item => {
+        if (item.dataset.positionId == positionId) {
+            item.classList.add('active');
+            item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            item.classList.remove('active');
+        }
+    });
+}
+
+/**
+ * Gère la désélection d'objets.
+ */
+function handleObjectDeselected() {
+    // Retirer la surbrillance de tous les items "Placés"
+    document.querySelectorAll('#placed-codes-list .list-group-item.active').forEach(item => {
+        item.classList.remove('active');
+    });
+}
+
+// --- GESTIONNAIRES D'ACTIONS (CRUD) ---
+
+/**
+ * Appelé lorsqu'un nouvel objet (Tag ou Texte) est finalisé sur le canvas.
+ * (Soit par clic, soit par drop, soit par dessin).
+ * @param {fabric.Object} fabricObject - Le nouvel objet Fabric créé.
+ * @param {string|number} geoCodeId - L'ID du Géo Code (pas le position_id).
+ */
+async function handleObjectPlaced(fabricObject, geoCodeId) {
+    showLoading("Sauvegarde...");
+    try {
+        const { x_percent, y_percent } = convertPixelsToPercent(
+            fabricObject.left,
+            fabricObject.top,
+            fabricCanvas
+        );
+
+        // Données à sauvegarder
+        const positionData = {
+            geo_code_id: geoCodeId,
             plan_id: currentPlanId,
-            pos_x: posX,
-            pos_y: posY,
-            width: null, // Sera null pour texte, défini pour étiquette
-            height: null,
-            anchor_x: null, // Pas d'ancre par défaut
+            pos_x: x_percent,
+            pos_y: y_percent,
+            // Pour les Tags rectangulaires (type 'image' ou dessin)
+            width: fabricObject.customData.isGeoTag ? fabricObject.width * fabricObject.scaleX : null,
+            height: fabricObject.customData.isGeoTag ? fabricObject.height * fabricObject.scaleY : null,
+            // Pour le texte sur SVG (type 'svg')
+            anchor_x: fabricObject.customData.isPlacedText ? fabricObject.customData.anchorSvgId : null,
+            anchor_y: null // Non utilisé ?
+        };
+
+        // Appel API
+        const savedPosition = await savePosition(positionData);
+
+        // Mettre à jour l'objet Fabric avec le position_id retourné par l'API
+        fabricObject.set('customData', {
+            ...fabricObject.customData, // Conserver les données existantes (id, code_geo, etc.)
+            position_id: savedPosition.id, // Ajouter le nouveau position_id
+            plan_id: savedPosition.plan_id // Confirmer le plan_id
+        });
+        fabricCanvas.requestRenderAll();
+
+        showToast(`Code "${fabricObject.customData.codeGeo}" placé.`, 'success');
+
+        // Mettre à jour les listes de la sidebar
+        await fetchAndClassifyCodes();
+
+    } catch (error) {
+        console.error("Erreur lors de la sauvegarde de la position:", error);
+        showToast(`Échec sauvegarde: ${error.message}`, 'error');
+        // Si la sauvegarde échoue, supprimer l'élément du canvas
+        fabricCanvas.remove(fabricObject);
+    } finally {
+        hideLoading();
+        // Quoi qu'il arrive, désactiver le mode dessin/placement
+        setDrawingMode(null);
+    }
+}
+
+/**
+ * Appelé lorsqu'un objet Géo est déplacé sur le canvas.
+ * @param {fabric.Object} target - L'objet Fabric qui a été déplacé.
+ */
+async function handleObjectMoved(target) {
+    showLoading("Mise à jour...");
+    try {
+        const { x_percent, y_percent } = convertPixelsToPercent(
+            target.left,
+            target.top,
+            fabricCanvas
+        );
+        const positionId = target.customData.position_id;
+
+        // Données à sauvegarder
+        const positionData = {
+            pos_x: x_percent,
+            pos_y: y_percent,
+            // Mettre à jour la taille si c'est un tag (non-texte)
+            width: target.customData.isGeoTag ? target.width * target.scaleX : null,
+            height: target.customData.isGeoTag ? target.height * target.scaleY : null,
+            // Anchor ne change pas lors d'un déplacement (pour l'instant)
+            anchor_x: target.customData.anchorSvgId || null,
             anchor_y: null
         };
 
-        try {
-            let newFabricObject = null;
-            if (planType === 'svg' && contextMenuTarget && contextMenuTarget.isSvgShape) {
-                // --- Placement Texte sur SVG ---
-                console.log("Placement Texte sur SVG.");
-                // Pour le texte, on sauvegarde d'abord pour obtenir un position_id
-                // On utilise les coordonnées % du clic (centre du texte)
-                const savedData = await savePosition(newElementData);
-                console.log("Position texte sauvegardée:", savedData);
-                
-                // Combiner infos du code + infos de position
-                const fullTextData = { ...codeData, ...savedData };
-                
-                newFabricObject = placeTextOnSvg(fullTextData, contextMenuTarget);
+        // Appel API (savePosition gère l'update si positionId est fourni)
+        await savePosition(positionData, positionId);
 
-            } else if (planType === 'image') {
-                // --- Placement Étiquette sur Image ---
-                console.log("Placement Étiquette sur Image.");
-                newElementData.width = sizePresets.medium.width; // Taille Moyenne par défaut
-                newElementData.height = sizePresets.medium.height;
-                
-                const savedData = await savePosition(newElementData);
-                 console.log("Position étiquette sauvegardée:", savedData);
-                 
-                // Combiner infos du code + infos de position
-                const fullTagData = { ...codeData, ...savedData };
-                
-                newFabricObject = createFabricTag(fullTagData); // createFabricTag vient de geo-tags.js
-            }
+        showToast(`Position de "${target.customData.codeGeo}" mise à jour.`, 'success');
 
-            if (newFabricObject) {
-                fabricCanvas.setActiveObject(newFabricObject).renderAll();
-                // Mettre à jour les listes de la sidebar (placé/dispo)
-                await fetchAndClassifyCodes();
+        // Mettre à jour les listes (au cas où, même si pas indispensable)
+        // await fetchAndClassifyCodes(); // Peut-être lourd, à voir.
+
+    } catch (error) {
+        console.error("Erreur lors de la mise à jour de la position:", error);
+        showToast(`Échec mise à jour: ${error.message}`, 'error');
+        // TODO: Remettre l'objet à sa position précédente ? (Nécessite de stocker l'état 'object:moving')
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Appelé lors d'un clic sur 'Supprimer' (menu contextuel ou touche clavier).
+ * @param {fabric.Object} target - L'objet Fabric à supprimer.
+ */
+async function handleDeleteObject(target) {
+    const positionId = target.customData?.position_id;
+    const codeGeo = target.customData?.codeGeo || "inconnu";
+
+    if (!positionId) {
+        console.warn("Tentative de suppression d'un objet sans position_id (probablement non sauvegardé). Suppression locale.");
+        fabricCanvas.remove(target);
+        fabricCanvas.discardActiveObject();
+        fabricCanvas.requestRenderAll();
+        // Mettre à jour les listes (si jamais il était compté)
+        await fetchAndClassifyCodes();
+        return;
+    }
+
+    if (!confirm(`Voulez-vous vraiment supprimer le code "${codeGeo}" de ce plan ?`)) {
+        return;
+    }
+
+    showLoading("Suppression...");
+    try {
+        // Appel API
+        await deletePosition(positionId);
+
+        // Supprimer du canvas
+        fabricCanvas.remove(target);
+        fabricCanvas.discardActiveObject();
+        fabricCanvas.requestRenderAll();
+
+        showToast(`Code "${codeGeo}" supprimé du plan.`, 'success');
+
+        // Mettre à jour les listes (essentiel ici)
+        await fetchAndClassifyCodes();
+
+    } catch (error) {
+        console.error("Erreur lors de la suppression de la position:", error);
+        showToast(`Échec suppression: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+
+/**
+ * Appelé lorsque le dessin d'un outil (ex: rectangle) est terminé.
+ * @param {fabric.Object} drawnObject - L'objet dessiné (ex: fabric.Rect)
+ */
+function handleDrawingComplete(drawnObject) {
+    const mode = getCurrentDrawingMode();
+
+    if (mode === 'rect') {
+        // Le dessin d'un rectangle est terminé
+        // On le transforme en Géo Tag
+        console.log("Dessin rectangle terminé. Objet:", drawnObject);
+
+        // 1. Récupérer le code sélectionné dans la sidebar
+        const selectedCodeEl = document.querySelector('#available-codes-list .list-group-item.active');
+        if (!selectedCodeEl) {
+            showToast("Aucun code disponible sélectionné pour ce rectangle.", 'warning');
+            fabricCanvas.remove(drawnObject); // Annuler le dessin
+            setDrawingMode(null);
+            return;
+        }
+        const codeData = JSON.parse(selectedCodeEl.dataset.code);
+        const universColor = universColors[codeData.univers_id] || '#6c757d';
+
+        // 2. Mettre à jour l'objet dessiné (le rectangle) en Géo Tag
+        const tagObject = updateFabricTag(drawnObject, codeData, universColor);
+
+        // 3. Sauvegarder (comme un placement standard)
+        handleObjectPlaced(tagObject, codeData.id);
+
+        // 4. Quitter le mode dessin
+        setDrawingMode(null);
+    }
+}
+
+
+// --- FONCTIONS DE PLACEMENT (Création Fabric) ---
+
+/**
+ * Crée un objet Texte (fabric.IText) sur une forme SVG cible.
+ * @param {object} codeData - Données complètes du Géo Code (code_geo, id, etc.)
+ * @param {fabric.Object} targetSvgShape - Forme SVG (objet Fabric) où placer le texte.
+ * @returns {fabric.Object|null} Le textObject créé ou null si échec.
+ */
+function placeTextOnSvg(codeData, targetSvgShape) {
+    if (!targetSvgShape || !targetSvgShape.getCenterPoint) {
+        console.error("placeTextOnSvg: targetSvgShape invalide");
+        return null;
+    }
+    // const bbox = targetSvgShape.getBoundingRect();
+    const center = targetSvgShape.getCenterPoint(); // Centre de la forme SVG
+    const zoom = fabricCanvas.getZoom();
+
+    // *** CORRECTION 2: Utiliser snake_case (code_geo) ***
+    const textToShow = codeData.code_geo || 'ERREUR'; // Fallback si code_geo est null/undefined
+    if (!codeData.code_geo) {
+        console.warn("placeTextOnSvg: codeData.code_geo est manquant ou vide pour l'ID:", codeData.id, "Utilisation de 'ERREUR'.");
+    }
+    // *** FIN CORRECTION 2 ***
+
+    // Utiliser les coordonnées % converties (point du clic) plutôt que le centre de la forme?
+    // Non, utilisons le centre de la forme, c'est plus logique.
+    // const { left, top } = convertPercentToPixels(codeData.pos_x, codeData.pos_y, fabricCanvas);
+
+    const fontSize = (GEO_TEXT_FONT_SIZE || 16) / zoom; // Taille de base adaptée au zoom (Utiliser GEO_TEXT_FONT_SIZE)
+
+    const textObject = new fabric.IText(textToShow, { // Utiliser textToShow
+        left: center.x,
+        top: center.y,
+        originX: 'center', originY: 'center',
+        fontSize: fontSize,
+        fill: '#000000', // Texte noir
+        stroke: '#FFFFFF', // Contour blanc pour lisibilité
+        paintFirst: 'stroke', // Dessine le contour d'abord
+        strokeWidth: 0.5 / zoom,
+        baseStrokeWidth: 0.5, // Stocker base
+        fontFamily: 'Arial',
+        textAlign: 'center',
+        selectable: true, evented: true, hasControls: false, hasBorders: true,
+        borderColor: '#007bff', cornerSize: 0, transparentCorners: true,
+        lockRotation: true,
+
+        // Stocker TOUTES les données (code + position)
+        customData: {
+            ...codeData,
+            // *** CORRECTION 2: Utiliser snake_case (code_geo) ***
+            codeGeo: codeData.code_geo, // Stocker la valeur originale, même si null
+            // *** FIN CORRECTION 2 ***
+            isPlacedText: true, // Marqueur spécifique
+            isGeoTag: false, // Pas une étiquette standard
+            anchorSvgId: targetSvgShape.customData?.svgId, // ID de la forme SVG parente
+            id: parseInt(codeData.id, 10), // ID du code géo
+            position_id: parseInt(codeData.position_id, 10) || null, // ID de la position (peut être null si nouvelle)
+            plan_id: parseInt(codeData.plan_id, 10) || parseInt(currentPlanId, 10)
+        }
+    });
+
+    fabricCanvas.add(textObject);
+    textObject.moveTo(999); // Mettre au premier plan
+    return textObject;
+}
+
+/**
+ * Crée un Géo Tag (rectangle + texte) à un point spécifique (x, y).
+ * @param {object} codeData - Données complètes du Géo Code (code_geo, id, etc.)
+ * @param {object} point - Coordonnées Fabric { x, y } où centrer le tag.
+ * @returns {fabric.Object|null} Le group (tag) créé ou null si échec.
+ */
+function placeTagAtPoint(codeData, point) {
+    if (!point) {
+        console.error("placeTagAtPoint: point (x, y) manquant.");
+        return null;
+    }
+    const universColor = universColors[codeData.univers_id] || '#6c757d';
+
+    // Créer un objet de données pour le tag (similaire à celui d'un tag initial)
+    const tagData = {
+        ...codeData,
+        pos_x_pixels: point.x,
+        pos_y_pixels: point.y,
+        width: GEO_TAG_DEFAULT_WIDTH, // Utiliser la largeur par défaut
+        height: GEO_TAG_DEFAULT_HEIGHT, // Utiliser la hauteur par défaut
+        // Pas de position_id pour l'instant (sera ajouté lors de la sauvegarde)
+        position_id: null,
+        plan_id: currentPlanId
+    };
+
+    const tagObject = createFabricTag(tagData, universColor);
+
+    if (tagObject) {
+        // Centrer l'objet sur le point de clic/drop
+        tagObject.set({
+            left: point.x - (tagObject.width / 2),
+            top: point.y - (tagObject.height / 2),
+            originX: 'left', // Origine standard
+            originY: 'top'
+        });
+        fabricCanvas.add(tagObject);
+        fabricCanvas.setActiveObject(tagObject); // Sélectionner le nouveau tag
+        tagObject.moveTo(999); // Mettre au premier plan
+    }
+    return tagObject;
+}
+
+
+
+// --- INITIALISATION AU CHARGEMENT DE LA PAGE ---
+
+/**
+ * Crée les objets Fabric (Tags ou Textes) initiaux au chargement de la page,
+ * à partir des données PHP (initialPlacedGeoCodes).
+ * @param {Array} placedGeoCodes - Données PHP (codes + positions)
+ * @param {string} planType - 'svg' ou 'image'
+ */
+function createInitialGeoElements(placedGeoCodes, planType) {
+    console.log("Création éléments géo initiaux...");
+    if (!fabricCanvas || !placedGeoCodes || placedGeoCodes.length === 0) {
+        console.warn("createInitialGeoElements: Canvas non prêt ou aucun code géo initial.");
+        return;
+    }
+
+    let createdCount = 0;
+
+    placedGeoCodes.forEach(elementData => {
+        // 'elementData' contient un mix des infos de 'geo_codes' et 'geo_positions'
+        // (voir GeoCodeManager::getAllGeoCodesWithPositions)
+
+        // Sécurité: Vérifier si les IDs essentiels sont présents
+        // (Corrigé dans GeoCodeManager en PHP, mais bonne sécurité ici)
+        if (!elementData.id || !elementData.position_id) {
+            console.error("ERREUR createInitial: ID ou Position_ID manquant!", { codeInfo: elementData.codeInfo, placement: elementData.placement });
+            return; // Skip cet élément
+        }
+
+        let createdElement = null;
+
+        // Cas 1: C'est un texte à placer sur un plan SVG
+        if (planType === 'svg' && (elementData.width === null || elementData.width === undefined)) {
+            // C'est un placement de texte (pas un tag rectangulaire)
+
+            // 1a. Trouver la forme SVG cible via l'ancre (anchor_x)
+            const targetSvgShape = findSvgShapeByCodeGeo(elementData.anchor_x);
+            if (targetSvgShape) {
+                console.log(`Création Texte initial: ${elementData.code_geo} (sur SVG: ${elementData.anchor_x})`);
+                createdElement = placeTextOnSvg(elementData, targetSvgShape);
             } else {
-                 console.warn("Aucun objet Fabric n'a été créé pour le placement.");
+                console.warn(`Forme SVG cible "${elementData.anchor_x}" non trouvée pour le code "${elementData.code_geo}" (ID: ${elementData.id}). Tentative de placement par (x,y).`);
+
+                // 1b. Plan B: Placer par (x,y) si la forme n'est pas trouvée
+                // (Peu fiable sur SVG, mais mieux que rien)
+                // TODO: Implémenter un placement texte simple par (x,y) ?
+                // Pour l'instant, on ignore s'il n'y a pas d'ancre
             }
 
-        } catch (error) {
-            console.error("Erreur lors du placement/sauvegarde:", error);
-            showToast(`Erreur placement ${codeData.codeGeo}: ${error.message}`, "danger");
-        } finally {
-            contextMenuTarget = null;
-            contextMenuCoords = null;
         }
-    }
+        // Cas 2: C'est un tag rectangulaire (Plan Image, ou data de type tag sur SVG)
+        else if (elementData.width !== null && elementData.width !== undefined) {
+            // C'est un tag rectangulaire (avec largeur/hauteur)
 
-    /** Crée et positionne un objet texte sur une forme SVG */
-    function placeTextOnSvg(codeData, targetSvgShape) {
-         if (!targetSvgShape || !targetSvgShape.getCenterPoint) {
-             console.error("placeTextOnSvg: targetSvgShape invalide");
-             return null;
-         }
-         // const bbox = targetSvgShape.getBoundingRect();
-         const center = targetSvgShape.getCenterPoint(); // Centre de la forme SVG
-         const zoom = fabricCanvas.getZoom();
-         
-         // Utiliser les coordonnées % converties (point du clic) plutôt que le centre de la forme?
-         // Non, utilisons le centre de la forme, c'est plus logique.
-         // const { left, top } = convertPercentToPixels(codeData.pos_x, codeData.pos_y, fabricCanvas);
-         
-         const fontSize = (GEO_TAG_FONT_SIZE || 14) / zoom; // Taille de base adaptée au zoom
+            if (planType === 'image') {
+                // Convertir les % en pixels pour le placement initial
+                const { left, top } = convertPercentToPixels(elementData.pos_x, elementData.pos_y, fabricCanvas);
+                // Préparer les données pour createFabricTag
+                const tagData = {
+                    ...elementData,
+                    pos_x_pixels: left,
+                    pos_y_pixels: top
+                    // width et height sont déjà dans elementData
+                };
+                const universColor = universColors[elementData.univers_id] || '#6c757d';
 
-         const textObject = new fabric.IText(codeData.codeGeo, {
-             left: center.x,
-             top: center.y,
-             originX: 'center', originY: 'center',
-             fontSize: fontSize,
-             fill: '#000000', // Texte noir
-             stroke: '#FFFFFF', // Contour blanc pour lisibilité
-             paintFirst: 'stroke', // Dessine le contour d'abord
-             strokeWidth: 0.5 / zoom,
-             fontFamily: 'Arial',
-             textAlign: 'center',
-             selectable: true, evented: true, hasControls: false, hasBorders: true,
-             borderColor: '#007bff', cornerSize: 0, transparentCorners: true,
-             lockRotation: true,
-             
-             // Stocker TOUTES les données (code + position)
-             customData: {
-                 ...codeData,
-                 isPlacedText: true, // Marqueur spécifique
-                 isGeoTag: false, // Pas une étiquette standard
-                 id: parseInt(codeData.id, 10), // ID du code géo
-                 position_id: parseInt(codeData.position_id, 10), // ID de la position
-                 plan_id: parseInt(codeData.plan_id, 10)
-             }
-         });
+                console.log(`Création Tag initial: ${elementData.code_geo}`);
+                createdElement = createFabricTag(tagData, universColor);
+                if (createdElement) {
+                    fabricCanvas.add(createdElement);
+                }
 
-         fabricCanvas.add(textObject);
-         textObject.moveTo(999); // Mettre au premier plan
-         return textObject;
-    }
-
-
-    /** Gère le Clic simple sur le canvas (pan, dessin, sélection) */
-    function handleCanvasMouseDown(opt) {
-        if (opt.e.button !== 0) return; // Ignorer clic droit/milieu
-
-        const tool = getCurrentDrawingTool();
-        const target = opt.target;
-
-        if (opt.e.altKey || opt.e.ctrlKey || fabricCanvas.isDrawingMode) {
-            startPan(opt);
-            return;
-        }
-
-        // Gestion flèche (pour étiquette image)
-        if (getIsDrawingArrowMode() && planType === 'image') {
-            handleArrowEndPoint(opt);
-            return;
-        }
-
-        // Démarrer dessin (Rectangle, Ligne, Cercle, Texte libre)
-        if (tool !== 'select' && !target) {
-            startDrawing(opt);
-        } else if (tool === 'select') {
-            // Comportement normal de sélection géré par Fabric
-            // Cacher la toolbar si on clique dans le vide
-            if (!target) {
-                hideToolbar();
+            } else {
+                // (planType === 'svg')
+                // On ignore les tags rectangulaires sur les plans SVG (logique métier)
+                console.warn(`Tag rectangulaire (${elementData.code_geo}) ignoré sur plan SVG.`, elementData);
             }
-        }
-    }
 
-    function handleCanvasMouseMove(opt) {
-        if (getIsDrawing()) {
-            continueDrawing(opt);
+        }
+
+        // Si l'élément a échoué (ex: forme SVG non trouvée)
+        if (!createdElement) {
+            console.error(`Échec création élément Fabric initial pour:`, elementData);
         } else {
-            handlePanMove(opt);
+            createdCount++;
         }
+    });
+
+    console.log(`${createdCount} éléments géo initiaux créés.`);
+    fabricCanvas.requestRenderAll();
+}
+
+
+// *** CORRECTION 3: Réintégration des fonctions API et Utilitaires ***
+
+// --- API (Sauvegarde, Suppression) ---
+
+/**
+ * Sauvegarde (Crée ou Met à jour) une position via l'API.
+ * @param {object} positionData - Données de position (geo_code_id, plan_id, pos_x, pos_y, etc.)
+ * @param {number|null} [positionId=null] - ID de la position (si mise à jour)
+ * @returns {Promise<object>} Les données de la position sauvegardée
+ */
+async function savePosition(positionData, positionId = null) {
+    const url = `index.php?action=savePosition${positionId ? '&id=' + positionId : ''}`;
+    const options = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(positionData)
+    };
+
+    try {
+        const response = await fetch(url, options);
+        const data = await response.json();
+
+        if (!response.ok || data.status !== 'success') {
+            throw new Error(data.message || 'Erreur lors de la sauvegarde');
+        }
+
+        console.log("Position sauvegardée:", data.data);
+        return data.data; // Renvoie les données de la position (avec son ID)
+
+    } catch (error) {
+        console.error('Erreur API (savePosition):', error);
+        throw error; // Propage l'erreur pour que le .catch() appelant puisse la gérer
     }
+}
 
-    function handleCanvasMouseUp(opt) {
-        if (getIsDrawing()) {
-            stopDrawing(opt);
+/**
+ * Supprime une position via l'API.
+ * @param {number} positionId - ID de la position à supprimer
+ * @returns {Promise<object>} Réponse JSON de l'API
+ */
+async function deletePosition(positionId) {
+    const url = `index.php?action=deletePosition&id=${positionId}`;
+    const options = {
+        method: 'POST', // Utiliser POST pour la suppression (ou DELETE si l'API le gère)
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
         }
-        stopPan();
-        
-        // Si on vient de créer un objet, on le sauvegarde (uniquement dessins, pas tags)
-        const newObject = opt.target;
-        if (newObject && newObject.justCreated) {
-            console.log("Nouvel objet dessin créé, sauvegarde...");
-            delete newObject.justCreated; // Nettoyer le flag
-            handleSaveRequest(); // Sauvegarder l'état
+    };
+
+    try {
+        const response = await fetch(url, options);
+        const data = await response.json();
+
+        if (!response.ok || data.status !== 'success') {
+            throw new Error(data.message || 'Erreur lors de la suppression');
         }
+
+        console.log("Position supprimée:", data);
+        return data;
+
+    } catch (error) {
+        console.error('Erreur API (deletePosition):', error);
+        throw error;
     }
-    
-    function handleCanvasMouseOut(opt) {
-        // stopPan(); // Optionnel: arrêter pan si souris sort
-    }
+}
 
-    /** Gère double clic (édition texte) */
-    function handleDoubleClick(opt) {
-        const target = opt.target;
-        if (target && (target.type === 'i-text' || target.type === 'textbox')) {
-            console.log("Double clic sur texte, passage en édition.");
-            target.enterEditing();
-        } else if (target && (target.customData?.isGeoTag || target.customData?.isPlacedText)) {
-            // Double clic sur un tag ou texte géo -> on ne fait rien (pas d'édition du code géo)
-            // On pourrait ouvrir la modale d'info?
-            console.log("Double clic sur élément géo, édition bloquée.");
-        }
-    }
 
-    /** Gère déplacement objet (pour snap) */
-    function handleObjectMoving(opt) {
-        if (getIsSnapEnabled()) {
-            snapObjectToGrid(opt.target);
-        }
-        
-        // Cacher/déplacer la toolbar d'édition de tag
-        if (opt.target.customData?.isGeoTag || opt.target.customData?.isPlacedText) {
-            showToolbar(opt.target); // Mettre à jour position toolbar
-        }
-    }
+// --- API (Récupération de données) ---
 
-    /** Gère la modification d'objet (déplacement, etc.) */
-    async function handleObjectModified(opt) {
-        const target = opt.target;
-        if (!target || target.isGridLine || target.isPageGuide) return;
-
-        if (target.customData?.isGeoTag) { // Étiquette rectangulaire (sur image)
-            console.log("Geo Tag modifié (déplacé):", target.customData);
-            await handleGeoTagModified(target); // Délégué au module geo-tags
-        } 
-        else if (target.customData?.isPlacedText) { // Texte placé (sur SVG)
-             console.log("Texte Placé modifié (déplacé):", target.customData);
-            const { position_id, id: geoCodeId, plan_id } = target.customData;
-             if (!geoCodeId || !position_id || !plan_id) {
-                console.error(`ERREUR: Impossible de sauvegarder modif texte ${target.text}. Données ID manquantes:`, target.customData);
-                showToast(`Erreur sauvegarde texte ${target.text}.`, "danger"); return;
-            }
-            // Sauvegarder la nouvelle position du texte (centre)
-            const centerPoint = target.getCenterPoint();
-            const { posX, posY } = convertPixelsToPercent(centerPoint.x, centerPoint.y, fabricCanvas);
-            try {
-                const savedData = await savePosition({
-                    id: geoCodeId, position_id: position_id, plan_id: plan_id,
-                    pos_x: posX, pos_y: posY,
-                    width: null, height: null, anchor_x: null, anchor_y: null
-                });
-                console.log("Nouvelle position texte sauvegardée:", savedData);
-                target.customData.pos_x = savedData.pos_x; // Mettre à jour data locale
-                target.customData.pos_y = savedData.pos_y;
-                showToolbar(target); // Ré-afficher la toolbar à la bonne position
-            } catch(error){
-                console.error("Erreur API sauvegarde position texte:", error);
-                showToast(`Erreur sauvegarde texte ${target.text}: ${error.message}`, "danger");
-            }
-        }
-        else if (target.isSvgShape) {
-            console.log("Forme SVG modifiée (si déverrouillée). Sauvegarde...");
-            handleSaveRequest(); // Sauvegarder l'état complet du SVG
-        }
-        else {
-            console.log("Objet dessin modifié (non-tag/texte). Sauvegarde...");
-             handleSaveRequest(); // Sauvegarder les annotations
-        }
-    }
-
-    /** Gère le changement de sélection */
-    function handleSelectionChange(opt) {
-        const selected = opt.selected;
-        if (!selected || selected.length === 0 || (selected.length === 1 && (selected[0].isGridLine || selected[0].isPageGuide))) {
-            handleSelectionCleared(); return;
-        }
-        
-        // activeObject est soit l'objet unique, soit le groupe de sélection 'activeSelection'
-        const activeObject = fabricCanvas.getActiveObject();
-        if (!activeObject || typeof activeObject.type === 'undefined') return;
-
-        console.log("Sélection:", activeObject.type, activeObject.customData);
-        hideToolbar(); // Cacher toolbar tag par défaut
-
-        const containsSvg = activeObject.type === 'activeSelection' 
-            ? activeObject.getObjects().some(obj => obj.isSvgShape) 
-            : activeObject.isSvgShape;
-            
-        const containsGeo = activeObject.type === 'activeSelection'
-            ? activeObject.getObjects().some(obj => obj.customData?.isGeoTag || obj.customData?.isPlacedText)
-            : (activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText);
-
-        if (activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText) {
-            // Sélection unique d'un Tag ou Texte Géo
-            showToolbar(activeObject);
-            redrawAllTagsHighlight(); // Gérer surlignage
-        } else {
-             redrawAllTagsHighlight(); // Enlever surlignage si sélection autre chose
-        }
-        
-        // Gérer état boutons Grouper/Dégrouper
-        if (groupBtn) {
-            // Activer Group si: sélection multiple, ne contient NI Svg NI GeoTag
-            groupBtn.disabled = !(activeObject.type === 'activeSelection' && !containsSvg && !containsGeo);
-        }
-        if (ungroupBtn) {
-            // Activer Ungroup si: sélection unique d'un groupe, qui n'est NI Svg NI GeoTag
-            ungroupBtn.disabled = !(activeObject.type === 'group' && !containsSvg && !containsGeo);
-        }
-    }
-
-    /** Gère la désélection */
-    function handleSelectionCleared() {
-        console.log("Sélection effacée.");
-        hideToolbar();
-        redrawAllTagsHighlight(); // Enlever surlignage
-        if(groupBtn) groupBtn.disabled = true;
-        if(ungroupBtn) ungroupBtn.disabled = true;
-    }
-
-    /** Restreint la transformation des tags et textes placés */
-    function restrictGeoElementTransform(e) {
-        if (e.target && (e.target.customData?.isGeoTag || e.target.customData?.isPlacedText)) {
-            // Pas de redimensionnement, pas de rotation
-            e.transform.lockScalingX = true;
-            e.transform.lockScalingY = true;
-            e.transform.lockRotation = true;
-        }
-        // Pour les formes SVG, dépend de l'état verrouillé
-         if (e.target && e.target.isSvgShape && isSvgLocked()) {
-             // Empêcher toute transformation si verrouillé
-             return false; // Annule la transformation
-         }
-    }
-
-    /** Gère les changements de viewport (zoom/pan) */
-    function handleViewportTransform() {
-        if (isGridVisible) drawGrid();
-        if (pageGuideRect) updatePageGuideStroke();
-        updateStrokesWidth(fabricCanvas.getZoom());
-        
-        // Déplacer la toolbar si elle est visible et que l'objet est toujours sélectionné
-        const activeObj = fabricCanvas.getActiveObject();
-        if (activeObj && (activeObj.customData?.isGeoTag || activeObj.customData?.isPlacedText)) {
-             showToolbar(activeObj);
-        }
-    }
-
-    /** Gère les raccourcis clavier */
-    function handleKeyDown(e) {
-        const activeObj = fabricCanvas.getActiveObject();
-        
-        // Ne pas intercepter si on édite du texte (dans un input, textarea, ou IText)
-        if (e.target.tagName.match(/input|textarea/i) || activeObj?.isEditing) return;
-
-        // Échapper (annuler dessin, etc.)
-        if (e.key === 'Escape') {
-            cancelDrawingModes();
-            e.preventDefault();
-        }
-        
-        // Supprimer (Delete ou Backspace)
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-             if (activeObj) {
-                 e.preventDefault();
-                 if (activeObj.customData?.isGeoTag || activeObj.customData?.isPlacedText) {
-                     deleteSelectedGeoElement(); // Utiliser la fonction du module geo-tags
-                 } else if (activeObj.isSvgShape) {
-                      showToast("Les éléments du plan SVG ne peuvent pas être supprimés (sauf via un éditeur SVG externe).", "info");
-                 } else { 
-                     deleteSelectedDrawingShape(); // Utiliser fonction drawing-tools
-                 }
-             }
-        }
-
-        // Ctrl/Cmd + C (Copier)
-        if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
-            copyShape(); e.preventDefault();
-        }
-        // Ctrl/Cmd + V (Coller)
-        if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
-            pasteShape(); e.preventDefault();
-        }
-        // Ctrl/Cmd + G (Grouper)
-        if (e.key === 'g' && (e.ctrlKey || e.metaKey)) {
-             e.preventDefault();
-             if (e.shiftKey) { 
-                 if(ungroupBtn && !ungroupBtn.disabled) ungroupSelectedObject(); 
-             }
-             else { 
-                 if(groupBtn && !groupBtn.disabled) groupSelectedObjects(); 
-             }
-        }
-        // Ctrl/Cmd + L (Verrouiller/Déverrouiller SVG)
-        if (e.key === 'l' && (e.ctrlKey || e.metaKey) && planType === 'svg') {
-             e.preventDefault();
-             handleToggleLockSvg(); // Appelle la fonction de bascule
-        }
-
-        // Raccourcis Outils
-        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-            switch(e.key.toLowerCase()) {
-                case 'v': setActiveTool('select'); e.preventDefault(); break;
-                case 'r': setActiveTool('rect'); e.preventDefault(); break;
-                case 'l': setActiveTool('line'); e.preventDefault(); break;
-                case 'c': setActiveTool('circle'); e.preventDefault(); break;
-                case 't': setActiveTool('text'); e.preventDefault(); break;
-            }
-        }
-    }
-
-    /** Annule les modes actifs (dessin, flèche) */
-    function cancelDrawingModes() {
-        console.log("Modes annulés (Escape).");
-        cancelArrowDrawing(); // Annuler flèche
-        stopDrawing(null, true); // Annuler dessin en cours (true = cancel)
-        setActiveTool('select'); // Repasser en mode sélection
-        fabricCanvas.discardActiveObject().renderAll();
-    }
-
-    /** Crée les objets Fabric pour les tags/textes initiaux */
-    function createInitialGeoElements(codesData) {
-        console.log("Création éléments géo initiaux...");
-        let elementsCreated = 0;
-        if (!codesData || !Array.isArray(codesData)) {
-             console.warn("Aucune donnée 'placedGeoCodes' trouvée.");
-             return;
-        }
-
-        codesData.forEach(code => {
-            if (code?.placements && Array.isArray(code.placements)) {
-                code.placements.forEach(placement => {
-                    // Vérifier que le placement est bien pour CE plan
-                    if (placement && placement.plan_id == currentPlanId) {
-                        // Combiner les infos du code (libelle, univers...) avec sa position
-                        const { placements, ...codeInfo } = code;
-                        const elementData = { ...codeInfo, ...placement };
-
-                        if (!elementData.id || !elementData.position_id) {
-                            console.error("ERREUR createInitial: ID ou Position_ID manquant!", { codeInfo, placement });
-                            return; // Passer au suivant
-                        }
-
-                        let createdElement = null;
-                        
-                        // Cas 1: C'est un TEXTE (sur SVG) - identifié par width/height NULL
-                        if (planType === 'svg' && elementData.width === null && elementData.height === null) {
-                            console.log("Création Texte initial:", elementData.code_geo);
-                             // Simuler une "target" (forme SVG) fictive centrée sur la position % sauvegardée
-                             const { left, top } = convertPercentToPixels(elementData.pos_x, elementData.pos_y, fabricCanvas);
-                             if(!isNaN(left) && !isNaN(top)) {
-                                 const fakeTarget = {
-                                     getCenterPoint: () => ({ x: left, y: top })
-                                 };
-                                 createdElement = placeTextOnSvg(elementData, fakeTarget);
-                             } else {
-                                  console.error("Coords invalides pour texte initial:", elementData);
-                             }
-
-                        }
-                        // Cas 2: C'est une ÉTIQUETTE RECTANGULAIRE (sur Image, ou ancien tag sur SVG)
-                        else if (elementData.width !== null && elementData.height !== null) {
-                            // Ne créer l'étiquette que si on est sur un plan 'image'
-                            if (planType === 'image') {
-                                console.log("Création Tag initial:", elementData.code_geo);
-                                createdElement = createFabricTag(elementData);
-                            } else {
-                                console.warn(`Tag rectangulaire (${elementData.code_geo}) ignoré sur plan SVG.`, elementData);
-                            }
-                        }
-
-                        if (createdElement) elementsCreated++;
-                        else console.warn("Échec création élément Fabric initial pour:", elementData);
-                    }
-                });
-            }
+/**
+ * Récupère les codes non placés pour un plan spécifique (par univers).
+ * @param {number} planId - ID du plan
+ * @returns {Promise<Array>} Liste des codes géo disponibles
+ */
+async function fetchAvailableCodes(planId) {
+    const url = `index.php?action=getAvailableCodes&plan_id=${planId}`;
+    try {
+        const response = await fetch(url, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
-        console.log(`${elementsCreated} éléments géo initiaux créés.`);
-        // Mettre à jour la liste des placés dans la sidebar
-        // (Sera fait par fetchAndClassifyCodes au lieu de ça)
-        // updatePlacedCodesList(fabricCanvas.getObjects());
-        fabricCanvas.renderAll();
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        if (data.status !== 'success') {
+            throw new Error(data.message || 'Erreur API');
+        }
+        return data.codes || [];
+    } catch (error) {
+        console.error('Erreur API (fetchAvailableCodes):', error);
+        showToast(`Erreur chargement codes disponibles: ${error.message}`, 'error');
+        return []; // Retourner un tableau vide en cas d'échec
     }
+}
 
-
-    /** Charge les annotations JSON (dessins) - Utilisé pour plan 'image' */
-    async function loadJsonAnnotations(jsonData) {
-        return new Promise((resolve, reject) => {
-             if (!jsonData || !jsonData.objects || jsonData.objects.length === 0) {
-                 console.log("Aucune donnée d'annotation (JSON) à charger.");
-                 return resolve();
-             }
-             console.log(`Chargement de ${jsonData.objects.length} objets JSON...`);
-             // Exclure les tags géo (qui sont déjà chargés par createInitialGeoElements)
-             const objectsToLoad = {
-                 objects: jsonData.objects.filter(obj => !obj.customData?.isGeoTag)
-             };
-             
-             fabricCanvas.loadFromJSON(objectsToLoad, () => {
-                 console.log("Annotations JSON (dessins) chargées.");
-                 // Ré-appliquer baseStrokeWidth et autres propriétés non-JSON
-                 fabricCanvas.getObjects().forEach(obj => {
-                     if (obj.strokeWidth && !obj.baseStrokeWidth && !obj.customData?.isGeoTag && !obj.isGridLine && !obj.isPageGuide) {
-                         obj.baseStrokeWidth = obj.strokeWidth;
-                     }
-                 });
-                 fabricCanvas.renderAll();
-                 resolve();
-             }, (o, object) => {
-                 // Reviver (au cas où)
-                 console.log("Reviving object:", object.type);
-             });
+/**
+ * Récupère les codes déjà placés sur un plan.
+ * (Note: Obsolète ? Les codes placés sont chargés initialement via PHP_DATA)
+ * @param {number} planId - ID du plan
+ * @returns {Promise<Array>} Liste des codes géo placés
+ */
+async function fetchPlacedCodes(planId) {
+    const url = `index.php?action=getPlacedCodes&plan_id=${planId}`;
+    try {
+        const response = await fetch(url, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        if (data.status !== 'success') {
+            throw new Error(data.message || 'Erreur API');
+        }
+        return data.codes || [];
+    } catch (error) {
+        console.error('Erreur API (fetchPlacedCodes):', error);
+        showToast(`Erreur chargement codes placés: ${error.message}`, 'error');
+        return [];
     }
+}
 
-    // --- Sauvegarde ---
-     async function handleSaveRequest() {
-        console.log("handleSaveRequest - Début, planType:", planType);
-        
-        // Mettre le bouton en état "loading"
-        const saveButton = document.getElementById('save-drawing-btn') || document.getElementById('save-new-svg-plan-btn');
-        let originalButtonText = '';
-        if (saveButton) {
-            originalButtonText = saveButton.innerHTML;
-            saveButton.disabled = true;
-            saveButton.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sauvegarde...`;
+/**
+ * Récupère les détails d'un code géo par son ID.
+ * @param {number} geoCodeId - ID du Géo Code
+ * @returns {Promise<object|null>} Données du code géo
+ */
+async function fetchGeoCodeById(geoCodeId) {
+    const url = `index.php?action=getGeoCodeJson&id=${geoCodeId}`;
+    try {
+        const response = await fetch(url, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP ${response.status}`);
         }
-
-        let savePromise;
-        let successMessage = "";
-
-        if (planType === 'image') {
-            // Sauvegarder seulement les annotations (dessins + textes libres)
-            // Les tags géo sont sauvegardés via savePosition lors du déplacement/création
-            const dataToSave = fabricCanvas.toJSON(['customData', 'selectable', 'evented', 'baseStrokeWidth']);
-            dataToSave.objects = dataToSave.objects.filter(obj => 
-                !obj.isGridLine && 
-                !obj.isPageGuide && 
-                !obj.customData?.isGeoTag // Exclure les tags géo
-            );
-             console.log(`Sauvegarde annotations JSON (image): ${dataToSave.objects.length} objets (hors tags).`);
-            savePromise = saveDrawingData(currentPlanId, dataToSave.objects.length > 0 ? dataToSave : null);
-            successMessage = "Annotations sauvegardées.";
-
-        } else if (planType === 'svg') {
-             // Exporter le SVG complet: formes SVG natives + dessins + textes libres
-             // Exclure les TEXTES GEO (isPlacedText) car ils sont sauvegardés via savePosition
-             const svgString = fabricCanvas.toSVG(['baseStrokeWidth', 'customData'], obj => 
-                !obj.isGridLine && 
-                !obj.isPageGuide &&
-                !obj.customData?.isPlacedText // Exclure les textes géo
-             );
-             console.log("Sauvegarde état SVG (formes + dessins)...");
-             savePromise = updateSvgPlan(currentPlanId, svgString);
-             successMessage = "État du plan SVG sauvegardé.";
-
-        } else if (planType === 'svg_creation') {
-             console.log("Sauvegarde nouveau plan SVG...");
-             savePromise = handleSaveNewSvgPlan(); // Gère sa propre redirection
-             successMessage = "Nouveau plan SVG créé ! Redirection...";
-        } else {
-             console.error("Type de plan non reconnu pour la sauvegarde:", planType);
-             savePromise = Promise.reject(new Error("Type de plan inconnu"));
+        const data = await response.json();
+        if (data.status !== 'success') {
+            throw new Error(data.message || 'Code non trouvé');
         }
+        return data.code || null;
+    } catch (error) {
+        console.error('Erreur API (fetchGeoCodeById):', error);
+        showToast(`Erreur récupération code ${geoCodeId}: ${error.message}`, 'error');
+        return null;
+    }
+}
 
-        try { 
-            await savePromise; 
-            showToast(successMessage, "success"); 
-        }
-        catch (error) { 
-            console.error("Erreur sauvegarde:", error); 
-            showToast(`Erreur sauvegarde: ${error.message}`, "danger"); 
-        }
-        finally {
-            // Restaurer bouton
-            if (saveButton) {
-                saveButton.disabled = false;
-                saveButton.innerHTML = originalButtonText;
+/**
+ * Crée un nouveau Géo Code via l'API (utilisé par la modale).
+ * @param {object} codeData - Données du code (code_geo, libelle, univers_id, etc.)
+ * @returns {Promise<object>} Le code géo créé
+ */
+async function saveNewGeoCode(codeData) {
+    const url = 'index.php?action=createGeoCodeAjax';
+    const options = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(codeData)
+    };
+
+    try {
+        const response = await fetch(url, options);
+        const data = await response.json();
+
+        if (!response.ok || data.status !== 'success') {
+            // Gérer les erreurs de validation
+            if (data.errors) {
+                const errorMsg = Object.values(data.errors).join(', ');
+                throw new Error(errorMsg);
             }
+            throw new Error(data.message || 'Erreur lors de la création du code');
         }
-    }
-    
-     const saveButton = document.getElementById('save-drawing-btn');
-     if(saveButton) {
-         saveButton.addEventListener('click', handleSaveRequest);
-     }
-     
-     // Gérer la sauvegarde pour le mode création
-     const saveNewSvgPlanBtn = document.getElementById('save-new-svg-plan-btn');
-     if (saveNewSvgPlanBtn) {
-         saveNewSvgPlanBtn.addEventListener('click', async () => {
-             const planName = document.getElementById('new-plan-name').value;
-             const universIds = Array.from(document.getElementById('new-plan-univers').selectedOptions).map(opt => opt.value);
-             if (!planName || universIds.length === 0) {
-                 showToast("Veuillez fournir un nom et au moins un univers.", "warning");
-                 return;
-             }
-             await handleSaveRequest(); // Laisse handleSaveRequest gérer la logique
-         });
-     }
 
-    async function handleSaveNewSvgPlan() {
-        const planName = document.getElementById('new-plan-name').value;
-        const universIds = Array.from(document.getElementById('new-plan-univers').selectedOptions).map(opt => opt.value);
-        
-        // Exporter le SVG (dessins uniquement)
-        const svgString = fabricCanvas.toSVG(['baseStrokeWidth', 'customData'], obj => 
-            !obj.isGridLine && !obj.isPageGuide
-        );
-        
-        try {
-            const result = await createSvgPlan(planName, svgString, universIds);
-            showToast("Plan SVG créé avec succès !", "success");
-            // Rediriger vers la page d'édition du plan nouvellement créé
-            setTimeout(() => {
-                window.location.href = `index.php?action=editPlan&id=${result.plan_id}`;
-            }, 1500);
-        } catch (error) {
-            console.error("Erreur création plan SVG:", error);
-            showToast(`Erreur création: ${error.message}`, "danger");
-            throw error; // Propager l'erreur pour que handleSaveRequest la voie
-        }
+        console.log("Nouveau code créé:", data.code);
+        return data.code; // Renvoie les données du code créé
+
+    } catch (error) {
+        console.error('Erreur API (saveNewGeoCode):', error);
+        throw error; // Propage l'erreur
+    }
+}
+
+
+// --- UTILITAIRES DE CONVERSION (Coordonnées) ---
+
+/**
+ * Convertit les coordonnées pixels (Fabric) en pourcentage (%) du plan.
+ * @param {number} pixelX - Coordonnée X (left) en pixels
+ *_ @param {number} pixelY - Coordonnée Y (top) en pixels
+ * @param {fabric.Canvas} canvas - Instance du canvas Fabric
+ * @returns {object} { x_percent, y_percent }
+ */
+function convertPixelsToPercent(pixelX, pixelY, canvas) {
+    if (!canvas.backgroundObject) {
+        console.warn("convertPixelsToPercent: Arrière-plan non trouvé.");
+        // Fallback: utiliser la taille du canvas (moins précis si zoomé)
+        return {
+            x_percent: (pixelX / canvas.width) * 100,
+            y_percent: (pixelY / canvas.height) * 100
+        };
     }
 
-    // --- Gestion Verrouillage SVG ---
-    function handleToggleLockSvg() {
-        toggleSvgLock(!isSvgLocked()); // Inverse l'état (fonction dans canvas.js)
-        updateLockButtonUI(isSvgLocked());
+    const bg = canvas.backgroundObject;
+    const bgWidth = bg.width * bg.scaleX;
+    const bgHeight = bg.height * bg.scaleY;
+    const bgLeft = bg.left;
+    const bgTop = bg.top;
+
+    // Calculer la position relative à l'arrière-plan
+    const relativeX = pixelX - bgLeft;
+    const relativeY = pixelY - bgTop;
+
+    // Convertir en pourcentage de la taille de l'arrière-plan
+    const x_percent = (relativeX / bgWidth) * 100;
+    const y_percent = (relativeY / bgHeight) * 100;
+
+    // console.log(`Px(x:${pixelX}, y:${pixelY}) -> %(x:${x_percent.toFixed(2)}, y:${y_percent.toFixed(2)})`);
+
+    return { x_percent, y_percent };
+}
+
+/**
+ * Convertit les coordonnées pourcentage (%) en pixels (Fabric).
+ * @param {number} percentX - Pourcentage X
+ * @param {number} percentY - Pourcentage Y
+ * @param {fabric.Canvas} canvas - Instance du canvas Fabric
+ * @returns {object} { left, top } (coordonnées en pixels)
+ */
+function convertPercentToPixels(percentX, percentY, canvas) {
+    if (!canvas.backgroundObject) {
+        console.warn("convertPercentToPixels: Arrière-plan non trouvé.");
+        return { left: 0, top: 0 };
     }
 
-    function updateLockButtonUI(isLocked) {
-        if (!toggleLockSvgBtn) return;
-        const icon = toggleLockSvgBtn.querySelector('i');
-        const text = toggleLockSvgBtn.querySelector('.btn-text');
-        if (isLocked) {
-            icon.classList.remove('bi-unlock-fill');
-            icon.classList.add('bi-lock-fill');
-            if(text) text.textContent = "Verrouillé";
-            toggleLockSvgBtn.title = "Déverrouiller les éléments du plan (Ctrl+L)";
-            toggleLockSvgBtn.classList.add('active'); // Style visuel "actif" = verrouillé
-        } else {
-            icon.classList.remove('bi-lock-fill');
-            icon.classList.add('bi-unlock-fill');
-            if(text) text.textContent = "Déverrouillé";
-            toggleLockSvgBtn.title = "Verrouiller les éléments du plan (Ctrl+L)";
-            toggleLockSvgBtn.classList.remove('active');
-        }
-    }
-     // Appliquer l'état initial du bouton (verrouillé)
-     if (planType === 'svg') updateLockButtonUI(true);
+    const bg = canvas.backgroundObject;
+    const bgWidth = bg.width * bg.scaleX;
+    const bgHeight = bg.height * bg.scaleY;
+    const bgLeft = bg.left;
+    const bgTop = bg.top;
 
-     // --- Gestion Format Page Guide ---
-     function updatePageGuide() {
-        if (!pageFormatSelect) return;
-        const format = pageFormatSelect.value;
-        
-        if (pageGuideRect) {
-            fabricCanvas.remove(pageGuideRect);
-            pageGuideRect = null;
-        }
-        if (format === 'none' || !PAGE_FORMATS[format]) return;
+    // Calculer la position relative en pixels
+    const relativeX = (percentX / 100) * bgWidth;
+    const relativeY = (percentY / 100) * bgHeight;
 
-        const { width, height } = PAGE_FORMATS[format]; // Dimensions en mm
-        const DPI = 72; // Points par pouce
-        const MM_PER_INCH = 25.4;
-        const PIXELS_PER_MM = DPI / MM_PER_INCH;
-        
-        const widthPx = width * PIXELS_PER_MM;
-        const heightPx = height * PIXELS_PER_MM;
+    // Convertir en position absolue sur le canvas
+    const left = bgLeft + relativeX;
+    const top = bgTop + relativeY;
 
-        pageGuideRect = new fabric.Rect({
-            width: widthPx,
-            height: heightPx,
-            fill: 'transparent',
-            stroke: 'rgba(255, 0, 0, 0.5)', // Rouge semi-transparent
-            strokeDashArray: [5, 5],
-            selectable: false,
-            evented: false,
-            isPageGuide: true,
-            left: (fabricCanvas.width / 2) - (widthPx / 2),
-            top: (fabricCanvas.height / 2) - (heightPx / 2),
-            originX: 'left',
-            originY: 'top',
-        });
-        
-        updatePageGuideStroke();
-        fabricCanvas.add(pageGuideRect);
-        pageGuideRect.moveTo(0); // Mettre en arrière-plan
-     }
-     
-     function updatePageGuideStroke() {
-         if (!pageGuideRect) return;
-         const zoom = fabricCanvas.getZoom();
-         pageGuideRect.set({
-             strokeWidth: 1 / zoom // Garder une ligne fine
-         });
-     }
-
-     // --- Gestion Assets (stockage formes/textes) ---
-     async function saveSelectionAsAsset() {
-        const activeObj = fabricCanvas.getActiveObject();
-        if (!activeObj) {
-            showToast("Veuillez sélectionner un ou plusieurs objets (dessins, textes libres) à sauvegarder.", "warning");
-            return;
-        }
-        
-        // Ne pas sauvegarder les formes SVG natives, ni les tags géo
-        if (activeObj.isSvgShape || activeObj.customData?.isGeoTag || activeObj.customData?.isPlacedText) {
-             showToast("Impossible de sauvegarder cet élément comme asset.", "warning"); return;
-        }
-        if (activeObj.type === 'activeSelection') {
-            const containsInvalid = activeObj.getObjects().some(obj => obj.isSvgShape || obj.customData?.isGeoTag || obj.customData?.isPlacedText);
-             if (containsInvalid) {
-                showToast("La sélection contient des éléments non sauvegardables (plan SVG, tag géo).", "warning"); return;
-             }
-        }
-        
-        const assetName = prompt("Nom de l'asset :", "Nouvel Asset");
-        if (!assetName) return;
-        
-        // Exporter l'objet (ou la sélection) en JSON
-        const assetData = activeObj.toJSON(['customData', 'baseStrokeWidth']);
-        
-        try {
-            await saveAsset(assetName, assetData);
-            showToast(`Asset "${assetName}" sauvegardé !`, "success");
-            await loadAssetsList(); // Rafraîchir la liste
-        } catch (error) {
-            console.error("Erreur sauvegarde asset:", error);
-            showToast(`Erreur sauvegarde asset: ${error.message}`, "danger");
-        }
-     }
-     
-     async function loadAssetsList() {
-         if (!assetsListEl) return;
-         assetsListEl.innerHTML = '<p class="text-muted small">Chargement...</p>';
-         try {
-             const assets = await listAssets();
-             assetsListEl.innerHTML = '';
-             if (assets.length === 0) {
-                 assetsListEl.innerHTML = '<p class="text-muted small">Aucun asset sauvegardé.</p>'; return;
-             }
-             assets.forEach(asset => {
-                 const item = document.createElement('a');
-                 item.href = '#';
-                 item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center asset-item';
-                 item.dataset.id = asset.id;
-                 item.textContent = asset.nom;
-                 // On pourrait ajouter un bouton de suppression ici
-                 assetsListEl.appendChild(item);
-             });
-         } catch (error) {
-             console.error("Erreur chargement assets:", error);
-             assetsListEl.innerHTML = `<p class="text-danger small">Erreur: ${error.message}</p>`;
-         }
-     }
-     
-     async function handleAssetClick(event) {
-         event.preventDefault();
-         const assetItem = event.target.closest('.asset-item');
-         if (!assetItem) return;
-         
-         const assetId = assetItem.dataset.id;
-         try {
-             const asset = await getAssetData(assetId);
-             const assetData = JSON.parse(asset.data);
-             
-             // Utiliser le "reviver" de Fabric pour charger l'objet
-             fabric.util.enlivenObjects([assetData], (enlivenedObjects) => {
-                 if (!enlivenedObjects || enlivenedObjects.length === 0) {
-                     showToast("Erreur: Impossible de charger l'asset.", "danger"); return;
-                 }
-                 const obj = enlivenedObjects[0];
-                 
-                 // Positionner au centre de la vue actuelle
-                 const center = fabricCanvas.getCenter();
-                 const zoom = fabricCanvas.getZoom();
-                 obj.set({
-                     left: center.left - (obj.width * obj.scaleX / 2),
-                     top: center.top - (obj.height * obj.scaleY / 2),
-                 });
-                 
-                 fabricCanvas.add(obj);
-                 fabricCanvas.setActiveObject(obj).renderAll();
-                 showToast(`Asset "${asset.nom}" ajouté !`, "success");
-                 handleSaveRequest(); // Sauvegarder état après ajout
-             });
-             
-         } catch (error) {
-            console.error("Erreur chargement données asset:", error);
-            showToast(`Erreur chargement asset: ${error.message}`, "danger");
-         }
-     }
-
-    console.log("Fin initialisation main.js");
-});
+    return { left, top };
+}

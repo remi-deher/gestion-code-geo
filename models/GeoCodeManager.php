@@ -295,7 +295,8 @@ class GeoCodeManager {
      * @return array Liste de toutes les positions.
      */
     public function getAllPositions(): array {
-        $stmt = $this->db->query("SELECT * FROM geo_positions ORDER BY plan_id, geo_code_id");
+	$stmt = $this->db->query("SELECT id AS position_id, geo_code_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y
+                          FROM geo_positions ORDER BY plan_id, geo_code_id");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
