@@ -1,6 +1,6 @@
 /**
  * Module pour la gestion des tags géo (création, modification, suppression, toolbar, flèches).
- * CORRECTION: Ajout de 'export' pour addArrowToTag
+ * CORRECTION: Ajout de 'export' pour addArrowToTag et correction customData.codeGeo
  */
 import { GEO_TAG_FONT_SIZE, sizePresets } from '../modules/config.js';
 import { convertPercentToPixels, convertPixelsToPercent } from '../modules/utils.js';
@@ -58,23 +58,23 @@ export function createFabricTag(codeData) {
     // Vérification cruciale des données de position
     if (codeData.pos_x === null || typeof codeData.pos_x === 'undefined' ||
         codeData.pos_y === null || typeof codeData.pos_y === 'undefined') {
-        console.warn(`createFabricTag: Position (pos_x, pos_y) invalide ou manquante pour ${codeData.code_geo}. Tag non créé.`);
+        console.warn(`createFabricTag: Position (pos_x, pos_y) invalide ou manquante pour ${codeData.code_geo || codeData.codeGeo}. Tag non créé.`);
         return null;
     }
     if (!bg) {
-        console.warn("createFabricTag: Image/SVG de fond non trouvé. Tag non créé pour", codeData.code_geo);
+        console.warn("createFabricTag: Image/SVG de fond non trouvé. Tag non créé pour", codeData.code_geo || codeData.codeGeo);
         return null;
     }
 
     const { left, top } = convertPercentToPixels(codeData.pos_x, codeData.pos_y, fabricCanvas);
     if (isNaN(left) || isNaN(top)) {
-        console.error(`createFabricTag: Coordonnées pixels invalides (NaN) pour ${codeData.code_geo}`);
+        console.error(`createFabricTag: Coordonnées pixels invalides (NaN) pour ${codeData.code_geo || codeData.codeGeo}`);
         return null;
     }
 
     const bgColor = universColors[codeData.univers] || '#7f8c8d';
+    // Accepte code_geo (BDD) ou codeGeo (JS/Dataset)
     const codeText = codeData.code_geo || codeData.codeGeo || 'ERR';
-    // Utilise la taille sauvegardée ou la taille moyenne par défaut
     const tagWidth = codeData.width || sizePresets.medium.width;
     const tagHeight = codeData.height || sizePresets.medium.height;
 
@@ -97,6 +97,7 @@ export function createFabricTag(codeData) {
         originX: 'center', originY: 'center'
     });
 
+    // --- CORRECTION CUSTOM DATA ---
     const group = new fabric.Group([rect, text], {
         left: left,
         top: top,
@@ -108,14 +109,16 @@ export function createFabricTag(codeData) {
         hoverCursor: 'move',
         customData: {
             ...codeData, // Inclut id, code_geo, libelle, univers, commentaire, position_id, plan_id etc.
+            // Assurer la présence de codeGeo (camelCase) pour les fonctions JS ultérieures
+            codeGeo: codeData.code_geo || codeData.codeGeo, // Copie depuis l'une ou l'autre source
             isGeoTag: true,
-            currentWidth: tagWidth, // Stocker la taille actuelle pour sauvegarde
+            currentWidth: tagWidth,
             currentHeight: tagHeight,
-            // Conserver les pourcentages d'ancrage
             anchorXPercent: codeData.anchor_x,
             anchorYPercent: codeData.anchor_y
         }
     });
+    // --- FIN CORRECTION ---
 
     // Ajouter la flèche si les données d'ancre existent
     if (group.customData.anchorXPercent !== null && typeof group.customData.anchorXPercent !== 'undefined' &&
@@ -134,9 +137,14 @@ export function createFabricTag(codeData) {
  * Ajoute ou met à jour la flèche d'un tag géo.
  * @param {fabric.Group} tagGroup - Le groupe Fabric du tag.
  */
-// **** CORRECTION ICI ****
 export function addArrowToTag(tagGroup) {
+    // Vérifier si tagGroup et customData existent
+    if (!tagGroup || !tagGroup.customData) {
+        console.warn("addArrowToTag: tagGroup ou customData invalide.");
+        return;
+    }
     const { anchorXPercent, anchorYPercent } = tagGroup.customData;
+
     if (anchorXPercent === null || typeof anchorXPercent === 'undefined' || anchorYPercent === null || typeof anchorYPercent === 'undefined') {
         // Si les ancres sont nulles, supprimer la flèche existante
         if (tagGroup.arrowLine) {
@@ -179,28 +187,43 @@ export function addArrowToTag(tagGroup) {
     fabricCanvas.requestRenderAll();
 }
 
+
 /**
  * Gère la modification (déplacement, redimensionnement implicite via bouton) d'un tag géo.
  * Appelée par l'event 'object:modified' du canvas.
  * @param {fabric.Object} target - L'objet Fabric modifié (le tag géo).
  */
 export async function handleGeoTagModified(target) {
-    if (!target?.customData?.isGeoTag) return;
+    // Vérification renforcée
+    if (!target || !target.customData || !target.customData.isGeoTag) {
+        console.warn("handleGeoTagModified appelé avec une cible invalide:", target);
+        return;
+    }
 
-    console.log("Geo Tag modifié:", target.customData.codeGeo);
-    const { position_id, id: geoCodeId, currentWidth, currentHeight, anchorXPercent, anchorYPercent } = target.customData;
+    // Assurer que codeGeo est défini (au cas où la correction createFabricTag n'aurait pas suffi)
+    const codeGeo = target.customData.codeGeo || target.customData.code_geo || 'INCONNU';
+    console.log("Geo Tag modifié:", codeGeo);
+
+    // Vérifier que les IDs nécessaires sont présents et valides
+    const { position_id, id: geoCodeId, currentWidth, currentHeight, anchorXPercent, anchorYPercent, plan_id } = target.customData;
+    if (!geoCodeId || !position_id || !plan_id) {
+         console.error(`ERREUR: Impossible de sauvegarder la modification du tag ${codeGeo}. Données ID manquantes:`, target.customData);
+         showToast(`Erreur: Impossible de sauvegarder les modifications pour ${codeGeo} (données manquantes).`, "danger");
+         // Optionnel : Revenir à la position précédente ? Difficile sans état précédent.
+         return;
+    }
 
     // Calculer la nouvelle position centrale en pourcentage
     const centerPoint = target.getCenterPoint();
     const { posX, posY } = convertPixelsToPercent(centerPoint.x, centerPoint.y, fabricCanvas);
 
     const positionData = {
-        id: geoCodeId,
-        position_id: position_id,
-        plan_id: target.customData.plan_id, // Récupérer du customData
+        id: geoCodeId, // ID du code Géo
+        position_id: position_id, // ID unique de ce placement
+        plan_id: plan_id, // ID du plan
         pos_x: posX,
         pos_y: posY,
-        width: currentWidth, // La taille est gérée par les boutons, pas par Fabric directement
+        width: currentWidth, // La taille est gérée par les boutons
         height: currentHeight,
         anchor_x: anchorXPercent,
         anchor_y: anchorYPercent
@@ -211,24 +234,20 @@ export async function handleGeoTagModified(target) {
         const savedData = await savePosition(positionData);
         if (savedData) {
             console.log("Position sauvegardée avec succès:", savedData);
-            // Mettre à jour les customData si l'ID de position a été créé
-            if (!target.customData.position_id && savedData.position_id) {
-                target.customData.position_id = savedData.position_id;
-            }
-            // Mettre à jour les pourcentages réels sauvegardés
+            // Mettre à jour les customData si l'ID de position a été créé (ne devrait pas arriver ici)
+            // Mettre à jour les pourcentages réels sauvegardés pour être précis
             target.customData.pos_x = savedData.pos_x;
             target.customData.pos_y = savedData.pos_y;
         } else {
             console.error("La sauvegarde de la position a échoué (API n'a pas retourné de données).");
-            // Optionnel: replacer le tag à sa position précédente ?
+            showToast(`Échec sauvegarde ${codeGeo}.`, "warning");
         }
     } catch (error) {
         console.error("Erreur API lors de la sauvegarde de la position:", error);
-        alert(`Erreur: ${error.message}`);
-        // Optionnel: replacer le tag
+        showToast(`Erreur sauvegarde ${codeGeo}: ${error.message}`, "danger");
     }
 
-    // Redessiner la flèche si elle existe
+    // Redessiner la flèche si elle existe ou si des ancres sont définies
     if (target.arrowLine || (anchorXPercent !== null && anchorYPercent !== null)) {
         addArrowToTag(target);
     }
@@ -291,7 +310,14 @@ export function hideToolbar() {
 async function deleteSelectedTag() {
     if (!selectedFabricObject?.customData?.isGeoTag) return;
 
+    // Vérifier à nouveau la présence des ID nécessaires
     const { position_id, id: geoCodeId, codeGeo, plan_id } = selectedFabricObject.customData;
+    if (!geoCodeId || !position_id || !plan_id) {
+         console.error(`ERREUR: Impossible de supprimer le tag. Données ID manquantes:`, selectedFabricObject.customData);
+         showToast("Erreur: Impossible de supprimer ce tag (données manquantes).", "danger");
+         return;
+    }
+
     const allInstances = fabricCanvas.getObjects().filter(o => o.customData?.isGeoTag && o.customData.id === geoCodeId);
     let performDelete = false;
     let deleteAllInstances = false;
@@ -317,12 +343,14 @@ async function deleteSelectedTag() {
 
         if (success) {
             console.log(`Suppression réussie (${deleteAllInstances ? 'toutes instances' : 'instance unique'})`);
+            // Calculer le delta correct pour le compteur
+            const delta = deleteAllInstances ? -allInstances.length : -1;
             // Supprimer les objets Fabric correspondants
             (deleteAllInstances ? allInstances : [selectedFabricObject]).forEach(tag => {
                 if (tag.arrowLine) fabricCanvas.remove(tag.arrowLine);
                 fabricCanvas.remove(tag);
             });
-            updateCodeCountInSidebar(geoCodeId, -(deleteAllInstances ? allInstances.length : 1));
+            updateCodeCountInSidebar(geoCodeId, delta); // Utiliser le delta calculé
             fabricCanvas.discardActiveObject().renderAll(); // Désélectionne et redessine
             hideToolbar();
         } else {
@@ -343,6 +371,13 @@ async function changeSelectedTagSize(event) {
     const preset = sizePresets[size];
     const target = selectedFabricObject;
     const { customData } = target;
+
+     // Vérifier les IDs avant de continuer
+     if (!customData.id || !customData.position_id || !customData.plan_id) {
+        console.error(`ERREUR: Impossible de changer la taille du tag ${customData.codeGeo}. Données ID manquantes:`, customData);
+        showToast(`Erreur: Impossible de changer la taille (données manquantes).`, "danger");
+        return;
+    }
 
     // Mettre à jour la taille du rectangle dans le groupe
     target.item(0).set({ width: preset.width, height: preset.height });
@@ -378,11 +413,11 @@ async function changeSelectedTagSize(event) {
              console.log("Taille tag mise à jour et sauvegardée:", customData.codeGeo, preset);
         } else {
              console.error("Échec sauvegarde changement taille (API).");
+             showToast(`Échec sauvegarde taille ${customData.codeGeo}.`, "warning");
         }
     } catch (error) {
         console.error("Erreur API changement taille:", error);
-        alert(`Erreur sauvegarde taille: ${error.message}`);
-        // Optionnel: Annuler le changement visuel ?
+        showToast(`Erreur sauvegarde taille ${customData.codeGeo}: ${error.message}`, "danger");
     }
     showToolbar(target); // Garder la toolbar visible
 }
@@ -423,7 +458,7 @@ function updateHighlightEffect(fabricObj) {
     const isActiveSelection = fabricCanvas.getActiveObject() === fabricObj;
     let isHighlightedInstance = false;
 
-    if (isTag && highlightedCodeGeo) {
+    if (isTag && highlightedCodeGeo && fabricObj.customData) { // Vérifier customData
         isHighlightedInstance = fabricObj.customData.codeGeo === highlightedCodeGeo;
     }
 
@@ -434,7 +469,7 @@ function updateHighlightEffect(fabricObj) {
             opacity = 0.3; // Atténue tout ce qui n'est pas le tag surligné
         }
     }
-    // Si pas de surlignage actif, tous les objets sont opaques (sauf sélection)
+    // Si pas de surlignage actif, tous les objets sont opaques
     fabricObj.set({ opacity });
 
     // Définir le style de bordure pour les tags géo
@@ -488,6 +523,14 @@ export function handleArrowEndPoint(opt) {
     const target = selectedFabricObject; // Le tag pour lequel on dessine la flèche
     const pointer = opt.pointer; // Coordonnées du clic {x, y}
 
+    // Vérifier les IDs avant de continuer
+     if (!target.customData.id || !target.customData.position_id || !target.customData.plan_id) {
+        console.error(`ERREUR: Impossible d'ajouter la flèche au tag ${target.customData.codeGeo}. Données ID manquantes:`, target.customData);
+        showToast(`Erreur: Impossible d'ajouter la flèche (données manquantes).`, "danger");
+        cancelArrowDrawing();
+        return;
+    }
+
     // Convertir le point cliqué en pourcentage par rapport au fond
     const { posX, posY } = convertPixelsToPercent(pointer.x, pointer.y, fabricCanvas);
 
@@ -513,10 +556,12 @@ export function handleArrowEndPoint(opt) {
         height: currentHeight,
         anchor_x: posX, // Nouvelle ancre X
         anchor_y: posY  // Nouvelle ancre Y
+    }).then(savedData => {
+         console.log("Ancre de flèche sauvegardée:", savedData);
     }).catch(error => {
         console.error("Erreur sauvegarde ancre flèche:", error);
-        alert(`Erreur sauvegarde ancre: ${error.message}`);
-        // Optionnel: Annuler visuellement l'ajout de la flèche ?
+        showToast(`Erreur sauvegarde ancre: ${error.message}`, "danger");
+        // Annuler visuellement l'ajout de la flèche
         target.customData.anchorXPercent = null;
         target.customData.anchorYPercent = null;
         addArrowToTag(target); // Pour supprimer la flèche visuellement
@@ -526,7 +571,7 @@ export function handleArrowEndPoint(opt) {
 
     // Resélectionner le tag après un court délai pour que la toolbar s'affiche
     setTimeout(() => {
-        if (target) {
+        if (target && target.canvas) { // Vérifier si toujours sur canvas
             fabricCanvas.setActiveObject(target).renderAll();
             showToolbar(target);
         }

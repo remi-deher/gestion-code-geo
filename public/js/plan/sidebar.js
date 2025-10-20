@@ -1,6 +1,6 @@
 /**
- * Module pour la gestion de la sidebar (liste des codes non placés, filtres, légende).
- * CORRECTIONS: Logique du compteur global et mise à jour de la liste.
+ * Module pour la gestion de la sidebar (liste des codes disponibles, filtres, légende, compteurs).
+ * CORRECTIONS: Compteurs individuels, placement multiple, compteur global = types de codes, comptage initial robuste.
  */
 import { fetchAvailableCodes, saveNewGeoCode } from '../modules/api.js';
 import { showToast } from '../modules/utils.js';
@@ -11,7 +11,7 @@ let universColors = {};
 let onCodeSelectedCallback = null; // Fonction à appeler quand un code est sélectionné pour placement
 
 let unplacedList;
-let unplacedCounter;
+let unplacedCounter; // Compteur global (nombre de types de codes)
 let searchInput;
 let legendContainer;
 let addCodeBtn;
@@ -20,7 +20,7 @@ let addCodeForm;
 let saveNewCodeBtn;
 let universSelectInModal;
 
-let allAvailableCodes = []; // Garder une copie locale pour filtrer
+let allAvailableCodes = []; // Garder une copie locale pour filtrer et accéder aux données
 
 /**
  * Initialise la sidebar.
@@ -40,14 +40,21 @@ export function initializeSidebar(planId, uList, uColors, onCodeSelected) {
     searchInput = document.getElementById('tag-search-input');
     legendContainer = document.getElementById('legend-container');
     addCodeBtn = document.getElementById('add-code-btn');
-    addCodeModal = new bootstrap.Modal(document.getElementById('add-code-modal'));
+    // Vérifier l'existence avant d'instancier le modal
+    const modalElement = document.getElementById('add-code-modal');
+    addCodeModal = modalElement ? new bootstrap.Modal(modalElement) : null;
     addCodeForm = document.getElementById('add-code-form');
     saveNewCodeBtn = document.getElementById('save-new-code-btn');
     universSelectInModal = document.getElementById('new-univers-id');
 
+    // Vérification plus robuste des éléments
     if (!unplacedList || !unplacedCounter || !searchInput || !legendContainer || !addCodeBtn || !addCodeModal || !addCodeForm || !saveNewCodeBtn || !universSelectInModal) {
-        console.warn("Sidebar: Un ou plusieurs éléments DOM sont manquants.");
-        return; // Ne pas continuer si des éléments essentiels manquent
+        console.warn("Sidebar: Un ou plusieurs éléments DOM sont manquants. Certaines fonctionnalités peuvent être désactivées.", {
+            unplacedList: !!unplacedList, unplacedCounter: !!unplacedCounter, searchInput: !!searchInput,
+            legendContainer: !!legendContainer, addCodeBtn: !!addCodeBtn, addCodeModal: !!addCodeModal,
+            addCodeForm: !!addCodeForm, saveNewCodeBtn: !!saveNewCodeBtn, universSelectInModal: !!universSelectInModal
+        });
+        // Ne pas retourner complètement, certaines parties peuvent encore fonctionner
     }
 
     addEventListeners();
@@ -61,38 +68,87 @@ export function initializeSidebar(planId, uList, uColors, onCodeSelected) {
 /** Ajoute les écouteurs d'événements pour la sidebar */
 function addEventListeners() {
     // Clic sur un code dans la liste pour le sélectionner
-    unplacedList.addEventListener('click', handleCodeClick);
+    if (unplacedList) unplacedList.addEventListener('click', handleCodeClick);
 
     // Filtrage en temps réel
-    searchInput.addEventListener('input', () => filterCodes(searchInput.value));
+    if (searchInput) searchInput.addEventListener('input', () => filterCodes(searchInput.value));
 
     // Bouton "+" pour ajouter un code
-    addCodeBtn.addEventListener('click', () => {
-        addCodeForm.reset(); // Vider le formulaire
-        addCodeModal.show();
+    if (addCodeBtn) addCodeBtn.addEventListener('click', () => {
+        if (addCodeForm) addCodeForm.reset(); // Vider le formulaire
+        if (addCodeModal) addCodeModal.show();
     });
 
     // Bouton "Enregistrer" dans le modal
-    saveNewCodeBtn.addEventListener('click', handleSaveNewCode);
+    if (saveNewCodeBtn) saveNewCodeBtn.addEventListener('click', handleSaveNewCode);
 }
 
 /** Récupère les codes disponibles via API et les affiche */
 export async function fetchAndRenderAvailableCodes() {
-    if (!currentPlanId) return;
+    if (!currentPlanId || !unplacedList) return;
     unplacedList.innerHTML = '<p class="text-muted small p-3">Chargement...</p>'; // Indicateur de chargement
     try {
+        // L'API getAvailableCodesForPlan renvoie les codes SANS leur compte de placement actuel.
+        // Nous devons le calculer côté client en utilisant planData.placedGeoCodes.
         const codes = await fetchAvailableCodes(currentPlanId);
-        allAvailableCodes = codes; // Stocker localement
-        console.log("Codes disponibles reçus:", codes.length);
-        renderUnplacedCodes(allAvailableCodes);
+
+        // --- CORRECTION CALCUL COMPTE INITIAL ---
+        const placedCounts = {};
+        console.log("Calcul des compteurs initiaux. currentPlanId:", currentPlanId);
+        if (window.planData && window.planData.placedGeoCodes && Array.isArray(window.planData.placedGeoCodes)) {
+            // Log un échantillon pour voir la structure exacte
+            console.log("Données placedGeoCodes (échantillon):", JSON.stringify(window.planData.placedGeoCodes.slice(0, 2)));
+
+            window.planData.placedGeoCodes.forEach(placedCode => {
+                // placedCode = { id: XXX, code_geo: 'ABC', ..., placements: [...] }
+                const geoCodeId = placedCode.id; // ID du code géo
+
+                if (!geoCodeId) {
+                    console.warn("Compteur initial: geoCodeId manquant dans placedCode:", placedCode);
+                    return; // Passe au suivant si pas d'ID
+                }
+
+                if (placedCode.placements && Array.isArray(placedCode.placements)) {
+                    placedCode.placements.forEach(placement => {
+                        // placement = { position_id: YYY, plan_id: ZZZ, ... }
+                        // Comparaison non stricte pour plan_id
+                        if (placement && placement.plan_id == currentPlanId) {
+                            // Incrémenter le compteur pour ce geoCodeId
+                            placedCounts[geoCodeId] = (placedCounts[geoCodeId] || 0) + 1;
+                            // Log plus précis
+                             console.log(`Compteur pour code ID ${geoCodeId} (${placedCode.code_geo || placedCode.codeGeo}) incrémenté. Total: ${placedCounts[geoCodeId]}`);
+                        }
+                    });
+                }
+                // else { // Pas une erreur si un code n'a pas de placement sur CE plan
+                //    console.log(`Aucun placement trouvé pour le code ID ${geoCodeId} sur ce plan.`);
+                //}
+            });
+        } else {
+             console.log("Aucune donnée 'placedGeoCodes' valide trouvée pour le comptage initial.");
+        }
+        console.log("Compteurs initiaux calculés:", placedCounts);
+        // --- FIN CORRECTION ---
+
+        // Ajouter le compte initial aux données des codes
+        allAvailableCodes = codes.map(code => ({
+            ...code,
+            // Utiliser le compte calculé ou 0 par défaut
+            current_placement_count: placedCounts[code.id] || 0
+        }));
+
+        console.log("Codes disponibles reçus et comptes initiaux appliqués:", allAvailableCodes.length);
+        renderUnplacedCodes(allAvailableCodes); // Appelle render qui utilise current_placement_count
+
     } catch (error) {
         console.error("Erreur chargement codes disponibles:", error);
-        unplacedList.innerHTML = `<p class="text-danger small p-3">Erreur chargement: ${error.message}</p>`;
+        if (unplacedList) unplacedList.innerHTML = `<p class="text-danger small p-3">Erreur chargement: ${error.message}</p>`;
         showToast(`Erreur chargement codes: ${error.message}`, 'danger');
     }
 }
 
-/** Affiche les codes non placés dans la sidebar */
+
+/** Affiche les codes disponibles dans la sidebar */
 function renderUnplacedCodes(codesData) {
     if (!unplacedList || !unplacedCounter) {
         console.error("renderUnplacedCodes: Element 'unplacedList' ou 'unplacedCounter' non trouvé.");
@@ -101,54 +157,57 @@ function renderUnplacedCodes(codesData) {
 
     unplacedList.innerHTML = ''; // Vide la liste actuelle
 
-    // **** CORRECTION ICI ****
-    // Le nombre total de codes disponibles est simplement la longueur du tableau reçu.
-    const totalAvailableCount = codesData.length; 
-    updateCounterElement(totalAvailableCount); // Met à jour le compteur global
-    // **** FIN CORRECTION ****
+    // Le compteur global indique le nombre de *types* de codes disponibles
+    const totalTypesCount = codesData.length;
+    updateCounterElement(totalTypesCount); // Met à jour le compteur global
 
-    if (totalAvailableCount === 0) {
+    if (totalTypesCount === 0) {
         unplacedList.innerHTML = '<li class="list-group-item text-muted small">Aucun code disponible pour ce plan.</li>';
         return;
     }
 
-    codesData.sort((a, b) => a.code_geo.localeCompare(b.code_geo)); // Trier par code_geo
+    codesData.sort((a, b) => (a.code_geo || a.codeGeo).localeCompare(b.code_geo || b.codeGeo)); // Trier par code_geo
 
     codesData.forEach(code => {
         const listItem = document.createElement('a');
         listItem.href = '#';
+        // Garder 'unplaced-item' même s'il est déjà placé, pour la sélection
         listItem.className = 'list-group-item list-group-item-action unplaced-item';
         listItem.dataset.id = code.id;
-        listItem.dataset.codeGeo = code.code_geo; // Utiliser camelCase ou snake_case selon ce que l'API renvoie
+        // Stocker les deux formats au cas où
+        listItem.dataset.codeGeo = code.code_geo || code.codeGeo;
+        listItem.dataset.code_geo = code.code_geo || code.codeGeo; // Conserver aussi snake_case si utile ailleurs
         listItem.dataset.libelle = code.libelle;
         listItem.dataset.univers = code.univers;
-        // Ajouter d'autres data-* si nécessaire (ex: commentaire)
+        // Stocker le compte initial
+        listItem.dataset.placementCount = code.current_placement_count || 0;
 
-        // Correction pour utiliser la couleur correcte
         const universColor = universColors[code.univers] || '#adb5bd'; // Gris par défaut
+        const placementCount = code.current_placement_count || 0;
 
         listItem.innerHTML = `
             <div class="d-flex w-100 justify-content-between align-items-center">
-                <div class="code-details">
-                    <strong class="mb-1 code-geo-text" style="color: ${universColor};">${code.code_geo}</strong>
+                <div class="code-details flex-grow-1 me-2">
+                    <strong class="mb-1 code-geo-text" style="color: ${universColor};">${listItem.dataset.codeGeo}</strong>
                     <small class="d-block text-muted libelle-text">${code.libelle}</small>
                 </div>
-                <span class="badge rounded-pill" style="background-color: ${universColor}; color: white;">${code.univers}</span>
+                <span class="badge bg-secondary rounded-pill me-2 placement-count" title="Nombre de fois placé sur ce plan">${placementCount}</span>
+                <span class="badge rounded-pill text-truncate" style="background-color: ${universColor}; color: white; max-width: 80px;" title="${code.univers}">${code.univers}</span>
             </div>
         `;
         unplacedList.appendChild(listItem);
     });
 
-    // Réappliquer le filtre après rendu initial (important si un filtre était déjà saisi)
-    filterCodes(searchInput.value); 
-    console.log(`${totalAvailableCount} codes disponibles rendus dans la sidebar.`);
+    // Réappliquer le filtre après rendu initial
+    if (searchInput) filterCodes(searchInput.value);
+    console.log(`${totalTypesCount} types de codes rendus dans la sidebar.`);
 }
 
-/** Met à jour le texte du compteur global */
+/** Met à jour le texte du compteur global (nombre de types de codes) */
 function updateCounterElement(count) {
     if (unplacedCounter) {
         unplacedCounter.textContent = count >= 0 ? count : 0; // Assurer >= 0
-        console.log("Compteur global mis à jour:", unplacedCounter.textContent);
+        // console.log("Compteur global (types de codes) mis à jour:", unplacedCounter.textContent);
     }
 }
 
@@ -164,10 +223,10 @@ function handleCodeClick(event) {
     // Ajouter 'active' à l'élément cliqué
     targetItem.classList.add('active');
 
-    // Extraire les données du dataset
+    // Extraire les données du dataset (utiliser codeGeo pour la cohérence JS)
     const codeData = {
         id: targetItem.dataset.id,
-        codeGeo: targetItem.dataset.codeGeo, // Assurer camelCase ici
+        codeGeo: targetItem.dataset.codeGeo,
         libelle: targetItem.dataset.libelle,
         univers: targetItem.dataset.univers,
         // Ajouter d'autres champs si stockés dans dataset
@@ -183,98 +242,69 @@ function handleCodeClick(event) {
 
 /** Désélectionne tout élément actif dans la liste */
 export function clearSidebarSelection() {
+    if (!unplacedList) return;
     const activeItems = unplacedList.querySelectorAll('.unplaced-item.active');
     activeItems.forEach(item => item.classList.remove('active'));
 }
 
 /** Filtre la liste des codes affichés */
 function filterCodes(searchTerm) {
+    if (!unplacedList) return;
     const term = searchTerm.toLowerCase().trim();
     const items = unplacedList.querySelectorAll('.unplaced-item');
-    let visibleCount = 0;
 
     items.forEach(item => {
-        // Ne considérer que les éléments actuellement visibles (non déjà placés)
-        if (item.style.display !== 'none') {
-            const codeGeo = item.dataset.codeGeo.toLowerCase();
-            const libelle = item.dataset.libelle.toLowerCase();
-            const univers = item.dataset.univers.toLowerCase();
-            
-            // Afficher si le terme est trouvé dans code, libellé ou univers ET si l'élément n'est pas caché car placé
-            const isMatch = codeGeo.includes(term) || libelle.includes(term) || univers.includes(term);
-            
-            if (isMatch) {
-                // Rendre visible SI il n'est pas déjà caché par 'updateCodeCountInSidebar'
-                // Pour éviter de réafficher un code placé juste parce qu'il correspond au filtre
-                // On se base sur le fait que updateCodeCountInSidebar met display='none'
-                if (item.style.display !== 'none') {
-                    item.hidden = false; // Utiliser 'hidden' pour le filtrage
-                    visibleCount++;
-                } else {
-                    item.hidden = true; // S'il est caché par 'placement', il reste caché
-                }
-            } else {
-                item.hidden = true; // Cacher s'il ne correspond pas au filtre
-            }
-        } else {
-             item.hidden = true; // S'il est déjà caché (placé), il reste caché peu importe le filtre
-        }
-    });
+        const codeGeo = (item.dataset.codeGeo || '').toLowerCase();
+        const libelle = (item.dataset.libelle || '').toLowerCase();
+        const univers = (item.dataset.univers || '').toLowerCase();
 
-    // Mettre à jour le compteur avec le nombre d'éléments *visibles après filtrage*
-    // Note : Cela peut être déroutant. On pourrait choisir de toujours afficher le total *disponible*
-    // updateCounterElement(visibleCount); 
-    // Ou garder le total disponible (préférable) :
-    // updateCounterElement(allAvailableCodes.length - (nombre_de_codes_places)); // Nécessiterait de suivre les codes placés
-    // Simplification pour l'instant : le compteur affiche le total initialement disponible.
+        // Afficher si le terme est trouvé dans code, libellé ou univers
+        const isMatch = codeGeo.includes(term) || libelle.includes(term) || univers.includes(term);
+        item.hidden = !isMatch; // Utiliser 'hidden' pour le filtrage simple
+    });
 }
 
 /**
- * Met à jour le compteur global et cache/réaffiche l'élément dans la sidebar.
+ * Met à jour le compteur individuel d'un code spécifique dans la sidebar.
+ * NE CACHE PLUS L'ÉLÉMENT. Met à jour le compteur individuel.
  * @param {string|number} codeId L'ID du code géo.
  * @param {number} delta La variation du nombre de placements (+1 pour ajout, -N pour suppression multiple).
  */
 export function updateCodeCountInSidebar(codeId, delta) {
-    if (!unplacedCounter) return;
+    if (!unplacedList) return;
 
     try {
-        // Mettre à jour le compteur global (Nombre de codes *disponibles*)
-        const currentTotalText = unplacedCounter.textContent || '0';
-        let currentTotal = parseInt(currentTotalText, 10);
-        if (isNaN(currentTotal)) {
-            // Si NaN, recalculer depuis la liste visible ? Non, risque d'être faux si filtré.
-            // On se base sur l'idée que le compteur initial était correct.
-            console.warn("Compteur sidebar était NaN, recalcul imprécis.");
-            currentTotal = unplacedList.querySelectorAll('.unplaced-item:not([hidden]):not([style*="display: none"])').length || 0;
-        }
-
-        const newTotal = Math.max(0, currentTotal + delta); // Appliquer delta au total disponible
-        updateCounterElement(newTotal);
-
-        // Cacher/Réafficher l'élément dans la liste
-        const listItem = unplacedList?.querySelector(`.unplaced-item[data-id="${codeId}"]`);
+        const listItem = unplacedList.querySelector(`.unplaced-item[data-id="${codeId}"]`);
         if (listItem) {
-             if (delta > 0) { // Si on a placé un tag
-                listItem.style.display = 'none'; // Cacher l'élément de la liste des disponibles
-                listItem.classList.remove('active');
-                listItem.hidden = true; // Assurer qu'il est aussi caché pour le filtre
-             } else if (delta < 0) { // Si on a supprimé un ou plusieurs tags
-                // On le rend à nouveau disponible (visible)
-                listItem.style.display = '';
-                // On laisse filterCodes décider s'il doit être hidden ou non basé sur le terme de recherche
-                filterCodes(searchInput.value);
-             }
+            const countSpan = listItem.querySelector('.placement-count');
+            if (countSpan) {
+                const currentCountText = countSpan.textContent || '0';
+                let currentCount = parseInt(currentCountText, 10);
+                if (isNaN(currentCount)) currentCount = 0;
+
+                const newCount = Math.max(0, currentCount + delta); // Empêche les compteurs négatifs
+                countSpan.textContent = newCount;
+                listItem.dataset.placementCount = newCount; // Mettre à jour aussi le dataset
+                console.log(`Compteur individuel pour ${listItem.dataset.codeGeo} (${codeId}) mis à jour: ${newCount} (Delta: ${delta})`);
+            } else {
+                 console.warn("updateCodeCountInSidebar: Span compteur non trouvé pour ID", codeId);
+            }
+             // On ne cache plus l'élément
+             // On s'assure qu'il n'est pas 'hidden' à cause d'un filtre
+             if (searchInput) filterCodes(searchInput.value); // Réappliquer le filtre pour assurer la visibilité correcte
+
         } else {
              console.warn("updateCodeCountInSidebar: listItem non trouvé pour ID", codeId);
-             // Si on supprime un code qui a été ajouté via le modal, il n'est pas dans la liste initiale.
-             // On pourrait potentiellement le rajouter à allAvailableCodes et relancer render ? Ou ignorer.
-             // Pour l'instant on ignore.
+             // Cas où un code ajouté via modal est supprimé : il n'est pas dans la liste initiale.
+             // On pourrait le recréer ou ignorer. Pour l'instant, on ignore.
+             // Le compteur global (types) ne change pas ici.
         }
 
     } catch (e) {
-        console.error("Erreur mise à jour compteur sidebar:", e);
+        console.error("Erreur mise à jour compteur individuel sidebar:", e);
     }
 }
+
 
 /** Affiche la légende des univers */
 function renderLegend() {
@@ -289,13 +319,16 @@ function renderLegend() {
     const list = document.createElement('ul');
     list.className = 'list-unstyled small';
 
-    universList.forEach(univers => {
+    // Trier les univers par nom pour la légende
+    const sortedUniversList = [...universList].sort((a, b) => a.nom.localeCompare(b.nom));
+
+    sortedUniversList.forEach(univers => {
         const color = universColors[univers.nom] || '#adb5bd';
         const listItem = document.createElement('li');
         listItem.className = 'mb-1 d-flex align-items-center';
         listItem.innerHTML = `
-            <span class="d-inline-block me-2" style="width: 12px; height: 12px; background-color: ${color}; border: 1px solid #666;"></span>
-            ${univers.nom}
+            <span class="d-inline-block me-2" style="width: 12px; height: 12px; background-color: ${color}; border: 1px solid #666; flex-shrink: 0;"></span>
+            <span class="text-truncate" title="${univers.nom}">${univers.nom}</span>
         `;
         list.appendChild(listItem);
     });
@@ -309,7 +342,10 @@ function populateUniversSelect() {
     if (!universSelectInModal || !universList) return;
     universSelectInModal.innerHTML = '<option value="" selected disabled>Choisir...</option>'; // Option par défaut
 
-    universList.forEach(univers => {
+    // Trier pour le select aussi
+    const sortedUniversList = [...universList].sort((a, b) => a.nom.localeCompare(b.nom));
+
+    sortedUniversList.forEach(univers => {
         const option = document.createElement('option');
         option.value = univers.id;
         option.textContent = univers.nom;
@@ -319,10 +355,12 @@ function populateUniversSelect() {
 
 /** Gère la sauvegarde d'un nouveau code géo depuis le modal */
 async function handleSaveNewCode() {
+    if (!addCodeForm || !saveNewCodeBtn || !addCodeModal) return;
+
     // Validation simple côté client
     const codeGeoInput = addCodeForm.querySelector('#new-code-geo');
     const libelleInput = addCodeForm.querySelector('#new-libelle');
-    if (!codeGeoInput.value.trim() || !libelleInput.value.trim() || !universSelectInModal.value) {
+    if (!codeGeoInput || !libelleInput || !universSelectInModal || !codeGeoInput.value.trim() || !libelleInput.value.trim() || !universSelectInModal.value) {
         showToast("Veuillez remplir tous les champs obligatoires (Code Géo, Libellé, Univers).", "warning");
         return;
     }
@@ -334,12 +372,22 @@ async function handleSaveNewCode() {
     saveNewCodeBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enregistrement...';
 
     try {
-        const newCode = await saveNewGeoCode(codeData);
-        showToast(`Code "${newCode.code_geo}" ajouté avec succès !`, "success");
+        const newCode = await saveNewGeoCode(codeData); // API devrait retourner le nouveau code complet
+        showToast(`Code "${newCode.code_geo || newCode.codeGeo}" ajouté avec succès !`, "success");
         addCodeModal.hide();
-        // Ajouter le nouveau code à la liste locale et réafficher
-        allAvailableCodes.push(newCode);
-        renderUnplacedCodes(allAvailableCodes); // Met à jour liste et compteur
+
+        // Ajouter le nouveau code à la liste locale avec un compte de 0
+        const newCodeWithCount = {
+            ...newCode,
+            current_placement_count: 0,
+            // S'assurer que les propriétés attendues par render existent (univers.nom)
+             univers: universList.find(u => u.id == newCode.univers_id)?.nom || 'Inconnu'
+        };
+        allAvailableCodes.push(newCodeWithCount);
+
+        // Réafficher la liste complète avec le nouveau code
+        renderUnplacedCodes(allAvailableCodes);
+
     } catch (error) {
         console.error("Erreur ajout code géo:", error);
         showToast(`Erreur ajout code: ${error.message}`, "danger");

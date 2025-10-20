@@ -2,7 +2,7 @@
  * Point d'entrée principal pour l'éditeur de plan (plan_view.php et plan_create_svg_view.php).
  * Initialise tous les modules nécessaires et gère l'état global.
  * VERSION MISE A JOUR AVEC TOUTES LES NOUVELLES FONCTIONNALITES
- * CORRECTION: Ajout d'une vérification pour activeObject dans handleSelectionChange.
+ * CORRECTION: Vérification dans handleSelectionChange et comparaison ID dans placeNewTagOnClick.
  */
 import { initializeCanvas, getCanvasInstance, loadBackgroundImage, loadSvgPlan, resizeCanvas, handleMouseWheel, startPan, handlePanMove, stopPan, snapObjectToGrid, getIsSnapEnabled, toggleGrid, toggleSnap, drawGrid, removeGrid, snapToGrid, updateStrokesWidth, resetZoom as resetCanvasZoom, zoom as zoomCanvas } from './canvas.js';
 import { initializeSidebar, fetchAndRenderAvailableCodes, updateCodeCountInSidebar, clearSidebarSelection } from './sidebar.js';
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (assetsListEl) assetsListEl.addEventListener('click', handleAssetClick);
     document.addEventListener('keydown', handleKeyDown); // Pour Echap, Suppr, Copier/Coller
     
-    // Listeners pour grille/snap (déplacés de ui.js si gèrent l'état)
+    // Listeners pour grille/snap
     const gridToggle = document.getElementById('grid-toggle');
     const snapToggle = document.getElementById('snap-toggle');
     if (gridToggle) {
@@ -163,13 +163,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
 
-    // --- Variables d'état local (inchangées) ---
+    // --- Variables d'état local ---
     let isPlacementMode = false;
     let codeToPlace = null;
     let placementModeActiveItem = null;
     let highlightedCodeGeo = null; // Suivi du code surligné
 
-    // --- Fonctions de Gestion d'État et d'Interaction (Mises à jour et Nouvelles) ---
+    // --- Fonctions de Gestion d'État et d'Interaction ---
 
     /** Callback pour quand un code est sélectionné dans la sidebar */
     function handleCodeSelectedForPlacement(codeData) {
@@ -258,18 +258,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                  console.error("Échec création objet Fabric après sauvegarde API.");
                  showToast("Erreur affichage tag.", "warning");
             }
-            updateCodeCountInSidebar(codeToPlace.id, 1);
+            updateCodeCountInSidebar(codeToPlace.id, 1); // Incrémente compteur individuel
 
             // Mettre à jour planData.placedGeoCodes localement si nécessaire
             if(planData.placedGeoCodes) {
-                 const existingCodeIndex = planData.placedGeoCodes.findIndex(c => c.id == fullCodeData.id); // Correction: utiliser == ou ===
+                 // Utiliser une comparaison non stricte (==) au cas où les ID sont de types différents (string vs number)
+                 const existingCodeIndex = planData.placedGeoCodes.findIndex(c => c.id == fullCodeData.id); 
                  if (existingCodeIndex > -1) {
                      if (!planData.placedGeoCodes[existingCodeIndex].placements) {
                          planData.placedGeoCodes[existingCodeIndex].placements = [];
                      }
+                     // Ajouter les données de placement complètes
                      planData.placedGeoCodes[existingCodeIndex].placements.push(savedData);
                  } else {
-                     console.warn("Code géo placé non trouvé dans planData.placedGeoCodes:", fullCodeData.id);
+                      console.warn("Code géo placé non trouvé dans planData.placedGeoCodes (pour màj locale):", fullCodeData.id);
                  }
             }
 
@@ -282,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
 
-    // --- Gestionnaires d'événements Canvas (Mises à jour) ---
+    // --- Gestionnaires d'événements Canvas ---
 
     function handleCanvasMouseDown(opt) {
         const { e: evt, target, pointer } = opt;
@@ -307,7 +309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else { // Clic sur le fond
              console.log("Clic sur fond canvas.");
             // Ne pas désélectionner si on double-clique pour éditer du texte
-            if (opt.e.detail !== 2) { 
+            if (opt.e.detail !== 2) {
                 fabricCanvas.discardActiveObject().renderAll();
                 hideToolbar();
             }
@@ -428,6 +430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (target.arrowLine) {
                  // La flèche sera mise à jour dans handleGeoTagModified
                  // Pour optimiser, on pourrait le faire ici aussi : addArrowToTag(target);
+                 // Temporairement commenté pour voir si ça simplifie/résout le pb de modif
             }
         }
     }
@@ -436,8 +439,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const target = opt.target;
         if (!target || target.isGridLine || target.isPageGuide) return;
 
+        console.log("Object Modified - Target:", target.type, target.customData); // Log détaillé
+
         if (target.customData?.isGeoTag) {
-            handleGeoTagModified(target); // Géré par geo-tags.js
+            console.log(" -> Appel handleGeoTagModified pour", target.customData.codeGeo);
+            handleGeoTagModified(target); // Délégué au module geo-tags
         } else {
              console.log("Objet dessin modifié (non-tag)", target.type);
              // Sauvegarde implicite après modification ? A décommenter si souhaité
@@ -477,6 +483,7 @@ document.addEventListener('DOMContentLoaded', async () => {
              if(ungroupBtn) ungroupBtn.disabled = true;
         } else if (activeObject.customData?.isGeoTag) {
             // Tag géo unique
+            console.log("Tag Géo sélectionné:", activeObject.customData); // Log data du tag
             showToolbar(activeObject);
             redrawAllTagsHighlight(); // Mettre à jour le surlignage
             // Désactiver Groupe/Dégroupe
@@ -577,28 +584,60 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** Crée les objets Fabric pour les tags géo initiaux */
     function createInitialGeoTagsFromData(codesData) {
-        console.log("Création des tags géo initiaux..."); let tagsCreatedCount = 0;
+        console.log("Création des tags géo initiaux à partir de:", codesData);
+        let tagsCreatedCount = 0;
+        if (!codesData || !Array.isArray(codesData)) {
+            console.warn("createInitialGeoTagsFromData: 'codesData' invalide ou vide.");
+            return;
+        }
+
         codesData.forEach(code => {
-            if (code.placements) {
+            // code représente l'objet code géo { id, code_geo, libelle, univers, placements: [...] }
+            if (code && code.placements && Array.isArray(code.placements)) {
                 code.placements.forEach(placement => {
-                    if (placement.plan_id == currentPlanId) {
+                    // placement représente l'objet { position_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y }
+                    if (placement && placement.plan_id == currentPlanId) { // Vérifier plan_id ici aussi
+                        // Séparer les infos du code des infos du placement
                         const { placements, ...codeInfo } = code;
-                        const tagData = { ...codeInfo, ...placement };
-                        if(createFabricTag(tagData)) tagsCreatedCount++;
+
+                        // Créer l'objet de données complet pour le tag
+                        const tagData = {
+                            ...codeInfo,   // Contient id, code_geo, libelle, univers
+                            ...placement   // Contient position_id, plan_id, pos_x, pos_y, etc.
+                        };
+
+                        // ---- Vérification Cruciale ----
+                        // Assurer que les ID sont présents ET valides (pas null, undefined, 0)
+                        if (!tagData.id || !tagData.position_id) {
+                             console.error("ERREUR createInitialGeoTags: Données ID manquantes ou invalides pour tag!", { codeInfo, placement });
+                             // Ne pas créer le tag s'il manque des ID essentiels
+                        } else {
+                            console.log("Préparation création tag initial:", tagData); // Log les données passées
+                            if(createFabricTag(tagData)) { // createFabricTag vient de geo-tags.js
+                                 tagsCreatedCount++;
+                            } else {
+                                 console.warn("Échec création tag Fabric initial pour:", tagData);
+                            }
+                        }
+                        // ---- Fin Vérification ----
                     }
                 });
+            } else {
+                console.warn("createInitialGeoTagsFromData: Structure 'code' inattendue ou placements manquant:", code);
             }
         });
-        console.log(`${tagsCreatedCount} tags initiaux créés.`); fabricCanvas.renderAll();
+        console.log(`${tagsCreatedCount} tags initiaux créés sur le canvas.`);
+        fabricCanvas.renderAll(); // Assurer le rendu après création
     }
+
 
     /** Charge les annotations JSON sur le canvas */
     function loadJsonAnnotations(jsonData) {
         return new Promise((resolve, reject) => {
             if (!jsonData || typeof jsonData !== 'object') {
                 console.warn("loadJsonAnnotations: Données JSON invalides ou vides.");
-                resolve(); 
-                return; 
+                resolve();
+                return;
             }
             console.log("Chargement annotations JSON...");
             fabricCanvas.loadFromJSON(jsonData, () => {
@@ -630,12 +669,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         obj.setCoords();
                     }
                 });
-                console.log("Objets JSON configurés."); 
-                fabricCanvas.renderAll(); 
+                console.log("Objets JSON configurés.");
+                fabricCanvas.renderAll();
                 resolve();
-            }, (o, object) => { 
+            }, (o, object) => {
                 // Reviver (peut être utilisé pour des ajustements fins pendant le chargement)
-                // console.log("Reviver JSON:", object.type); 
+                // console.log("Reviver JSON:", object.type);
             });
         });
     }
@@ -754,7 +793,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const zoom = fabricCanvas.getZoom();
         pageGuideRect = new fabric.Rect({
-            width: guideWidth, 
+            width: guideWidth,
             height: guideHeight,
             fill: 'transparent',
             stroke: 'rgba(200, 0, 0, 0.5)', // Rouge semi-transparent
@@ -850,12 +889,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     left: zoomedCenter.x, top: zoomedCenter.y, originX: 'center', originY: 'center',
                     selectable: true, evented: true
                 });
-                
+
                 // Ajuster le strokeWidth si baseStrokeWidth est présent
                 if (newObject.baseStrokeWidth) {
                      newObject.set({ strokeWidth: newObject.baseStrokeWidth / zoom });
                 }
-                
+
                 // Si c'est un groupe forme+texte, ajuster le texte interne
                  if (newObject.type === 'group' && newObject._objects?.length === 2 && newObject._objects[1].type === 'i-text') {
                       const shape = newObject._objects[0];
@@ -866,7 +905,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                          left: (text.left || 5) / zoom,
                          top: (text.top || 5) / zoom,
                          padding: (text.padding || 2) / zoom,
-                         selectable: false, 
+                         selectable: false,
                          evented: false
                       });
                       newObject.addWithUpdate();
@@ -880,9 +919,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if(offcanvasInstance) offcanvasInstance.hide();
             }, '');
 
-         } catch (error) { 
+         } catch (error) {
              console.error("Erreur chargement asset:", error);
-             showToast(`Erreur chargement asset: ${error.message}`, "danger"); 
+             showToast(`Erreur chargement asset: ${error.message}`, "danger");
          }
      }
 
