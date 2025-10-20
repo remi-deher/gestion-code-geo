@@ -25,7 +25,7 @@ class GeoCodeController extends BaseController {
      */
     public function listAction() {
         // Récupère les codes avec détails des placements pour l'affichage enrichi
-        $geoCodes = $this->geoCodeManager->getGeoCodesWithPlacementDetails();
+	$geoCodes = $this->geoCodeManager->getAllGeoCodesWithPositions();
         // Récupère tous les univers pour les filtres
         $univers = $this->universManager->getAllUnivers();
         // Rend la vue correspondante avec les données
