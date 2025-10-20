@@ -17,6 +17,21 @@ class PlanManager {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+     /**
+     * Compte le nombre total de plans dans la base de données.
+     * @return int Le nombre total de plans.
+     */
+    public function countTotalPlans(): int {
+        try {
+            $stmt = $this->db->query("SELECT COUNT(*) FROM plans");
+            $count = $stmt->fetchColumn();
+            return ($count !== false) ? (int)$count : 0;
+        } catch (Exception $e) {
+            error_log("Erreur countTotalPlans: " . $e->getMessage());
+            return 0; // Retourne 0 en cas d'erreur
+        }
+    }
+
     /**
      * Récupère un plan par son ID.
      * Inclut maintenant les données de dessin (drawing_data).
