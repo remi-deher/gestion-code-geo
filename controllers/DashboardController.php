@@ -22,20 +22,19 @@ class DashboardController extends BaseController {
         // 1. Récupérer les statistiques
         $totalCodes = $this->geoCodeManager->countTotalActiveCodes();
         $placedCodes = $this->geoCodeManager->countPlacedCodes(); // Compte les entrées dans geo_positions
-        $unplacedCount = $totalCodes - count($this->geoCodeManager->getAllPositions()); // Une autre façon de compter
-        // Il vaut mieux compter les codes géo qui n'ont AUCUNE position
+        // Compte les codes géo qui n'ont AUCUNE position
         $unplacedCodesListForCount = $this->geoCodeManager->getUnplacedCodes(PHP_INT_MAX); // Récupère tous les non placés
         $actualUnplacedCount = count($unplacedCodesListForCount);
 
         $stats = [
             'totalCodes' => $totalCodes,
-            'placedCodesCount' => $placedCodes, // Nombre total de placements
-            // 'distinctPlacedCodes' => a calculer si besoin (COUNT DISTINCT geo_code_id FROM geo_positions)
-            'unplacedCodesCount' => $actualUnplacedCount, // Nombre de codes jamais placés
+            'placedCodesCount' => $placedCodes, // Clé corrigée
+            'unplacedCodesCount' => $actualUnplacedCount, // Clé corrigée
             'totalUnivers' => $this->universManager->countTotalUnivers(),
             'totalPlans' => $this->planManager->countTotalPlans(),
             'codesByZone' => $this->geoCodeManager->countCodesByZone(),
-            // 'universByZone' => $this->universManager->countUniversByZone() // Assurez-vous que cette méthode existe aussi
+            // Assurez-vous que cette méthode existe aussi si vous l'utilisez
+            // 'universByZone' => $this->universManager->countUniversByZone() 
         ];
 
         // 2. Récupérer les données pour les widgets (limitées)
@@ -46,10 +45,10 @@ class DashboardController extends BaseController {
         $codesByUnivers = $this->geoCodeManager->getCodesCountByUnivers();
         $chartLabels = [];
         $chartData = [];
-        // Boucle corrigée :
+        // *** CORRECTION DE LA BOUCLE ICI ***
         foreach ($codesByUnivers as $universName => $count) {
              // Exclure la clé d'erreur potentielle
-             if ($universName !== '__ErreurExecution__') {
+             if ($universName !== '__ErreurExecution__') { 
                 $chartLabels[] = $universName; // La clé est le nom de l'univers
                 $chartData[] = $count;         // La valeur est le compte
              }

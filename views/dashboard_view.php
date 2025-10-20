@@ -1,191 +1,198 @@
 <?php $title = 'Tableau de Bord'; ?>
 
-<?php ob_start(); ?>
+<?php ob_start(); // Début de la capture pour les scripts spécifiques à cette vue ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    // --- GRAPHIQUE ---
-    const ctx = document.getElementById('universChart');
-    if (ctx) {
-        const chartData = <?= json_encode($chartJsData) ?>;
-        new Chart(ctx, {
-            type: 'doughnut',
+    document.addEventListener('DOMContentLoaded', function () {
+        // Données JSON préparées par le contrôleur
+        const chartJsData = <?= json_encode($chartJsData ?? ['labels' => [], 'data' => []]) ?>;
+        
+        // Configuration du graphique
+        const ctx = document.getElementById('codesByUniversChart').getContext('2d');
+        const codesByUniversChart = new Chart(ctx, {
+            type: 'doughnut', // Type de graphique (camembert)
             data: {
-                labels: chartData.labels,
+                labels: chartJsData.labels,
                 datasets: [{
-                    label: 'Codes Géo',
-                    data: chartData.data,
-                    backgroundColor: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'],
-                    hoverOffset: 4,
-                    borderColor: '#fff',
-                    borderWidth: 2
+                    label: 'Codes par Univers',
+                    data: chartJsData.data,
+                    backgroundColor: [ // Fournir un jeu de couleurs ou le générer
+                        'rgba(255, 99, 132, 0.7)',
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)',
+                        'rgba(75, 192, 192, 0.7)',
+                        'rgba(153, 102, 255, 0.7)',
+                        'rgba(255, 159, 64, 0.7)',
+                        'rgba(199, 199, 199, 0.7)',
+                        'rgba(83, 102, 255, 0.7)',
+                        'rgba(40, 159, 64, 0.7)',
+                        'rgba(210, 99, 132, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)',
+                        'rgba(199, 199, 199, 1)',
+                        'rgba(83, 102, 255, 1)',
+                        'rgba(40, 159, 64, 1)',
+                        'rgba(210, 99, 132, 1)'
+                    ],
+                    borderWidth: 1
                 }]
             },
             options: {
                 responsive: true,
-                cutout: '70%',
+                maintainAspectRatio: false, // Permet au graphique de remplir le conteneur
                 plugins: {
-                    legend: { position: 'bottom' },
+                    legend: {
+                        position: 'right', // Afficher la légende à droite
+                    },
                     title: {
                         display: true,
-                        text: 'Répartition des codes par univers',
-                        padding: { top: 10, bottom: 20 }
+                        text: 'Répartition des Codes par Univers'
                     }
                 }
             }
         });
-    }
-
-    // --- ANIMATIONS AU SCROLL ---
-    const animateOnScroll = (entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const el = entry.target;
-
-                // Animation des compteurs
-                if (el.classList.contains('stat-number')) {
-                    const target = +el.dataset.target;
-                    el.innerText = '0';
-                    const increment = Math.ceil(target / 100);
-                    let current = 0;
-                    
-                    const updateCounter = () => {
-                        current += increment;
-                        if (current < target) {
-                            el.innerText = current;
-                            requestAnimationFrame(updateCounter);
-                        } else {
-                            el.innerText = target;
-                        }
-                    };
-                    updateCounter();
-                }
-                
-                // Animation de la barre de progression
-                if (el.classList.contains('progress-bar')) {
-                    el.style.width = el.dataset.width;
-                }
-
-                observer.unobserve(el);
-            }
-        });
-    };
-
-    const observer = new IntersectionObserver(animateOnScroll, {
-        threshold: 0.5
     });
-
-    document.querySelectorAll('.stat-number').forEach(el => observer.observe(el));
-    document.querySelectorAll('.progress-bar').forEach(el => observer.observe(el));
-});
 </script>
-<?php $body_scripts = ob_get_clean(); ?>
+<?php $body_scripts = ob_get_clean(); // Fin de la capture ?>
 
 <div class="container mt-4">
-    <div class="dashboard-header flex-column flex-md-row">
-        <h1>Tableau de bord</h1>
-        <div class="d-flex gap-2 mt-3 mt-md-0">
-            <a href="index.php?action=list" class="btn btn-outline-secondary"><i class="bi bi-list-ul"></i> Voir la liste</a>
-            <a href="index.php?action=create" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Ajouter</a>
-            <a href="index.php?action=listPlans" class="btn btn-secondary"><i class="bi bi-map-fill"></i> Gérer les Plans</a>
-        </div>
-    </div>
+    <h1 class="mb-4"><i class="bi bi-speedometer2"></i> Tableau de Bord</h1>
 
-    <div class="row g-4 mb-4">
-        <div class="col-lg-3 col-md-6">
-            <div class="card dashboard-card stat-card h-100">
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card text-white bg-primary h-100">
                 <div class="card-body">
-                    <div class="stat-icon icon-total"><i class="bi bi-box-seam"></i></div>
-                    <div>
-                        <h5>Codes Géo Total</h5>
-                        <span class="stat-number" data-target="<?= $stats['totalCodes'] ?>">0</span>
-                    </div>
+                    <h5 class="card-title"><?= $stats['totalCodes'] ?? 0 ?></h5>
+                    <p class="card-text">Codes Géo Total</p>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a href="index.php?action=listGeoCodes" class="small text-white stretched-link">Voir détails</a>
+                    <div class="small text-white"><i class="bi bi-chevron-right"></i></div>
                 </div>
             </div>
         </div>
 
-        <?php $percentage = ($stats['totalCodes'] > 0) ? ($stats['placedCodes'] / $stats['totalCodes']) * 100 : 0; ?>
-        <div class="col-lg-5 col-md-6">
-            <div class="card dashboard-card progress-card h-100">
-                 <div class="card-body d-flex flex-column justify-content-center">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Progression du Placement</h5>
-                        <span class="fw-bold fs-5"><?= round($percentage) ?>%</span>
+        <div class="col-md-3 mb-3">
+            <div class="card text-white bg-success h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><?= $stats['placedCodesCount'] ?? 0 ?></h5>
+                    <p class="card-text">Placements Effectués</p>
+                </div>
+                 <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span class="small text-white">Nombre total de positions</span>
                     </div>
-                    <p class="text-muted small mb-2"><?= $stats['placedCodes'] ?> sur <?= $stats['totalCodes'] ?> codes placés</p>
-                    <div class="progress" title="<?= round($percentage) ?>% Placé">
-                        <div class="progress-bar" role="progressbar" data-width="<?= $percentage ?>%" style="width: 0%;" aria-valuenow="<?= $percentage ?>" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="card text-white bg-warning h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><?= $stats['unplacedCodesCount'] ?? 0 ?></h5>
+                    <p class="card-text">Codes Non Placés</p>
+                </div>
+                 <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span class="small text-white">Codes jamais utilisés</span>
                     </div>
-                 </div>
             </div>
         </div>
         
-        <div class="col-lg-4 col-md-12">
-            <div class="card dashboard-card h-100">
-                <div class="card-header"><i class="bi bi-geo-alt-fill"></i> Répartition par Zone</div>
-                <div class="card-body d-flex flex-column justify-content-center gap-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fw-bold">Zone de Vente</span>
-                            <small class="text-muted d-block"><?= $stats['universByZone']['vente'] ?? 0 ?> univers</small>
-                        </div>
-                        <span class="zone-badge zone-vente"><?= $stats['codesByZone']['vente'] ?? 0 ?> codes</span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fw-bold">Réserve</span>
-                            <small class="text-muted d-block"><?= $stats['universByZone']['reserve'] ?? 0 ?> univers</small>
-                        </div>
-                        <span class="zone-badge zone-reserve"><?= $stats['codesByZone']['reserve'] ?? 0 ?> codes</span>
-                    </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-white bg-info h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><?= $stats['totalPlans'] ?? 0 ?></h5>
+                    <p class="card-text">Plans Disponibles</p>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a href="index.php?action=listPlans" class="small text-white stretched-link">Voir la liste</a>
+                    <div class="small text-white"><i class="bi bi-chevron-right"></i></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row g-4">
-        <div class="col-lg-5">
-            <div class="card dashboard-card h-100">
-                <div class="card-body">
-                    <canvas id="universChart"></canvas>
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-pie-chart-fill me-1"></i>
+                    Codes par Univers
                 </div>
+                <div class="card-body" style="position: relative; height:300px">
+                    <canvas id="codesByUniversChart"></canvas>
+                </div>
+                 <div class="card-footer small text-muted">Répartition des codes géo existants.</div>
             </div>
         </div>
-        <div class="col-lg-7">
-            <div class="card dashboard-card dashboard-list mb-4">
-                <div class="card-header"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Codes à placer en priorité</div>
-                <ul class="list-group list-group-flush">
-                    <?php if (empty($unplacedCodesList)): ?>
-                        <li class="list-group-item text-center text-muted p-4">🎉<br/>Tous les codes sont placés !</li>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-clock-history me-1"></i>
+                    Derniers Codes Modifiés
+                </div>
+                <div class="card-body">
+                    <?php if (!empty($latestCodes)): ?>
+                        <ul class="list-group list-group-flush">
+                            <?php foreach ($latestCodes as $code): ?>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <a href="index.php?action=editGeoCode&id=<?= $code['id'] ?>" class="text-decoration-none">
+                                            <?= htmlspecialchars($code['code_geo']) ?>
+                                        </a>
+                                        <small class="d-block text-muted"><?= htmlspecialchars($code['libelle'] ?? '') ?></small>
+                                    </div>
+                                    <span class="badge rounded-pill" style="background-color: <?= htmlspecialchars($code['univers_color'] ?? '#6c757d') ?>; color: white;">
+                                         <?= htmlspecialchars($code['univers_nom'] ?? 'Inconnu') ?>
+                                    </span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
                     <?php else: ?>
-                        <?php foreach (array_slice($unplacedCodesList, 0, 5) as $code): ?>
-                            <li class="list-group-item px-3">
-                                <div class="item-info">
-                                    <span class="code-geo"><?= htmlspecialchars($code['code_geo']) ?></span>
-                                    <span class="libelle"><?= htmlspecialchars($code['libelle']) ?></span>
-                                </div>
-                                <a href="index.php?action=manageCodes&id=1" class="btn btn-sm btn-outline-primary">Placer</a>
-                            </li>
-                        <?php endforeach; ?>
+                        <p class="text-muted">Aucun code géo trouvé.</p>
                     <?php endif; ?>
-                </ul>
-            </div>
-            <div class="card dashboard-card dashboard-list">
-                <div class="card-header"><i class="bi bi-clock-history"></i> Derniers codes ajoutés</div>
-                <ul class="list-group list-group-flush">
-                     <?php foreach ($latestCodes as $code): ?>
-                        <li class="list-group-item px-3">
-                            <div class="item-info">
-                                <span class="code-geo"><?= htmlspecialchars($code['code_geo']) ?></span>
-                                <div>
-                                    <span class="libelle"><?= htmlspecialchars($code['libelle']) ?></span>
-                                    <span class="badge bg-light text-dark border"><?= htmlspecialchars($code['univers']) ?></span>
-                                </div>
-                            </div>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
+                </div>
+                 <div class="card-footer small text-muted">Les 5 derniers codes ajoutés ou mis à jour.</div>
             </div>
         </div>
     </div>
+
+    <div class="row">
+        <div class="col-12 mb-4">
+             <div class="card">
+                 <div class="card-header">
+                     <i class="bi bi-journal-x me-1"></i>
+                     Codes Géo Jamais Placés (Échantillon)
+                 </div>
+                 <div class="card-body">
+                     <?php if (!empty($unplacedCodesList)): ?>
+                         <ul class="list-group list-group-flush">
+                             <?php foreach ($unplacedCodesList as $code): ?>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                     <div>
+                                         <a href="index.php?action=editGeoCode&id=<?= $code['id'] ?>" class="text-decoration-none">
+                                             <?= htmlspecialchars($code['code_geo']) ?>
+                                         </a>
+                                         <small class="d-block text-muted"><?= htmlspecialchars($code['libelle'] ?? '') ?></small>
+                                     </div>
+                                     <span class="badge rounded-pill" style="background-color: <?= htmlspecialchars($code['univers_color'] ?? '#6c757d') ?>; color: white;">
+                                          <?= htmlspecialchars($code['univers_nom'] ?? 'Inconnu') ?>
+                                     </span>
+                                 </li>
+                            <?php endforeach; ?>
+                         </ul>
+                     <?php else: ?>
+                         <p class="text-muted">Tous les codes géo ont été placés au moins une fois, ou aucun code n'existe.</p>
+                     <?php endif; ?>
+                 </div>
+                 <div class="card-footer small text-muted">Liste des codes qui n'apparaissent sur aucun plan (max 10 affichés).</div>
+             </div>
+        </div>
+     </div>
+
 </div>
