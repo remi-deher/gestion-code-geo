@@ -2,9 +2,10 @@
  * Module pour la gestion de la sidebar (listes codes disponibles/placés, filtres, légende).
  * VERSION MISE A JOUR: Rôle informatif, listes séparées, fonction de localisation.
  */
-import { fetchAvailableCodes, saveNewGeoCode } from '../modules/api.js'; // API pour la liste et l'ajout
-import { showToast } from '../modules/utils.js';
-import { getCanvasInstance } from './canvas.js'; // Pour localiser
+import { getCanvasInstance } from './canvas.js';
+import { showLoading, hideLoading } from './ui.js'; // ui.js gère loading
+import { showToast } from '../modules/utils.js'; // utils.js gère showToast
+import { setDrawingMode } from './drawing-tools.js';
 
 let currentPlanId = null;
 let universList = [];

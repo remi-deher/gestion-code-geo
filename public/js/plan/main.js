@@ -6,14 +6,12 @@ import {
     findSvgShapeByCodeGeo, toggleSnapToGrid, getSnapToGrid
 } from './canvas.js';
 
-// *** CORRECTION 1: Imports Sidebar ***
 import {
     initializeSidebar,
     fetchAndClassifyCodes, // Fonction pour charger et classer
     populateUniversSelectInModal, // Pour la modale d'ajout
     handleSaveNewCodeInModal // Pour la modale d'ajout
 } from './sidebar.js';
-// *** FIN CORRECTION 1 ***
 
 import {
     initializeDrawingTools, // Outils de dessin (rectangle, etc.)
@@ -28,18 +26,19 @@ import {
 } from './ui.js';
 
 import {
-    createFabricTag, // Création d'étiquette rectangulaire
-    updateFabricTag, // Mise à jour d'étiquette
-    GEO_TAG_DEFAULT_WIDTH, GEO_TAG_DEFAULT_HEIGHT, // Constantes
-    GEO_TEXT_FONT_SIZE // Constante
-} from './geo-tags.js';
+    initializeUI, // Boutons (toggle sidebar, fullscreen)
+    showLoading, hideLoading // Indicateur de chargement
+} from './ui.js';
 
-// *** CORRECTION 3: Suppression de l'import pour api.js ***
-// import {
-//     savePosition, deletePosition, // API
-//     convertPixelsToPercent, convertPercentToPixels // Utilitaires
-// } from './api.js';
-// *** FIN CORRECTION 3 ***
+// Importer showToast depuis le bon fichier
+import { showToast } from '../modules/utils.js';
+
+// *** CORRECTION 5: Importer 'sizePresets' au lieu des constantes individuelles ***
+import {
+    sizePresets, // Importer l'objet des tailles
+    GEO_TEXT_FONT_SIZE
+} from '../modules/config.js';
+// *** FIN CORRECTION 5 ***
 
 
 // --- INITIALISATION GLOBALE ---
@@ -602,12 +601,12 @@ function placeTextOnSvg(codeData, targetSvgShape) {
     const center = targetSvgShape.getCenterPoint(); // Centre de la forme SVG
     const zoom = fabricCanvas.getZoom();
 
-    // *** CORRECTION 2: Utiliser snake_case (code_geo) ***
+    // *** CORRECTION 3: Utiliser snake_case (code_geo) ***
     const textToShow = codeData.code_geo || 'ERREUR'; // Fallback si code_geo est null/undefined
     if (!codeData.code_geo) {
         console.warn("placeTextOnSvg: codeData.code_geo est manquant ou vide pour l'ID:", codeData.id, "Utilisation de 'ERREUR'.");
     }
-    // *** FIN CORRECTION 2 ***
+    // *** FIN CORRECTION 3 ***
 
     // Utiliser les coordonnées % converties (point du clic) plutôt que le centre de la forme?
     // Non, utilisons le centre de la forme, c'est plus logique.
@@ -634,9 +633,9 @@ function placeTextOnSvg(codeData, targetSvgShape) {
         // Stocker TOUTES les données (code + position)
         customData: {
             ...codeData,
-            // *** CORRECTION 2: Utiliser snake_case (code_geo) ***
+            // *** CORRECTION 3: Utiliser snake_case (code_geo) ***
             codeGeo: codeData.code_geo, // Stocker la valeur originale, même si null
-            // *** FIN CORRECTION 2 ***
+            // *** FIN CORRECTION 3 ***
             isPlacedText: true, // Marqueur spécifique
             isGeoTag: false, // Pas une étiquette standard
             anchorSvgId: targetSvgShape.customData?.svgId, // ID de la forme SVG parente
@@ -664,17 +663,18 @@ function placeTagAtPoint(codeData, point) {
     }
     const universColor = universColors[codeData.univers_id] || '#6c757d';
 
-    // Créer un objet de données pour le tag (similaire à celui d'un tag initial)
+    // *** CORRECTION 5: Utiliser 'sizePresets' ***
     const tagData = {
         ...codeData,
         pos_x_pixels: point.x,
         pos_y_pixels: point.y,
-        width: GEO_TAG_DEFAULT_WIDTH, // Utiliser la largeur par défaut
-        height: GEO_TAG_DEFAULT_HEIGHT, // Utiliser la hauteur par défaut
+        width: sizePresets.medium.width, // Utiliser la largeur moyenne par défaut
+        height: sizePresets.medium.height, // Utiliser la hauteur moyenne par défaut
         // Pas de position_id pour l'instant (sera ajouté lors de la sauvegarde)
         position_id: null,
         plan_id: currentPlanId
     };
+    // *** FIN CORRECTION 5 ***
 
     const tagObject = createFabricTag(tagData, universColor);
 
@@ -787,7 +787,7 @@ function createInitialGeoElements(placedGeoCodes, planType) {
 }
 
 
-// *** CORRECTION 3: Réintégration des fonctions API et Utilitaires ***
+// *** CORRECTION 2: Réintégration des fonctions API et Utilitaires ***
 
 // --- API (Sauvegarde, Suppression) ---
 
