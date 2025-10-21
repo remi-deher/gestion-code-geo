@@ -21,12 +21,6 @@ import {
 
 import {
     initializeUI, // Boutons (toggle sidebar, fullscreen)
-    showToast, // Afficher une notification
-    showLoading, hideLoading // Indicateur de chargement
-} from './ui.js';
-
-import {
-    initializeUI, // Boutons (toggle sidebar, fullscreen)
     showLoading, hideLoading // Indicateur de chargement
 } from './ui.js';
 

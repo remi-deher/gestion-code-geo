@@ -4,7 +4,7 @@
  * le zoom, le redimensionnement, le verrouillage, et les grilles.
  */
 // --- IMPORTS ---
-import { showToast } from './module/utils.js';
+import { showToast } from '../modules/utils.js';
 import { GRID_SIZE, MIN_ZOOM, MAX_ZOOM } from '../modules/config.js';
 
 // --- VARIABLES MODULE ---
@@ -26,8 +26,8 @@ export {
     setCanvasLock,
     getCanvasLock,
     toggleSnapToGrid,
-    getSnapToGrid,
-    findSvgShapeByCodeGeo, // <-- **CORRECTION AJOUTÉE ICI**
+    getSnapToGrid, // <-- ADD THIS LINE
+    findSvgShapeByCodeGeo,
     getSvgOriginalBBox
 };
 

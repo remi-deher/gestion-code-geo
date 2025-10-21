@@ -2,7 +2,7 @@
  * Module pour la gestion des outils de dessin (formes, texte libre),
  * groupement, et presse-papiers.
  */
-import { getCanvasInstance, getIsSnapEnabled, snapToGrid } from './canvas.js';
+import { getCanvasInstance, getSnapToGrid } from './canvas.js';
 import { showToast } from '../modules/utils.js';
 
 let fabricCanvas;
