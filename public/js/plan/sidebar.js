@@ -5,7 +5,7 @@
 import { getCanvasInstance } from './canvas.js';
 import { showLoading, hideLoading } from './ui.js'; // ui.js gère loading
 import { showToast } from '../modules/utils.js'; // utils.js gère showToast
-import { setDrawingMode } from './drawing-tools.js';
+import { setActiveTool } from './drawing-tools.js';
 
 let currentPlanId = null;
 let universList = [];

@@ -15,8 +15,8 @@ import {
 
 import {
     initializeDrawingTools, // Outils de dessin (rectangle, etc.)
-    setDrawingMode, // Activer/désactiver un mode
-    getCurrentDrawingMode // Obtenir le mode actuel
+    setActiveTool, // Activer/désactiver un mode
+    getCurrentDrawingTool // Obtenir le mode actuel
 } from './drawing-tools.js';
 
 import {
@@ -241,7 +241,7 @@ function setupEventListeners() {
         // Échapper (Désélection, Annuler dessin)
         if (e.key === 'Escape') {
             // Annuler le mode dessin
-            if (getCurrentDrawingMode()) {
+            if (getCurrentDrawingTool()) {
                 setDrawingMode(null);
             }
             // Désélectionner l'objet actif
@@ -337,7 +337,7 @@ function handleRightClick(options) {
  * @param {object} options - Événement Fabric 'mouse:down'
  */
 function handleCanvasClick(options) {
-    const mode = getCurrentDrawingMode();
+    const mode = getCurrentDrawingTool();
     const pointer = fabricCanvas.getPointer(options.e);
 
     if (mode === 'tag') {
@@ -548,7 +548,7 @@ async function handleDeleteObject(target) {
  * @param {fabric.Object} drawnObject - L'objet dessiné (ex: fabric.Rect)
  */
 function handleDrawingComplete(drawnObject) {
-    const mode = getCurrentDrawingMode();
+    const mode = getCurrentDrawingTool();
 
     if (mode === 'rect') {
         // Le dessin d'un rectangle est terminé
