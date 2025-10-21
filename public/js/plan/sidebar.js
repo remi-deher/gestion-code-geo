@@ -7,7 +7,9 @@ import { showLoading, hideLoading } from './ui.js'; // ui.js gère loading
 import { showToast } from '../modules/utils.js'; // utils.js gère showToast
 import { setActiveTool } from './drawing-tools.js';
 
+let canvasInstance = null;
 let currentPlanId = null;
+let currentPlanType = null;
 let universList = [];
 let universColors = {};
 
@@ -31,14 +33,19 @@ let allPlacedCodes = [];    // Codes actuellement placés sur CE plan
 
 /**
  * Initialise la sidebar.
- * @param {number} planId - ID du plan actuel.
- * @param {Array} uList - Liste des univers du plan.
- * @param {Object} uColors - Mapping des couleurs d'univers.
+ * @param {fabric.Canvas} canvas - Instance du canvas (envoyé en 1er)
+ * @param {Object} uColors - Mapping des couleurs d'univers (envoyé en 2e)
+ * @param {number} planId - ID du plan actuel (envoyé en 3e)
+ * @param {string} pType - Type de plan (envoyé en 4e)
+ * @param {Array} uList - Liste des univers du plan (envoyé en 5e)
  */
-export function initializeSidebar(planId, uList, uColors) {
+export function initializeSidebar(canvas, uColors, planId, pType, uList) {
+    // Assigner les variables globales (en supposant qu'elles existent en haut du fichier)
+    canvasInstance = canvas; // S'assurer que 'canvasInstance' est défini globalement
     currentPlanId = planId;
-    universList = uList;
-    universColors = uColors;
+    universList = uList; // <-- CORRIGÉ: uList est le 5ème argument
+    universColors = uColors; // <-- CORRIGÉ: uColors est le 2ème argument
+    currentPlanType = pType; // S'assurer que 'currentPlanType' est défini globalement
 
     // Listes
     dispoListEl = document.getElementById('dispo-list');
@@ -60,7 +67,7 @@ export function initializeSidebar(planId, uList, uColors) {
     }
 
     addEventListeners();
-    renderLegend();
+    renderLegend(); // universList est maintenant le bon tableau (uList)
     fetchAndClassifyCodes(); // Charger les données initiales
 
     console.log("Sidebar (rôle info) initialisée.");
