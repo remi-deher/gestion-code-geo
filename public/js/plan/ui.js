@@ -103,3 +103,69 @@ function handleFullScreenChange() {
         fullscreenBtnIcon.classList.add('bi-fullscreen-exit');
     }
 }
+
+/**
+ * Affiche un indicateur de chargement simple (à adapter si nécessaire).
+ * @param {string} message - Message facultatif à afficher.
+ */
+export function showLoading(message = "Chargement...") {
+    // Créez ou sélectionnez un élément pour l'indicateur
+    let loader = document.getElementById('global-loader');
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'global-loader';
+        // Style basique - vous devriez le styliser via CSS
+        loader.style.position = 'fixed';
+        loader.style.top = '50%';
+        loader.style.left = '50%';
+        loader.style.transform = 'translate(-50%, -50%)';
+        loader.style.padding = '20px';
+        loader.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        loader.style.color = 'white';
+        loader.style.borderRadius = '5px';
+        loader.style.zIndex = '9999';
+        document.body.appendChild(loader);
+    }
+    loader.textContent = message;
+    loader.style.display = 'block';
+    console.log("Showing Loading:", message); // For debugging
+}
+
+/**
+ * Masque l'indicateur de chargement.
+ */
+export function hideLoading() {
+    const loader = document.getElementById('global-loader');
+    if (loader) {
+        loader.style.display = 'none';
+    }
+    console.log("Hiding Loading"); // For debugging
+}
+
+
+/**
+ * Affiche un indicateur de chargement simple (à adapter si nécessaire).
+ * @param {string} message - Message facultatif à afficher.
+ */
+export function showLoading(message = "Chargement...") {
+    // Créez ou sélectionnez un élément pour l'indicateur
+    let loader = document.getElementById('global-loader');
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'global-loader';
+        // Style basique - vous devriez le styliser via CSS
+        loader.style.position = 'fixed';
+        loader.style.top = '50%';
+        loader.style.left = '50%';
+        loader.style.transform = 'translate(-50%, -50%)';
+        loader.style.padding = '20px';
+        loader.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        loader.style.color = 'white';
+        loader.style.borderRadius = '5px';
+        loader.style.zIndex = '9999';
+        document.body.appendChild(loader);
+    }
+    loader.textContent = message;
+    loader.style.display = 'block';
+    console.log("Showing Loading:", message); // For debugging
+}
