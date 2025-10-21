@@ -4,6 +4,8 @@
  */
 import { getCanvasInstance, getSnapToGrid } from './canvas.js';
 import { showToast } from '../modules/utils.js';
+// CORRECTION : Importer GRID_SIZE pour le calcul du magnétisme
+import { GRID_SIZE } from '../modules/config.js';
 
 let fabricCanvas;
 let currentTool = 'select'; // Outil actif
@@ -11,9 +13,9 @@ let isDrawing = false;
 let startPoint = null;
 let currentObject = null; // Objet en cours de dessin
 
-// Couleurs
+// Couleurs (lues depuis les inputs dans main.js, mais valeurs par défaut ici)
 let currentStrokeColor = '#000000';
-let currentFillColor = 'rgba(255, 255, 255, 0.0)'; // Transparent par défaut
+let currentFillColor = 'transparent';
 let baseStrokeWidth = 2; // Épaisseur de base
 
 // Presse-papiers
@@ -37,15 +39,17 @@ export function setActiveTool(tool) {
     fabricCanvas.isDrawingMode = false; // On gère le dessin manuellement
     fabricCanvas.selection = (tool === 'select');
     
-    // Mettre à jour l'état 'active' des boutons
-    document.querySelectorAll('.tool-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tool === tool);
-    });
+    // Mettre à jour l'état 'active' des boutons (géré par main.js maintenant)
+    // document.querySelectorAll('.tool-btn').forEach(btn => {
+    //     btn.classList.toggle('active', btn.dataset.tool === tool);
+    // });
 
     if (tool === 'select') {
         fabricCanvas.defaultCursor = 'default';
+        fabricCanvas.hoverCursor = 'move';
     } else {
         fabricCanvas.defaultCursor = 'crosshair';
+        fabricCanvas.hoverCursor = 'crosshair';
     }
     console.log("Outil actif:", currentTool);
 }
@@ -56,35 +60,36 @@ export function getCurrentDrawingTool() { return currentTool; }
 /** Retourne si un dessin est en cours */
 export function getIsDrawing() { return isDrawing; }
 
-/** Définit la couleur de contour */
-export function setStrokeColor(color) {
-    currentStrokeColor = color;
-    const activeObj = fabricCanvas.getActiveObject();
-    if (activeObj && !activeObj.isSvgShape && !activeObj.customData?.isGeoTag && !activeObj.customData?.isPlacedText) {
-        activeObj.set('stroke', color);
-        fabricCanvas.renderAll();
+// --- Les fonctions setStrokeColor, setFillColor, setTransparentFill
+// --- ont été retirées car la logique est gérée dans main.js (updateDrawingStyleFromInput)
+
+/**
+ * Récupère les options de style actuelles depuis les inputs (via main.js)
+ * @returns {object} { stroke, fill, strokeWidth, baseStrokeWidth }
+ */
+function getCurrentDrawingStyles() {
+    const strokeColor = document.getElementById('stroke-color-picker')?.value || '#000000';
+    const fillColorPicker = document.getElementById('fill-color-picker');
+    const fillTransparentBtn = document.getElementById('fill-transparent-btn');
+    
+    let fill = 'transparent'; // Par défaut
+    if (fillTransparentBtn && fillTransparentBtn.classList.contains('active')) {
+         fill = fillColorPicker?.value || '#FFFFFF'; // Utilise la couleur si non-transparent
     }
+
+    // TODO: Gérer l'épaisseur (strokeWidth) si un input est ajouté
+    const zoom = fabricCanvas.getZoom();
+    const baseWidth = 2; // Mettre ici la valeur lue de l'input d'épaisseur
+    const strokeWidth = baseWidth / zoom;
+
+    return {
+        stroke: strokeColor,
+        fill: fill,
+        strokeWidth: strokeWidth,
+        baseStrokeWidth: baseWidth
+    };
 }
 
-/** Définit la couleur de remplissage */
-export function setFillColor(color) {
-    currentFillColor = color;
-    const activeObj = fabricCanvas.getActiveObject();
-    if (activeObj && !activeObj.isSvgShape && !activeObj.customData?.isGeoTag && !activeObj.customData?.isPlacedText) {
-        activeObj.set('fill', color);
-        fabricCanvas.renderAll();
-    }
-}
-
-/** Définit le remplissage transparent */
-export function setTransparentFill() {
-    currentFillColor = 'rgba(255, 255, 255, 0.0)';
-    const activeObj = fabricCanvas.getActiveObject();
-    if (activeObj && !activeObj.isSvgShape && !activeObj.customData?.isGeoTag && !activeObj.customData?.isPlacedText) {
-        activeObj.set('fill', currentFillColor);
-        fabricCanvas.renderAll();
-    }
-}
 
 /**
  * Démarre le dessin lors d'un 'mouse:down' sur le canvas.
@@ -97,15 +102,15 @@ export function startDrawing(opt) {
     startPoint = fabricCanvas.getPointer(opt.e);
     
     // Magnétisme
-    if (getIsSnapEnabled()) {
-        const zoom = fabricCanvas.getZoom();
-        const vpt = fabricCanvas.viewportTransform;
-        startPoint.x = snapToGrid(startPoint.x, vpt[4], zoom);
-        startPoint.y = snapToGrid(startPoint.y, vpt[5], zoom);
+    // CORRECTION 1: Utiliser getSnapToGrid() au lieu de getIsSnapEnabled()
+    if (getSnapToGrid()) {
+        const snapSize = GRID_SIZE || 10;
+        // CORRECTION 2: Calculer le magnétisme manuellement (pas de fonction snapToGrid importée)
+        startPoint.x = Math.round(startPoint.x / snapSize) * snapSize;
+        startPoint.y = Math.round(startPoint.y / snapSize) * snapSize;
     }
     
-    const zoom = fabricCanvas.getZoom();
-    const strokeWidth = baseStrokeWidth / zoom; // Adapter au zoom
+    const styles = getCurrentDrawingStyles();
 
     switch (currentTool) {
         case 'rect':
@@ -114,11 +119,11 @@ export function startDrawing(opt) {
                 top: startPoint.y,
                 width: 0,
                 height: 0,
-                fill: currentFillColor,
-                stroke: currentStrokeColor,
-                strokeWidth: strokeWidth,
-                baseStrokeWidth: baseStrokeWidth, // Stocker base
-                selectable: false, evented: false // Non sélectionnable pendant dessin
+                fill: styles.fill,
+                stroke: styles.stroke,
+                strokeWidth: styles.strokeWidth,
+                baseStrokeWidth: styles.baseStrokeWidth,
+                selectable: false, evented: false
             });
             break;
         case 'circle':
@@ -126,10 +131,10 @@ export function startDrawing(opt) {
                 left: startPoint.x,
                 top: startPoint.y,
                 radius: 0,
-                fill: currentFillColor,
-                stroke: currentStrokeColor,
-                strokeWidth: strokeWidth,
-                baseStrokeWidth: baseStrokeWidth,
+                fill: styles.fill,
+                stroke: styles.stroke,
+                strokeWidth: styles.strokeWidth,
+                baseStrokeWidth: styles.baseStrokeWidth,
                 selectable: false, evented: false
             });
             break;
@@ -137,15 +142,16 @@ export function startDrawing(opt) {
             currentObject = new fabric.Line(
                 [startPoint.x, startPoint.y, startPoint.x, startPoint.y],
                 {
-                    stroke: currentStrokeColor,
-                    strokeWidth: strokeWidth,
-                    baseStrokeWidth: baseStrokeWidth,
+                    fill: 'transparent', // Les lignes n'ont pas de remplissage
+                    stroke: styles.stroke,
+                    strokeWidth: styles.strokeWidth,
+                    baseStrokeWidth: styles.baseStrokeWidth,
                     selectable: false, evented: false
                 }
             );
             break;
         case 'text':
-            // Le texte est géré différemment (au mouse:up)
+            // Le texte est géré différemment (au mouse:up / clic simple)
             isDrawing = false; // Pas de 'drag' pour le texte
             break;
         default:
@@ -168,11 +174,12 @@ export function continueDrawing(opt) {
     let pointer = fabricCanvas.getPointer(opt.e);
     
     // Magnétisme
-    if (getIsSnapEnabled()) {
-        const zoom = fabricCanvas.getZoom();
-        const vpt = fabricCanvas.viewportTransform;
-        pointer.x = snapToGrid(pointer.x, vpt[4], zoom);
-        pointer.y = snapToGrid(pointer.y, vpt[5], zoom);
+    // CORRECTION 1: Utiliser getSnapToGrid()
+    if (getSnapToGrid()) {
+        const snapSize = GRID_SIZE || 10;
+        // CORRECTION 2: Calculer le magnétisme manuellement
+        pointer.x = Math.round(pointer.x / snapSize) * snapSize;
+        pointer.y = Math.round(pointer.y / snapSize) * snapSize;
     }
     
     const width = pointer.x - startPoint.x;
@@ -180,20 +187,12 @@ export function continueDrawing(opt) {
 
     switch (currentTool) {
         case 'rect':
+            // Logique simplifiée pour dessiner depuis le point de départ
             currentObject.set({
+                left: width > 0 ? startPoint.x : pointer.x,
+                top: height > 0 ? startPoint.y : pointer.y,
                 width: Math.abs(width),
-                height: Math.abs(height),
-                originX: width < 0 ? 'right' : 'left',
-                originY: height < 0 ? 'top' : 'left' // Erreur ici, devrait être 'bottom' ?
-            });
-            // Correction origine
-            currentObject.set({
-                left: width < 0 ? pointer.x : startPoint.x,
-                top: height < 0 ? pointer.y : startPoint.y,
-                width: Math.abs(width),
-                height: Math.abs(height),
-                originX: 'left',
-                originY: 'top'
+                height: Math.abs(height)
             });
             break;
         case 'circle':
@@ -216,8 +215,9 @@ export function continueDrawing(opt) {
 
 /**
  * Termine le dessin lors d'un 'mouse:up'.
- * @param {object} opt - L'objet événement de Fabric.
+ * @param {object} opt - L'objet événement de Fabric (peut être null si appelé par Escape).
  * @param {boolean} [cancel=false] - True si le dessin est annulé (ex: Escape).
+ * @returns {fabric.Object|null} L'objet créé (ou null si annulé).
  */
 export function stopDrawing(opt, cancel = false) {
     if (cancel) {
@@ -228,55 +228,71 @@ export function stopDrawing(opt, cancel = false) {
         currentObject = null;
         startPoint = null;
         fabricCanvas.renderAll();
-        return;
+        return null;
     }
 
-    // Cas spécial du Texte Libre (créé au clic)
-    if (currentTool === 'text' && !isDrawing && startPoint) {
+    const styles = getCurrentDrawingStyles();
+    
+    // Cas spécial du Texte Libre (créé au clic simple, pas au drag)
+    if (currentTool === 'text' && !isDrawing && startPoint && opt) {
         const zoom = fabricCanvas.getZoom();
-        const strokeWidth = baseStrokeWidth / zoom;
         
         const text = new fabric.IText('Texte', {
             left: startPoint.x,
             top: startPoint.y,
             originX: 'left', originY: 'top',
-            fontSize: 20 / zoom, // Adapter au zoom
+            fontSize: 20, // Taille de base
             fontFamily: 'Arial',
-            fill: currentStrokeColor, // Utiliser la couleur de contour pour le texte
+            fill: styles.stroke, // Utiliser la couleur de contour pour le texte
             stroke: '#FFFFFF',
-            strokeWidth: 0.2 / zoom,
+            strokeWidth: 0.5, // Contour de base
             paintFirst: 'stroke',
+            baseStrokeWidth: 0.5,
             selectable: true, evented: true,
-            justCreated: true // Flag pour sauvegarde auto
+            customData: { justCreated: true }
         });
         
         fabricCanvas.add(text);
         fabricCanvas.setActiveObject(text);
         text.enterEditing(); // Entrer en mode édition
         
-        currentObject = text; // Pour la sauvegarde
+        // Réinitialiser les points
+        isDrawing = false;
+        startPoint = null;
+        fabricCanvas.renderAll();
+        return text; // Retourne l'objet créé
     }
     
-    if (currentObject) {
-        currentObject.setCoords();
-        currentObject.set({ 
+    // Cas des formes (rect, circle, line)
+    const finalObject = currentObject;
+    if (finalObject) {
+        // Ne pas sélectionner si le dessin est minuscule (clic simple)
+        if ((finalObject.width < 5 && finalObject.height < 5) || (finalObject.type === 'circle' && finalObject.radius < 3) || (finalObject.type === 'line' && finalObject.width === 0 && finalObject.height === 0)) {
+             fabricCanvas.remove(finalObject);
+             console.log("Dessin annulé (taille trop petite)");
+             isDrawing = false;
+             currentObject = null;
+             startPoint = null;
+             return null;
+        }
+
+        finalObject.setCoords();
+        finalObject.set({ 
             selectable: true, 
             evented: true,
-            justCreated: true // Flag pour sauvegarde auto dans main.js
+            customData: { justCreated: true }
         });
         
         // Sélectionner le nouvel objet
-        fabricCanvas.setActiveObject(currentObject);
+        fabricCanvas.setActiveObject(finalObject);
     }
     
     isDrawing = false;
     currentObject = null;
     startPoint = null;
     
-    // Ne pas repasser en mode 'select' automatiquement
-    // setActiveTool('select'); 
-    
     fabricCanvas.renderAll();
+    return finalObject; // Retourne l'objet créé
 }
 
 // --- Fonctions de Manipulation ---
@@ -293,6 +309,7 @@ export function deleteSelectedDrawingShape() {
     const objectsToDelete = [];
     if (activeObj.type === 'activeSelection') {
         activeObj.getObjects().forEach(obj => {
+            // Ne supprime pas les SVG natifs, ni les tags géo
             if (!obj.isSvgShape && !obj.customData?.isGeoTag && !obj.customData?.isPlacedText) {
                 objectsToDelete.push(obj);
             }
@@ -311,12 +328,13 @@ export function deleteSelectedDrawingShape() {
             fabricCanvas.remove(obj);
         });
         
+        // Si c'était une sélection multiple, la désactiver
         if (activeObj.type === 'activeSelection') {
              fabricCanvas.discardActiveObject();
         }
         fabricCanvas.renderAll();
-        // Déclencher la sauvegarde (gérée par main.js)
-        document.getElementById('save-drawing-btn')?.click(); // Simule clic sauvegarde
+        // Déclencher la sauvegarde auto (gérée par main.js via 'object:modified' ou 'object:removed' si on l'ajoute)
+        // Pour l'instant, on peut simuler un 'click' sur le bouton de sauvegarde si besoin
     }
 }
 
@@ -332,7 +350,8 @@ export function groupSelectedObjects() {
          return;
     }
     
-    activeObj.toGroup();
+    const group = activeObj.toGroup();
+    group.customData = { isDrawingGroup: true }; // Marqueur pour dégrouper
     fabricCanvas.requestRenderAll();
 }
 
@@ -390,12 +409,16 @@ export function pasteShape() {
     clipboard.clone(clonedObj => {
         fabricCanvas.discardActiveObject(); // Désélectionner
         
-        // Décaler légèrement pour voir le nouvel objet
+        // Positionner au centre du viewport actuel
+        const center = fabricCanvas.getVpCenter();
+
         clonedObj.set({
-            left: clonedObj.left + 20,
-            top: clonedObj.top + 20,
+            left: center.x,
+            top: center.y,
+            originX: 'center',
+            originY: 'center',
             evented: true,
-            justCreated: true // Pour sauvegarde
+            customData: { ...(clonedObj.customData || {}), justCreated: true }
         });
         
         if (clonedObj.type === 'activeSelection') {
@@ -410,9 +433,10 @@ export function pasteShape() {
             fabricCanvas.add(clonedObj);
         }
         
-        clipboard.set({ // Préparer le prochain collage
-             left: clonedObj.left,
-             top: clonedObj.top
+        // Mettre à jour la position du clipboard pour le prochain collage (évite de coller au même endroit)
+        clipboard.set({
+             left: clonedObj.left + 20,
+             top: clonedObj.top + 20
         });
         
         fabricCanvas.setActiveObject(clonedObj);
