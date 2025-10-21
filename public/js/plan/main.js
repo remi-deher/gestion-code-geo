@@ -133,16 +133,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 7. Remplir le sélecteur d'univers dans la modale "Ajouter Code"
         // (Utilise les univers SPÉCIFIQUES au plan)
-        populateUniversSelectInModal(planUnivers);
+	const universSelectEl = document.getElementById('new-univers-id');
+        	if (universSelectEl) {
+            populateUniversSelectInModal(universSelectEl, planUnivers);
+        }
 
-        // 8. Attacher l'événement au bouton "Sauvegarder" de la modale "Ajouter Code"
-        document.getElementById('saveNewGeoCodeBtn')?.addEventListener('click', async () => {
-            const success = await handleSaveNewCodeInModal(currentPlanId);
-            if (success) {
-                // Recharger les listes dans la sidebar
+	// 8. Attacher l'événement au bouton "Sauvegarder" de la modale "Ajouter Code"
+        // --- CORRECTION: Envoyer les bons éléments DOM et la fonction API ---
+        const saveBtn = document.getElementById('save-new-code-btn');
+        const addForm = document.getElementById('add-code-form');
+        const addModalEl = document.getElementById('add-code-modal');
+        const addModalInstance = addModalEl ? new bootstrap.Modal(addModalEl) : null;
+
+        if (saveBtn && addForm && addModalInstance) {
+            saveBtn.addEventListener('click', async () => {
+                // Appeler avec les 3 arguments attendus par sidebar.js
+                // (On passe la fonction saveNewGeoCode que nous avons copiée dans sidebar.js)
+                await handleSaveNewCodeInModal(addForm, saveBtn, saveNewGeoCode);
+                
+                // Si succès (géré dans handleSaveNewCodeInModal), fermer la modale et recharger
+                addModalInstance.hide();
                 await fetchAndClassifyCodes();
-            }
-        });
+            });
+        }
 
 
     } catch (error) {

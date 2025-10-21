@@ -385,9 +385,20 @@ class PlanController extends BaseController {
         try {
             // Renvoie les codes des univers liés au plan, QUI N'ONT PAS DEJA de position sur ce plan
             $availableCodes = $this->geoCodeManager->getAvailableCodesForPlan($planId);
+	// --- AJOUT TEMPORAIRE POUR NETTOYER LE BUFFER ---
+        if (ob_get_level() > 0) { // Vérifie s'il y a un buffer actif
+           ob_clean(); // Supprime tout contenu du buffer
+        }
             echo json_encode(['success' => true, 'codes' => $availableCodes]);
         } catch (Exception $e) {
             http_response_code(500);
+	error_log('apiGetAvailableCodes ERREUR: ' . $e->getMessage()); // Log l'erreur
+
+        // --- AJOUT DIAGNOSTIC ---
+         if (ob_get_level() > 0) {
+            ob_clean();
+         }
+         // --- FIN AJOUT ---
             echo json_encode(['success' => false, 'error' => 'Erreur serveur: ' . $e->getMessage()]);
         }
         exit();

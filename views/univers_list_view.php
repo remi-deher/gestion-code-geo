@@ -1,5 +1,4 @@
 <?php $title = 'Gérer les Univers'; ?>
-
 <?php ob_start(); ?>
 <style>
     .color-picker-wrapper {

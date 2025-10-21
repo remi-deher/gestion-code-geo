@@ -1,5 +1,4 @@
 <?php $title = 'Options d\'Impression des Étiquettes PDF'; ?>
-
 <?php ob_start(); ?>
 <script src="js/pdf-label-generator.js" defer></script>
 <?php $body_scripts = ob_get_clean(); ?>

@@ -1,5 +1,4 @@
 <?php $title = 'Consultation du Plan : ' . htmlspecialchars($plan['nom']); ?>
-
 <?php ob_start(); ?>
 <script>
     // Données pour le script de visualisation

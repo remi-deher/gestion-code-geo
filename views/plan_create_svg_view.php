@@ -1,5 +1,4 @@
 <?php $title = 'Créer un Plan SVG'; ?>
-
 <?php ob_start(); ?>
 <style>
     /* Styles spécifiques pour la page de création SVG (inchangés) */

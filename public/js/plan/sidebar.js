@@ -394,3 +394,69 @@ export function updatePlacedCodesList(allFabricGeoElements) {
 export function clearSidebarSelection() {
     // console.log("(DEPRECATED) clearSidebarSelection");
 }
+
+/**
+ * Récupère les codes non placés pour un plan spécifique (par univers).
+ * @param {number} planId - ID du plan
+ * @returns {Promise<Array>} Liste des codes géo disponibles
+ */
+async function fetchAvailableCodes(planId) {
+    // URL basée sur PlanController.php
+    const url = `index.php?action=getAvailableCodesForPlan&plan_id=${planId}`; 
+    try {
+        const response = await fetch(url, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Erreur API');
+        }
+        return data.codes || [];
+    } catch (error) {
+        console.error('Erreur API (fetchAvailableCodes):', error);
+        showToast(`Erreur chargement codes disponibles: ${error.message}`, 'error');
+        return []; // Retourner un tableau vide en cas d'échec
+    }
+}
+
+/**
+ * Crée un nouveau Géo Code via l'API (utilisé par la modale).
+ * @param {object} codeData - Données du code (code_geo, libelle, univers_id, etc.)
+ * @returns {Promise<object>} Le code géo créé
+ */
+async function saveNewGeoCode(codeData) {
+    // URL basée sur GeoCodeController.php
+    const url = 'index.php?action=addGeoCodeFromPlan'; 
+    const options = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(codeData)
+    };
+
+    try {
+        const response = await fetch(url, options);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            // Gérer les erreurs de validation
+            if (data.errors) {
+                const errorMsg = Object.values(data.errors).join(', ');
+                throw new Error(errorMsg);
+            }
+            throw new Error(data.error || 'Erreur lors de la création du code');
+        }
+
+        console.log("Nouveau code créé:", data.code);
+        return data.code; // Renvoie les données du code créé
+
+    } catch (error) {
+        console.error('Erreur API (saveNewGeoCode):', error);
+        throw error; // Propage l'erreur
+    }
+}

@@ -1,5 +1,4 @@
 <?php $title = 'Modifier le Plan'; ?>
-
 <?php ob_start(); ?>
 <style>
     .univers-checkbox-list {

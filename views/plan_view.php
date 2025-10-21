@@ -1,5 +1,4 @@
 <?php $title = 'Édition du Plan : ' . htmlspecialchars($plan['nom']); ?>
-
 <?php ob_start(); ?>
 <link rel="stylesheet" href="public/css/plan_print.css" media="print">
 <style>

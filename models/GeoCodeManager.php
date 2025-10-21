@@ -305,30 +305,80 @@ class GeoCodeManager {
      * @param int $planId L'ID du plan concerné.
      * @return array Liste des codes géo disponibles.
      */
-    public function getAvailableCodesForPlan(int $planId): array {
-        $stmtUniv = $this->db->prepare("SELECT univers_id FROM plan_univers WHERE plan_id = :plan_id");
-        $stmtUniv->bindParam(':plan_id', $planId, PDO::PARAM_INT);
-        $stmtUniv->execute();
-        $universIds = $stmtUniv->fetchAll(PDO::FETCH_COLUMN, 0);
-        $universIds = array_map('intval', $universIds);
-        if (empty($universIds)) { return []; }
 
-        $placeholders = implode(',', array_fill(0, count($universIds), '?'));
-        $sql = "SELECT gc.id, gc.code_geo, gc.libelle, gc.commentaire, gc.zone,
-                       gc.univers_id, u.nom as univers
-                FROM geo_codes gc
-                JOIN univers u ON gc.univers_id = u.id
-                WHERE gc.univers_id IN ($placeholders)
-                  AND NOT EXISTS (
-                      SELECT 1 FROM geo_positions gp
-                      WHERE gp.geo_code_id = gc.id AND gp.plan_id = ?
-                  )
-                ORDER BY gc.code_geo ASC";
-        $stmt = $this->db->prepare($sql);
-        $params = array_merge($universIds, [$planId]);
-        $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+public function getAvailableCodesForPlan(int $planId): array
+{
+    // die("DEBUG: Entered getAvailableCodesForPlan with planId: " . $planId); // <-- DEBUG 1
+
+    // 1. Récupérer les IDs des univers associés à ce plan
+    $planUniversSql = "SELECT univers_id FROM plan_univers WHERE plan_id = :plan_id";
+    $stmtUnivers = $this->db->prepare($planUniversSql);
+    $stmtUnivers->execute(['plan_id' => $planId]);
+    $universRows = $stmtUnivers->fetchAll(PDO::FETCH_ASSOC);
+    $universIds = array_column($universRows, 'univers_id');
+
+    if (empty($universIds)) {
+        return []; // Aucun univers lié, donc aucun code dispo
     }
+    // var_dump($universIds); // <-- DEBUG 2
+    // die("DEBUG: Univers IDs found.");
+
+    // 2. Préparer les placeholders pour la clause IN des univers
+    $inUnivers = str_repeat('?,', count($universIds) - 1) . '?';
+
+    // 3. Construire la requête SQL principale
+    $sql = "SELECT gc.id, gc.code_geo, gc.libelle, gc.commentaire, gc.zone,
+                   gc.univers_id, u.nom as univers_nom, u.color as univers_color
+            FROM geo_codes gc
+            JOIN univers u ON gc.univers_id = u.id
+            WHERE gc.deleted_at IS NULL
+              AND gc.univers_id IN ($inUnivers)
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM geo_positions gp
+                  WHERE gp.geo_code_id = gc.id
+                    AND gp.plan_id = ?
+              )
+            ORDER BY gc.code_geo ASC";
+
+    // 4. Préparer les paramètres pour l'exécution
+    $params = array_merge($universIds, [$planId]);
+
+    // --- DEBUGGING START ---
+    // echo "DEBUG: SQL Query: " . $sql;
+    // echo "DEBUG: Params: "; print_r($params);
+    // die(" --- Débogage avant prepare/execute --- ");
+    // --- DEBUGGING END ---
+
+
+    try {
+        $stmt = $this->db->prepare($sql);
+
+         // --- DEBUGGING ---
+         // die("DEBUG: Statement prepared."); 
+         // --- /DEBUGGING ---
+
+        $stmt->execute($params);
+
+        // --- DEBUGGING ---
+         // die("DEBUG: Statement executed.");
+        // --- /DEBUGGING ---
+
+    } catch (PDOException $e) {
+        // Log l'erreur réelle côté serveur
+        error_log("PDO Error in getAvailableCodesForPlan: " . $e->getMessage()); 
+        // Renvoyer une erreur JSON claire au client
+        // Note: On ne peut pas faire echo json_encode ici car le contrôleur le fait déjà.
+        // Il faudrait propager l'exception ou retourner un code d'erreur.
+        // Pour le débogage, on peut faire un die() ici :
+         die("ERREUR PDO: " . $e->getMessage()); 
+        // En production, il faudrait throw $e; et laisser le contrôleur gérer.
+    }
+
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // die("DEBUG: Fetched results."); // <-- DEBUG FINAL
+    return $results ?: [];
+}
 
     /**
      * Vérifie si un code géo existe déjà.
