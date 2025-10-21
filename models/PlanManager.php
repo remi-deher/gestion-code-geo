@@ -524,23 +524,26 @@ class PlanManager {
 
     // --- Historique ---
 
-    /**
+     /**
      * Ajoute une entrée à l'historique des actions.
      */
     private function addToHistory(int $geoCodeId, int $planId, float $posX, float $posY, string $action) {
+        // La variable $action n'est plus utilisée mais on peut la garder si on veut l'ajouter plus tard
         try {
-            // Correction nom table historique
-            $sql = "INSERT INTO geo_positions_history (geo_code_id, plan_id, pos_x, pos_y, timestamp)
-                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y, :action, NOW())";
+            // Correction nom table ET suppression colonnes 'action' et 'timestamp'
+            $sql = "INSERT INTO geo_positions_history (geo_code_id, plan_id, pos_x, pos_y)
+                    VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y)";
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':geo_code_id', $geoCodeId, PDO::PARAM_INT);
             $stmt->bindParam(':plan_id', $planId, PDO::PARAM_INT);
-            $stmt->bindParam(':pos_x', $posX);
-            $stmt->bindParam(':pos_y', $posY);
+            $stmt->bindParam(':pos_x', $posX); // PDO gère float
+            $stmt->bindParam(':pos_y', $posY); // PDO gère float
+            // Pas de bindParam pour :action ou timestamp
             $stmt->execute();
         } catch (PDOException $e) {
-            error_log("Erreur addToHistory: " . $e->getMessage());
-            // Ne pas stocker $this->lastError ici pour ne pas écraser une erreur potentielle de savePosition
+            // Logguer l'erreur mais ne pas interrompre l'opération principale
+            error_log("Erreur addToHistory: " . $e->getMessage() . " | SQL: " . $sql);
+            // $this->lastError = $this->db->errorInfo(); // Optionnel: stocker l'erreur si besoin ailleurs
         }
     }
 
