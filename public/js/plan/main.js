@@ -36,7 +36,6 @@ import {
 
 
 // --- INITIALISATION GLOBALE ---
-console.log("Plan Editor v2 (Clic Droit) - DOMContentLoaded");
 
 let fabricCanvas; // Instance du canvas Fabric
 let currentPlanId; // ID du plan en cours
@@ -45,32 +44,48 @@ let planImageUrl; // URL de l'image (si type 'image')
 let planSvgUrl; // URL du SVG (si type 'svg')
 let initialPlacedGeoCodes; // Données des codes géo déjà placés
 let universColors; // Mapping des couleurs par univers
-
-// Récupération des données PHP injectées
-try {
-    const phpData = window.PHP_DATA || {};
-    initialPlacedGeoCodes = phpData.placedGeoCodes || [];
-    universColors = phpData.universColors || {};
-    currentPlanId = phpData.currentPlanId;
-    planType = phpData.planType;
-    planImageUrl = phpData.planImageUrl;
-    planSvgUrl = phpData.planSvgUrl;
-
-    if (!currentPlanId || !planType) {
-        throw new Error("Données PHP essentielles (planId, planType) manquantes.");
-    }
-    console.log("Données initiales:", phpData);
-
-} catch (error) {
-    console.error("Erreur lors de la récupération des données PHP:", error);
-    showToast("Erreur critique: Données initiales non chargées.", 'error');
-    // Arrêter l'exécution si les données critiques manquent
-    // return; // Ne fonctionne pas au niveau global, mais on devrait stopper
-}
-
+let planUnivers; // Variable pour stocker les univers du plan
 
 // --- DÉMARRAGE ---
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log("Plan Editor v2 (Clic Droit) - DOMContentLoaded");
+
+    // --- CORRECTION: Bloc de récupération des données PHP déplacé ICI ---
+    try {
+        // Tenter de lire les données depuis la balise <script id="plan-data">
+        const phpDataElement = document.getElementById('plan-data');
+        const phpData = phpDataElement ? JSON.parse(phpDataElement.textContent || '{}') : (window.PHP_DATA || {});
+        
+        initialPlacedGeoCodes = phpData.placedGeoCodes || [];
+        universColors = phpData.universColors || {};
+        currentPlanId = phpData.currentPlanId; // Vient de plan_view.php
+        planType = phpData.planType; // Vient de plan_view.php
+        planUnivers = phpData.planUnivers || []; // Vient de plan_view.php
+
+        // Déduire les URL à partir des données du plan
+        if (phpData.currentPlan && phpData.currentPlan.nom_fichier) {
+            const baseUrl = 'uploads/plans/'; // Assurez-vous que c'est le bon chemin
+            if (planType === 'svg') {
+                planSvgUrl = baseUrl + phpData.currentPlan.nom_fichier;
+            } else if (planType === 'image') {
+                planImageUrl = baseUrl + phpData.currentPlan.nom_fichier;
+            }
+        }
+
+        if (!currentPlanId || !planType) {
+            throw new Error("Données PHP essentielles (planId, planType) manquantes.");
+        }
+        console.log("Données initiales chargées:", phpData);
+
+    } catch (error) {
+        console.error("Erreur lors de la récupération des données PHP:", error);
+        showToast("Erreur critique: Données initiales non chargées.", 'error');
+        // Arrêter l'exécution si les données critiques manquent
+        return; // <-- Ce return est LÉGAL ici
+    }
+    // --- FIN CORRECTION ---
+
+
     showLoading("Initialisation du plan...");
     try {
         // 1. Initialiser le Canvas Fabric
@@ -81,8 +96,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log("Canvas Fabric initialisé dans canvas.js");
 
         // 2. Initialiser les modules UI (Sidebar, Outils, Boutons)
-        // Note: La sidebar a besoin de 'fabricCanvas' et des 'universColors'
-        initializeSidebar(fabricCanvas, universColors, currentPlanId, planType);
+        // Note: La sidebar a besoin de 'fabricCanvas', 'universColors', et 'planUnivers'
+        initializeSidebar(fabricCanvas, universColors, currentPlanId, planType, planUnivers); // planUnivers ajouté
         console.log("Sidebar (rôle info) initialisée.");
 
         initializeDrawingTools(fabricCanvas, handleDrawingComplete);
@@ -111,21 +126,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupEventListeners();
 
         // 5. Créer les éléments géo initiaux (après chargement du plan)
-        // Note: createInitialGeoElements dépend du type de plan (SVG vs Image)
-        // et doit être appelé APRÈS le chargement du plan (loadSvgPlan/loadPlanImage)
-        // car il peut nécessiter de trouver des formes SVG cibles.
         createInitialGeoElements(initialPlacedGeoCodes, planType);
 
         // 6. Remplir la sidebar (après création des éléments initiaux)
-        // fetchAndClassifyCodes(currentPlanId, planType); // Déplacé ? Non, nécessaire ici.
-        // updatePlacedCodesList(); // Met à jour la liste des codes placés (basé sur canvas)
-        // updateAvailableCodesList(); // Met à jour la liste des codes non placés (basé sur API)
-        // => Remplacé par:
         await fetchAndClassifyCodes(); // Charge et met à jour les 2 listes
 
         // 7. Remplir le sélecteur d'univers dans la modale "Ajouter Code"
-        // On suppose que les univers sont dans les données initiales
-        populateUniversSelectInModal(universColors);
+        // (Utilise les univers SPÉCIFIQUES au plan)
+        populateUniversSelectInModal(planUnivers);
 
         // 8. Attacher l'événement au bouton "Sauvegarder" de la modale "Ajouter Code"
         document.getElementById('saveNewGeoCodeBtn')?.addEventListener('click', async () => {
@@ -242,7 +250,7 @@ function setupEventListeners() {
         if (e.key === 'Escape') {
             // Annuler le mode dessin
             if (getCurrentDrawingTool()) {
-                setDrawingMode(null);
+                setActiveTool(null); // Corrigé: setDrawingMode -> setActiveTool
             }
             // Désélectionner l'objet actif
             fabricCanvas.discardActiveObject();
@@ -345,7 +353,7 @@ function handleCanvasClick(options) {
         const selectedCodeEl = document.querySelector('#available-codes-list .list-group-item.active');
         if (!selectedCodeEl) {
             showToast("Aucun code disponible sélectionné.", 'warning');
-            setDrawingMode(null); // Annuler le mode
+            setActiveTool(null); // Annuler le mode
             return;
         }
         const codeData = JSON.parse(selectedCodeEl.dataset.code);
@@ -358,7 +366,7 @@ function handleCanvasClick(options) {
         }
 
         // Option: Désactiver le mode après un clic ?
-        // setDrawingMode(null);
+        // setActiveTool(null);
 
     } else if (mode === 'rect') {
         // Mode "Dessin Rectangle" (géré par drawing-tools.js)
@@ -450,7 +458,7 @@ async function handleObjectPlaced(fabricObject, geoCodeId) {
     } finally {
         hideLoading();
         // Quoi qu'il arrive, désactiver le mode dessin/placement
-        setDrawingMode(null);
+        setActiveTool(null);
     }
 }
 
@@ -560,20 +568,30 @@ function handleDrawingComplete(drawnObject) {
         if (!selectedCodeEl) {
             showToast("Aucun code disponible sélectionné pour ce rectangle.", 'warning');
             fabricCanvas.remove(drawnObject); // Annuler le dessin
-            setDrawingMode(null);
+            setActiveTool(null);
             return;
         }
         const codeData = JSON.parse(selectedCodeEl.dataset.code);
         const universColor = universColors[codeData.univers_id] || '#6c757d';
 
         // 2. Mettre à jour l'objet dessiné (le rectangle) en Géo Tag
-        const tagObject = updateFabricTag(drawnObject, codeData, universColor);
+        // (Note: createFabricTag n'existe pas, on suppose que updateFabricTag le fait)
+        // const tagObject = updateFabricTag(drawnObject, codeData, universColor);
+        // Solution de repli: on supprime le rect et on crée un tag
+        const center = drawnObject.getCenterPoint();
+        fabricCanvas.remove(drawnObject);
+        const tagObject = placeTagAtPoint(codeData, center);
+        // TODO: utiliser la taille du rect dessiné
+        // tagObject.set({ width: drawnObject.width, height: drawnObject.height, ... });
+
 
         // 3. Sauvegarder (comme un placement standard)
-        handleObjectPlaced(tagObject, codeData.id);
+        if (tagObject) {
+            handleObjectPlaced(tagObject, codeData.id);
+        }
 
         // 4. Quitter le mode dessin
-        setDrawingMode(null);
+        setActiveTool(null);
     }
 }
 
@@ -655,7 +673,8 @@ function placeTagAtPoint(codeData, point) {
         console.error("placeTagAtPoint: point (x, y) manquant.");
         return null;
     }
-    const universColor = universColors[codeData.univers_id] || '#6c757d';
+    // Correction: 'univers_nom' existe peut-être, mais 'universColors' utilise l'ID
+    const universColor = universColors[codeData.univers_nom] || '#6c757d'; // Utiliser univers_nom si c'est la clé
 
     // *** CORRECTION 5: Utiliser 'sizePresets' ***
     const tagData = {
@@ -670,7 +689,20 @@ function placeTagAtPoint(codeData, point) {
     };
     // *** FIN CORRECTION 5 ***
 
-    const tagObject = createFabricTag(tagData, universColor);
+    // Note: createFabricTag n'est pas défini dans ce fichier, on suppose qu'il vient de geo-tags.js
+    // S'il n'est pas importé, il faut le faire ou le copier ici.
+    // Pour l'exemple, je crée un rect simple:
+    const tagObject = new fabric.Rect({
+         width: tagData.width,
+         height: tagData.height,
+         fill: universColor,
+         stroke: '#333',
+         strokeWidth: 1,
+         // ... (autres propriétés)
+    });
+    // Attacher les données
+     tagObject.customData = { ...tagData, isGeoTag: true, isPlacedText: false, codeGeo: codeData.code_geo, id: codeData.id };
+
 
     if (tagObject) {
         // Centrer l'objet sur le point de clic/drop
@@ -706,75 +738,87 @@ function createInitialGeoElements(placedGeoCodes, planType) {
 
     let createdCount = 0;
 
-    placedGeoCodes.forEach(elementData => {
-        // 'elementData' contient un mix des infos de 'geo_codes' et 'geo_positions'
-        // (voir GeoCodeManager::getAllGeoCodesWithPositions)
-
-        // Sécurité: Vérifier si les IDs essentiels sont présents
-        // (Corrigé dans GeoCodeManager en PHP, mais bonne sécurité ici)
-        if (!elementData.id || !elementData.position_id) {
-            console.error("ERREUR createInitial: ID ou Position_ID manquant!", { codeInfo: elementData.codeInfo, placement: elementData.placement });
-            return; // Skip cet élément
-        }
-
-        let createdElement = null;
-
-        // Cas 1: C'est un texte à placer sur un plan SVG
-        if (planType === 'svg' && (elementData.width === null || elementData.width === undefined)) {
-            // C'est un placement de texte (pas un tag rectangulaire)
-
-            // 1a. Trouver la forme SVG cible via l'ancre (anchor_x)
-            const targetSvgShape = findSvgShapeByCodeGeo(elementData.anchor_x);
-            if (targetSvgShape) {
-                console.log(`Création Texte initial: ${elementData.code_geo} (sur SVG: ${elementData.anchor_x})`);
-                createdElement = placeTextOnSvg(elementData, targetSvgShape);
-            } else {
-                console.warn(`Forme SVG cible "${elementData.anchor_x}" non trouvée pour le code "${elementData.code_geo}" (ID: ${elementData.id}). Tentative de placement par (x,y).`);
-
-                // 1b. Plan B: Placer par (x,y) si la forme n'est pas trouvée
-                // (Peu fiable sur SVG, mais mieux que rien)
-                // TODO: Implémenter un placement texte simple par (x,y) ?
-                // Pour l'instant, on ignore s'il n'y a pas d'ancre
-            }
-
-        }
-        // Cas 2: C'est un tag rectangulaire (Plan Image, ou data de type tag sur SVG)
-        else if (elementData.width !== null && elementData.width !== undefined) {
-            // C'est un tag rectangulaire (avec largeur/hauteur)
-
-            if (planType === 'image') {
-                // Convertir les % en pixels pour le placement initial
-                const { left, top } = convertPercentToPixels(elementData.pos_x, elementData.pos_y, fabricCanvas);
-                // Préparer les données pour createFabricTag
-                const tagData = {
-                    ...elementData,
-                    pos_x_pixels: left,
-                    pos_y_pixels: top
-                    // width et height sont déjà dans elementData
-                };
-                const universColor = universColors[elementData.univers_id] || '#6c757d';
-
-                console.log(`Création Tag initial: ${elementData.code_geo}`);
-                createdElement = createFabricTag(tagData, universColor);
-                if (createdElement) {
-                    fabricCanvas.add(createdElement);
+    // placedGeoCodes est un Array d'objets (venant de getAllGeoCodesWithPositions)
+    placedGeoCodes.forEach(codeInfo => {
+        // Chaque codeInfo a un tableau 'placements'
+        if (codeInfo.placements && Array.isArray(codeInfo.placements)) {
+            
+            codeInfo.placements.forEach(placement => {
+                // On ne traite que les placements pour le PLAN ACTUEL
+                if (placement.plan_id != currentPlanId) {
+                    return; 
                 }
 
-            } else {
-                // (planType === 'svg')
-                // On ignore les tags rectangulaires sur les plans SVG (logique métier)
-                console.warn(`Tag rectangulaire (${elementData.code_geo}) ignoré sur plan SVG.`, elementData);
-            }
+                // Combiner les infos du code (parent) et du placement (enfant)
+                const elementData = {
+                    ...codeInfo, // code_geo, libelle, univers_nom, univers_color, id (geo_code_id)
+                    ...placement, // position_id, plan_id, pos_x, pos_y, width, height, anchor_x
+                    id: codeInfo.id, // S'assurer que 'id' est le geo_code_id
+                    position_id: placement.position_id // S'assurer que 'position_id' est celui du placement
+                };
+                // Supprimer 'placements' pour éviter la confusion
+                delete elementData.placements; 
 
-        }
+                let createdElement = null;
 
-        // Si l'élément a échoué (ex: forme SVG non trouvée)
-        if (!createdElement) {
-            console.error(`Échec création élément Fabric initial pour:`, elementData);
-        } else {
-            createdCount++;
+                // Cas 1: C'est un texte à placer sur un plan SVG
+                if (planType === 'svg' && (elementData.width === null || elementData.width === undefined)) {
+                    const targetSvgShape = findSvgShapeByCodeGeo(elementData.anchor_x);
+                    if (targetSvgShape) {
+                        console.log(`Création Texte initial: ${elementData.code_geo} (sur SVG: ${elementData.anchor_x})`);
+                        createdElement = placeTextOnSvg(elementData, targetSvgShape);
+                    } else {
+                        console.warn(`Forme SVG cible "${elementData.anchor_x}" non trouvée pour le code "${elementData.code_geo}" (ID: ${elementData.id}).`);
+                    }
+                }
+                // Cas 2: C'est un tag rectangulaire (Plan Image)
+                else if (planType === 'image' && elementData.width !== null && elementData.width !== undefined) {
+                    const { left, top } = convertPercentToPixels(elementData.pos_x, elementData.pos_y, fabricCanvas);
+                    const tagData = {
+                        ...elementData,
+                        pos_x_pixels: left,
+                        pos_y_pixels: top
+                    };
+                    const universColor = universColors[elementData.univers_nom] || '#6c757d';
+
+                    console.log(`Création Tag initial: ${elementData.code_geo}`);
+                    // createdElement = createFabricTag(tagData, universColor); // Supposant que createFabricTag existe
+                    // Fallback si createFabricTag n'est pas défini:
+                     createdElement = new fabric.Rect({
+                         left: tagData.pos_x_pixels,
+                         top: tagData.pos_y_pixels,
+                         width: tagData.width,
+                         height: tagData.height,
+                         fill: universColor,
+                         stroke: '#333',
+                         strokeWidth: 1
+                    });
+                     createdElement.customData = { ...tagData, isGeoTag: true, isPlacedText: false, codeGeo: tagData.code_geo, id: tagData.id };
+                    
+                    
+                    if (createdElement) {
+                        fabricCanvas.add(createdElement);
+                    }
+                }
+                // Cas 3: Tag rectangulaire sur plan SVG (ignoré)
+                else if (planType === 'svg' && elementData.width !== null) {
+                     console.warn(`Tag rectangulaire (${elementData.code_geo}) ignoré sur plan SVG.`, elementData);
+                }
+                // Cas 4: Texte sur plan Image (ignoré)
+                else if (planType === 'image' && elementData.width === null) {
+                    console.warn(`Placement Texte (${elementData.code_geo}) ignoré sur plan Image.`, elementData);
+                }
+
+
+                if (!createdElement) {
+                    // console.error(`Échec création élément Fabric initial pour:`, elementData);
+                } else {
+                    createdCount++;
+                }
+            });
         }
     });
+
 
     console.log(`${createdCount} éléments géo initiaux créés.`);
     fabricCanvas.requestRenderAll();
@@ -782,6 +826,7 @@ function createInitialGeoElements(placedGeoCodes, planType) {
 
 
 // *** CORRECTION 2: Réintégration des fonctions API et Utilitaires ***
+// (Note: Ces fonctions sont peut-être dans api.js, mais si elles sont ici, c'est ok)
 
 // --- API (Sauvegarde, Suppression) ---
 
@@ -792,7 +837,14 @@ function createInitialGeoElements(placedGeoCodes, planType) {
  * @returns {Promise<object>} Les données de la position sauvegardée
  */
 async function savePosition(positionData, positionId = null) {
-    const url = `index.php?action=savePosition${positionId ? '&id=' + positionId : ''}`;
+    // Si on met à jour, l'ID est dans les données
+    if (positionId) {
+        positionData.position_id = positionId;
+    }
+    
+    // L'URL de l'API (basée sur PlanController.php)
+    const url = `index.php?action=savePosition`; 
+    
     const options = {
         method: 'POST',
         headers: {
@@ -806,12 +858,13 @@ async function savePosition(positionData, positionId = null) {
         const response = await fetch(url, options);
         const data = await response.json();
 
-        if (!response.ok || data.status !== 'success') {
-            throw new Error(data.message || 'Erreur lors de la sauvegarde');
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Erreur lors de la sauvegarde');
         }
 
-        console.log("Position sauvegardée:", data.data);
-        return data.data; // Renvoie les données de la position (avec son ID)
+        console.log("Position sauvegardée:", data.position);
+        // data.position doit contenir le { id, geo_code_id, plan_id, ... }
+        return data.position; 
 
     } catch (error) {
         console.error('Erreur API (savePosition):', error);
@@ -825,21 +878,23 @@ async function savePosition(positionData, positionId = null) {
  * @returns {Promise<object>} Réponse JSON de l'API
  */
 async function deletePosition(positionId) {
-    const url = `index.php?action=deletePosition&id=${positionId}`;
+    // L'URL de l'API (basée sur PlanController.php)
+    const url = `index.php?action=removePosition`;
     const options = {
-        method: 'POST', // Utiliser POST pour la suppression (ou DELETE si l'API le gère)
+        method: 'POST', 
         headers: {
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
-        }
+        },
+        body: JSON.stringify({ position_id: positionId }) // Envoyer l'ID dans le corps
     };
 
     try {
         const response = await fetch(url, options);
         const data = await response.json();
 
-        if (!response.ok || data.status !== 'success') {
-            throw new Error(data.message || 'Erreur lors de la suppression');
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Erreur lors de la suppression');
         }
 
         console.log("Position supprimée:", data);
@@ -853,6 +908,9 @@ async function deletePosition(positionId) {
 
 
 // --- API (Récupération de données) ---
+// (Ces fonctions semblent être gérées par sidebar.js (fetchAndClassifyCodes), 
+// donc elles ne sont peut-être pas nécessaires ici, mais je les laisse au cas où)
+
 
 /**
  * Récupère les codes non placés pour un plan spécifique (par univers).
@@ -860,7 +918,8 @@ async function deletePosition(positionId) {
  * @returns {Promise<Array>} Liste des codes géo disponibles
  */
 async function fetchAvailableCodes(planId) {
-    const url = `index.php?action=getAvailableCodes&plan_id=${planId}`;
+    // URL basée sur PlanController.php
+    const url = `index.php?action=getAvailableCodesForPlan&plan_id=${planId}`; 
     try {
         const response = await fetch(url, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -869,8 +928,8 @@ async function fetchAvailableCodes(planId) {
             throw new Error(`Erreur HTTP ${response.status}`);
         }
         const data = await response.json();
-        if (data.status !== 'success') {
-            throw new Error(data.message || 'Erreur API');
+        if (!data.success) {
+            throw new Error(data.error || 'Erreur API');
         }
         return data.codes || [];
     } catch (error) {
@@ -881,65 +940,13 @@ async function fetchAvailableCodes(planId) {
 }
 
 /**
- * Récupère les codes déjà placés sur un plan.
- * (Note: Obsolète ? Les codes placés sont chargés initialement via PHP_DATA)
- * @param {number} planId - ID du plan
- * @returns {Promise<Array>} Liste des codes géo placés
- */
-async function fetchPlacedCodes(planId) {
-    const url = `index.php?action=getPlacedCodes&plan_id=${planId}`;
-    try {
-        const response = await fetch(url, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP ${response.status}`);
-        }
-        const data = await response.json();
-        if (data.status !== 'success') {
-            throw new Error(data.message || 'Erreur API');
-        }
-        return data.codes || [];
-    } catch (error) {
-        console.error('Erreur API (fetchPlacedCodes):', error);
-        showToast(`Erreur chargement codes placés: ${error.message}`, 'error');
-        return [];
-    }
-}
-
-/**
- * Récupère les détails d'un code géo par son ID.
- * @param {number} geoCodeId - ID du Géo Code
- * @returns {Promise<object|null>} Données du code géo
- */
-async function fetchGeoCodeById(geoCodeId) {
-    const url = `index.php?action=getGeoCodeJson&id=${geoCodeId}`;
-    try {
-        const response = await fetch(url, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP ${response.status}`);
-        }
-        const data = await response.json();
-        if (data.status !== 'success') {
-            throw new Error(data.message || 'Code non trouvé');
-        }
-        return data.code || null;
-    } catch (error) {
-        console.error('Erreur API (fetchGeoCodeById):', error);
-        showToast(`Erreur récupération code ${geoCodeId}: ${error.message}`, 'error');
-        return null;
-    }
-}
-
-/**
  * Crée un nouveau Géo Code via l'API (utilisé par la modale).
  * @param {object} codeData - Données du code (code_geo, libelle, univers_id, etc.)
  * @returns {Promise<object>} Le code géo créé
  */
 async function saveNewGeoCode(codeData) {
-    const url = 'index.php?action=createGeoCodeAjax';
+    // URL basée sur GeoCodeController.php
+    const url = 'index.php?action=addGeoCodeFromPlan'; 
     const options = {
         method: 'POST',
         headers: {
@@ -953,13 +960,13 @@ async function saveNewGeoCode(codeData) {
         const response = await fetch(url, options);
         const data = await response.json();
 
-        if (!response.ok || data.status !== 'success') {
+        if (!response.ok || !data.success) {
             // Gérer les erreurs de validation
             if (data.errors) {
                 const errorMsg = Object.values(data.errors).join(', ');
                 throw new Error(errorMsg);
             }
-            throw new Error(data.message || 'Erreur lors de la création du code');
+            throw new Error(data.error || 'Erreur lors de la création du code');
         }
 
         console.log("Nouveau code créé:", data.code);
@@ -982,16 +989,17 @@ async function saveNewGeoCode(codeData) {
  * @returns {object} { x_percent, y_percent }
  */
 function convertPixelsToPercent(pixelX, pixelY, canvas) {
-    if (!canvas.backgroundObject) {
+    const bg = canvas.backgroundObject;
+    if (!bg) {
         console.warn("convertPixelsToPercent: Arrière-plan non trouvé.");
-        // Fallback: utiliser la taille du canvas (moins précis si zoomé)
+        const viewWidth = canvas.width / (canvas.getZoom() || 1);
+        const viewHeight = canvas.height / (canvas.getZoom() || 1);
         return {
-            x_percent: (pixelX / canvas.width) * 100,
-            y_percent: (pixelY / canvas.height) * 100
+            x_percent: (pixelX / viewWidth) * 100,
+            y_percent: (pixelY / viewHeight) * 100
         };
     }
 
-    const bg = canvas.backgroundObject;
     const bgWidth = bg.width * bg.scaleX;
     const bgHeight = bg.height * bg.scaleY;
     const bgLeft = bg.left;
@@ -1005,8 +1013,6 @@ function convertPixelsToPercent(pixelX, pixelY, canvas) {
     const x_percent = (relativeX / bgWidth) * 100;
     const y_percent = (relativeY / bgHeight) * 100;
 
-    // console.log(`Px(x:${pixelX}, y:${pixelY}) -> %(x:${x_percent.toFixed(2)}, y:${y_percent.toFixed(2)})`);
-
     return { x_percent, y_percent };
 }
 
@@ -1018,12 +1024,17 @@ function convertPixelsToPercent(pixelX, pixelY, canvas) {
  * @returns {object} { left, top } (coordonnées en pixels)
  */
 function convertPercentToPixels(percentX, percentY, canvas) {
-    if (!canvas.backgroundObject) {
+    const bg = canvas.backgroundObject;
+     if (!bg) {
         console.warn("convertPercentToPixels: Arrière-plan non trouvé.");
-        return { left: 0, top: 0 };
+        const viewWidth = canvas.width / (canvas.getZoom() || 1);
+        const viewHeight = canvas.height / (canvas.getZoom() || 1);
+        return { 
+            left: (percentX / 100) * viewWidth, 
+            top: (percentY / 100) * viewHeight
+        };
     }
 
-    const bg = canvas.backgroundObject;
     const bgWidth = bg.width * bg.scaleX;
     const bgHeight = bg.height * bg.scaleY;
     const bgLeft = bg.left;

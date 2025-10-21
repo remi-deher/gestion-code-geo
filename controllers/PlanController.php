@@ -123,7 +123,7 @@ class PlanController extends BaseController {
         }
 
         // 3. Déterminer le type de plan pour le JS
-        $planType = 'image'; // Par défaut
+        $planType = null; // Par défaut
         if (str_ends_with(strtolower($plan['nom_fichier']), '.svg')) {
             $planType = 'svg';
         }
