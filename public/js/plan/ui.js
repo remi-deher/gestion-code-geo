@@ -13,7 +13,7 @@ export function initializeUI() {
 
     if (toggleSidebarBtn && planPageContainer) {
         toggleSidebarBtn.addEventListener('click', () => {
-            planPageContainer.classList.toggle('sidebar-collapsed');
+            planPageContainer.classList.toggle('sidebar-hidden');
             
             // Mettre à jour l'icône du bouton
             const icon = toggleSidebarBtn.querySelector('i');
