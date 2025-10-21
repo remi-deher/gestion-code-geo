@@ -425,12 +425,14 @@ class PlanController extends BaseController {
                 (int)$input['plan_id'],
                 (float)$input['pos_x'],
                 (float)$input['pos_y'],
-                // Gérer les 'null' explicitement si la clé n'existe pas ou est null
-                isset($input['width']) ? (int)$input['width'] : null,
-                isset($input['height']) ? (int)$input['height'] : null,
-                isset($input['anchor_x']) ? (float)$input['anchor_x'] : null,
-                isset($input['anchor_y']) ? (float)$input['anchor_y'] : null,
-                isset($input['position_id']) ? (int)$input['position_id'] : null
+		// Convertit en INT si non vide, sinon NULL
+                !empty($input['width']) ? (int)$input['width'] : null,
+                !empty($input['height']) ? (int)$input['height'] : null,
+                // Convertit en FLOAT si non vide, sinon NULL
+                !empty($input['anchor_x']) ? (float)$input['anchor_x'] : null,
+                !empty($input['anchor_y']) ? (float)$input['anchor_y'] : null,
+                // Convertit en INT si non vide, sinon NULL
+                !empty($input['position_id']) ? (int)$input['position_id'] : null
             );
 
             if ($savedData) {

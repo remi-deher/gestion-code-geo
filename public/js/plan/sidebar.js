@@ -81,6 +81,10 @@ function addEventListeners() {
     // Clic sur un élément PLACÉ pour le localiser
     if (placedListEl) placedListEl.addEventListener('click', handlePlacedCodeClick);
 
+    // *** AJOUT DE LA LIGNE MANQUANTE ***
+    // Clic sur un élément DISPONIBLE pour activer le placement
+    if (dispoListEl) dispoListEl.addEventListener('click', handleAvailableCodeClick);
+    
     // Note: les listeners pour la modale "Ajouter" sont dans main.js
 }
 
@@ -99,7 +103,7 @@ export async function fetchAndClassifyCodes() {
         // 1. Récupérer tous les codes DISPONIBLES (non placés sur ce plan) via l'API
         // Note: L'API (fetchAvailableCodes) est supposée ne renvoyer que les codes non encore placés
         // sur *ce* planId.
-        allAvailableCodes = await fetchAvailableCodes(currentPlanId); 
+        allAvailableCodes = await fetchAvailableCodes(currentPlanId); // Utilise la fonction locale
         console.log("Codes disponibles (API):", allAvailableCodes.length);
 
         // 2. Récupérer les codes PLACÉS depuis les données initiales de la page
@@ -180,10 +184,17 @@ function renderCodeList(listElement, codesData, isPlacedList) {
         listItem.dataset.id = code.id;
         listItem.dataset.codeGeo = codeGeo;
         listItem.dataset.search = `${codeGeo} ${libelle} ${univers}`.toLowerCase();
+
+        // *** CORRECTION: Stocker TOUTES les données du code dispo pour le placement ***
+        if (!isPlacedList) {
+            listItem.dataset.codeData = JSON.stringify(code);
+        }
         
         // Pour les placés, stocker les IDs de position pour la localisation
         if (isPlacedList && code.position_ids) {
              listItem.dataset.positionIds = JSON.stringify(code.position_ids);
+             // Stocker un ID simple pour la surbrillance (facilite la recherche depuis main.js)
+             if(code.position_ids.length > 0) listItem.dataset.positionId = code.position_ids[0];
         }
 
         const universColor = universColors[univers] || '#adb5bd';
@@ -207,11 +218,36 @@ function renderCodeList(listElement, codesData, isPlacedList) {
     if (searchInput) filterLists(searchInput.value);
 }
 
+// *** AJOUT DE LA FONCTION MANQUANTE ***
+/**
+ * Gère le clic sur un code DISPONIBLE pour activer le mode placement.
+ * @param {Event} event - L'événement de clic.
+ */
+export function handleAvailableCodeClick(event) {
+    event.preventDefault();
+    const targetItem = event.target.closest('.dispo-item');
+
+    if (!targetItem) return;
+    
+    // Gérer l'état 'active'
+    document.querySelectorAll('#dispo-list .list-group-item.active').forEach(el => el.classList.remove('active'));
+    targetItem.classList.add('active');
+
+    const codeGeo = targetItem.dataset.codeGeo;
+    console.log("Clic sur code dispo:", codeGeo);
+
+    // Mettre à jour l'outil actif via drawing-tools.js
+    setActiveTool('tag'); // 'tag' signale le mode placement à main.js
+    showToast(`Mode Placement activé pour "${codeGeo}". Cliquez sur le plan.`, 'info');
+}
+// *** FIN DE L'AJOUT ***
+
+
 /**
  * Gère le clic sur un code PLACÉ pour le localiser sur le canvas.
  * @param {Event} event - L'événement de clic.
  */
-function handlePlacedCodeClick(event) {
+export function handlePlacedCodeClick(event) {
     event.preventDefault();
     const targetItem = event.target.closest('.placed-item');
     // Clic doit être sur l'icône de localisation
@@ -304,7 +340,7 @@ function renderLegend() {
         const legendItem = document.createElement('div');
         legendItem.className = 'legend-item d-flex align-items-center mb-1';
         legendItem.innerHTML = `
-            <span class="legend-color-box me-2" style="background-color: ${color};"></span>
+            <span class="legend-color-box me-2" style="background-color: ${color}; width: 15px; height: 15px; display: inline-block; border: 1px solid #ccc;"></span>
             <span class="legend-text small">${univers.nom}</span>
         `;
         legendContainer.appendChild(legendItem);
@@ -394,6 +430,8 @@ export function updatePlacedCodesList(allFabricGeoElements) {
 export function clearSidebarSelection() {
     // console.log("(DEPRECATED) clearSidebarSelection");
 }
+
+// --- FONCTIONS API LOCALES (PRÉSERVÉES) ---
 
 /**
  * Récupère les codes non placés pour un plan spécifique (par univers).
