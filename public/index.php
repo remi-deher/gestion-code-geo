@@ -99,7 +99,7 @@ switch ($action) {
     case 'createBlankPlan': $planController->createBlankPlanAction(); break;
     case 'createSvgPlan': $planController->createSvgPlanAction(); break;
     case 'saveDrawing': $planController->saveDrawingAction(); break;
-    case 'updateSvgPlan': $planController->updateSvgPlanAction(); break;
+    case 'updateSvgPlan': $planController->apiUpdateSvgPlanAction(); break;
 
     // Plans (Historique - AJAX)
     case 'getHistory': $planController->getHistoryAction(); break;

@@ -203,7 +203,7 @@ export async function createSvgPlan(planName, svgString, universIds) {
  * @returns {Promise<object>} Réponse de l'API.
  */
 export async function updateSvgPlan(planId, svgString) {
-     const data = await apiFetch('index.php?action=apiUpdateSvgPlan', {
+     const data = await apiFetch('index.php?action=updateSvgPlan', {
         method: 'POST',
         body: {
             plan_id: planId,
