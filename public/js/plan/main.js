@@ -296,79 +296,73 @@ function handleObjectDeselected() {
  * @param {Object} clickPoint Point (x,y) du clic initial (pour fallback si objet n'a pas de centre).
  */
 async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint) {
-    if (!fabricObject || !geoCodeId || !currentPlanId) {
-        console.error("handleObjectPlaced: Données manquantes", { fabricObject, geoCodeId, currentPlanId });
-        showToast("Erreur sauvegarde: Données initiales manquantes.", "danger");
-        return;
-    }
-
-    const isText = fabricObject.customData?.isPlacedText;
-    const { pos_x, pos_y, anchor_x, anchor_y, width, height } = getPositionDataFromObject(fabricObject, clickPoint);
+    console.log("--- handleObjectPlaced (Placement) ---"); // LOG: main.js:322
+    const {
+        pos_x, pos_y, anchor_x, anchor_y, width, height
+    } = getPositionDataFromObject(fabricObject, clickPoint);
 
     const positionData = {
-        id: geoCodeId,
+        id: geoCodeId, // ID du code Géo (table geo_codes)
         plan_id: currentPlanId,
+        code_geo: fabricObject.customData.code_geo, // Pour le message toast
+        position_id: null, // C'est une NOUVELLE position
         pos_x: pos_x,
         pos_y: pos_y,
         width: width,
         height: height,
-        anchor_x: isText ? anchor_x : null, // Ne sauvegarde l'ancre que pour le texte (SVG)
-        anchor_y: isText ? anchor_y : null,
-        // Pour un NOUVEAU placement, position_id doit être null pour forcer un INSERT.
-        position_id: null
+        anchor_x: anchor_x,
+        anchor_y: anchor_y
     };
 
-    // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
-    console.log("--- handleObjectPlaced (Placement) ---");
-    // LOG 1: Vérifier les données envoyées à l'API
-    console.log("LOG 1 - Envoi des données:", JSON.parse(JSON.stringify(positionData)));
-    // --- FIN LOGS ---
-
+    console.log("LOG 1 - Envoi des données:", positionData); // LOG: main.js:324
     showLoading('Sauvegarde position...');
     try {
-        // APPEL API
-        const savedPosition = await savePosition(positionData); // `savePosition` est importé de api.js
+        const savedPosition = await savePosition(positionData); // Appel API
+        console.log("LOG 2 - Réponse de savePosition (api.js):", savedPosition); // LOG: main.js:334
 
-        // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
-        // LOG 2: Vérifier la réponse BRUTE de l'API
-        console.log("LOG 2 - Réponse de savePosition (api.js):", savedPosition);
-        // --- FIN LOGS ---
+        // Vérifier si la réponse est valide
+        if (savedPosition && typeof savedPosition.id !== 'undefined' && savedPosition.id !== null) {
+            console.log("LOG 3 - ID de position reçu:", savedPosition.id); // LOG: main.js:342
 
-        // CRUCIAL: Mettre à jour le customData de l'objet Fabric avec l'ID de la BDD
-        if (savedPosition && savedPosition.id) {
-            
-            // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
-            // LOG 3: Confirmer que l'ID a été trouvé et va être assigné
-            console.log("LOG 3 - ID de position reçu:", savedPosition.id);
-            // --- FIN LOGS ---
-
-            fabricObject.customData.position_id = savedPosition.id;
-            // Mettre à jour aussi pos_x/pos_y au cas où
+            // =================================================================
+            //
+            // >>>>>>>>>>  CORRECTION CRUCIALE CI-DESSOUS  <<<<<<<<<<
+            // C'est cette ligne qui stocke l'ID de la BDD dans l'objet
+            // sur le canvas. Si elle manque, l'objet n'a pas
+            // d'ID, et un déplacement créera un doublon.
+            //
+            fabricObject.customData.position_id = parseInt(savedPosition.id, 10);
+            //
+            // Mettre à jour aussi les autres données au cas où (arrondi serveur)
             fabricObject.customData.pos_x = savedPosition.pos_x;
             fabricObject.customData.pos_y = savedPosition.pos_y;
+            fabricObject.customData.width = savedPosition.width;
+            fabricObject.customData.height = savedPosition.height;
+            fabricObject.customData.anchor_x = savedPosition.anchor_x;
+            fabricObject.customData.anchor_y = savedPosition.anchor_y;
+            //
+            // Le log de vérification que nous cherchions :
+            console.log("LOG 6 - customData APRÈS placement et mise à jour:", JSON.parse(JSON.stringify(fabricObject.customData)));
+            //
+            // =================================================================
+
+            showToast(`Position ${positionData.code_geo || ''} sauvegardée.`, 'success');
+            await fetchAndClassifyCodes(); // Rafraîchit les listes (déclenche les logs sidebar)
 
         } else {
-            // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
-            // LOG 4: L'API a répondu mais n'a pas renvoyé un ID valide
-            console.error("LOG 4 - ÉCHEC: La sauvegarde n'a pas retourné d'ID valide.", savedPosition);
-            // --- FIN LOGS ---
+            // L'API n'a pas renvoyé d'ID valide
+            console.error("LOG 4 - ÉCHEC: La sauvegarde n'a pas retourné d'ID de position valide.", savedPosition);
+            fabricCanvas.remove(fabricObject); // Supprimer l'objet du canvas !
+            throw new Error("Impossible d'obtenir l'ID de la position sauvegardée.");
         }
 
-        // --- CORRECTION TOAST: Utiliser 'code_geo' (snake_case) ---
-        showToast(`Code ${fabricObject.customData.code_geo} placé.`, 'success');
-
-        // Rafraîchir les listes de la sidebar
-        await fetchAndClassifyCodes();
-
     } catch (error) {
-        // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
-        // LOG 5: L'appel API a échoué (erreur réseau, 500, JSON invalide, etc.)
         console.error("LOG 5 - Erreur dans le CATCH de handleObjectPlaced:", error);
-        // --- FIN LOGS ---
-
         showToast(`Échec sauvegarde: ${error.message}`, 'danger');
-        // En cas d'échec, on supprime l'objet du canvas pour éviter les objets "fantômes" sans ID
-        fabricCanvas.remove(fabricObject);
+        // Assurer la suppression même si l'erreur vient d'ailleurs
+        if (fabricCanvas.contains(fabricObject)) {
+             fabricCanvas.remove(fabricObject);
+        }
     } finally {
         hideLoading();
     }
