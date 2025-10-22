@@ -314,14 +314,71 @@ function setupEventListeners() {
     if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => { zoomCanvas(0.8); });
     if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetZoom);
     if (lockBtn) lockBtn.addEventListener('click', () => { setCanvasLock(!getCanvasLock()); updateLockButtonState(); });
-    if (saveDrawingBtn) saveDrawingBtn.addEventListener('click', async () => { /* ... save plan ... */ });
-    if (saveNewSvgPlanBtn && newPlanNameInput) saveNewSvgPlanBtn.addEventListener('click', async () => { /* ... save new svg ... */ });
+if (saveDrawingBtn) {
+        saveDrawingBtn.addEventListener('click', async () => {
+            showLoading("Sauvegarde...");
+            try {
+                if (planType === 'image') {
+                    // Sauvegarde des annotations JSON pour un plan image
+                    // La fonction triggerAutoSaveDrawing avec forceSave=true fait le travail
+                    triggerAutoSaveDrawing(true);
+                    // On pourrait aussi appeler directement saveDrawingData si triggerAutoSaveDrawing n'existait pas
+                    // const drawingData = fabricCanvas.toJSON(['customData', 'selectable', 'evented', 'baseStrokeWidth']);
+                    // drawingData.objects = drawingData.objects.filter(obj => !obj.isGridLine && !(obj.customData?.isGeoTag || obj.customData?.isPlacedText));
+                    // await saveDrawingData(currentPlanId, drawingData.objects.length > 0 ? drawingData : null);
+                    // showToast("Annotations enregistrées.", "success");
 
+                } else if (planType === 'svg') {
+                    // Sauvegarde du SVG modifié (plan SVG existant)
+                    await saveModifiedSvgPlan(); // Cette fonction existe déjà dans main.js et appelle l'API
+                    showToast("Plan SVG mis à jour.", "success");
+                }
+            } catch (error) {
+                console.error("Erreur bouton sauvegarde:", error);
+                showToast(`Erreur sauvegarde: ${error.message}`, "danger");
+            } finally {
+                hideLoading();
+            }
+        });
+    }
+
+    if (saveNewSvgPlanBtn && newPlanNameInput) {
+        saveNewSvgPlanBtn.addEventListener('click', async () => {
+             const planName = newPlanNameInput.value.trim();
+             const universCheckboxes = document.querySelectorAll('#univers-selector-modal input[name="univers_ids[]"]:checked'); // Adapter si l'ID/nom est différent
+             const universIds = Array.from(universCheckboxes).map(cb => cb.value);
+
+             if (!planName) {
+                 showToast("Veuillez entrer un nom pour le nouveau plan.", "warning");
+                 newPlanNameInput.focus();
+                 return;
+             }
+             if (universIds.length === 0) {
+                 showToast("Veuillez sélectionner au moins un univers pour le nouveau plan.", "warning");
+                 // Ouvrir la modale ou indiquer où sélectionner les univers si nécessaire
+                 return;
+             }
+
+             showLoading("Création du plan SVG...");
+             try {
+                 const svgString = fabricCanvas.toSVG(['baseStrokeWidth'], obj => obj.isGridLine ? null : obj); // Exclut la grille
+                 const newPlan = await createSvgPlan(planName, svgString, universIds); // Appelle l'API
+                 showToast(`Plan "${planName}" créé ! Redirection...`, "success");
+                 window.location.href = `index.php?action=manageCodes&id=${newPlan.plan_id}`;
+             } catch (error) {
+                 console.error("Erreur création SVG:", error);
+                 showToast(`Erreur création SVG: ${error.message}`, "danger");
+             } finally {
+                 hideLoading();
+             }
+        });
+    }
     const toolBtns = document.querySelectorAll('#drawing-toolbar .tool-btn');
     toolBtns.forEach(btn => btn.addEventListener('click', () => {
         setActiveTool(btn.dataset.tool);
         updateDrawingToolButtons();
     }));
+
     const strokeColorPicker = document.getElementById('stroke-color-picker');
     const fillColorPicker = document.getElementById('fill-color-picker');
     const fillTransparentBtn = document.getElementById('fill-transparent-btn');
