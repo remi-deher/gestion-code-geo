@@ -329,7 +329,7 @@ async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint = null) {
         }
 
         fabricCanvas.requestRenderAll();
-        showToast(`Code "${fabricObject.customData.codeGeo}" placé.`, 'success');
+        showToast(`Code "${fabricObject.customData.code_geo}" placé.`, 'success');
         await fetchAndClassifyCodes(); // Met à jour les listes
 
     } catch (error) {
