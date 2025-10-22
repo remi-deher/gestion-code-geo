@@ -422,46 +422,75 @@ public function apiSavePositionAction() {
             exit;
         }
 
-        // 3. Préparer les données pour le Manager
-        // Note: $inputData['id'] est l'ID du GeoCode, pas l'ID de la position (qui est null ici car c'est une création)
-        $positionData = [
-            'geo_code_id' => intval($inputData['id']), // Renommer pour clarifier ?
-            'plan_id'     => intval($inputData['plan_id']),
-            'pos_x'       => floatval($inputData['pos_x']),
-            'pos_y'       => floatval($inputData['pos_y']),
-            'width'       => $inputData['width'] ?? null, // Peut être null
-            'height'      => $inputData['height'] ?? null, // Peut être null
-            'anchor_x'    => $inputData['anchor_x'] ?? null, // Peut être null (ID SVG ou %)
-            'anchor_y'    => $inputData['anchor_y'] ?? null  // Peut être null (%)
-        ];
+// --- MODIFICATIONS START ---
 
-        // 4. Tenter la sauvegarde via le Manager
-        try {
-            // Assurez-vous que votre Manager a une méthode pour ça
-            // et qu'elle retourne bien les données complètes (avec le nouvel ID)
-            $manager = new GeoCodeManager(); // Ou PlanManager
-            // Le 'null' indique que c'est une insertion (pas de position_id existant)
-            $savedPosition = $manager->savePosition($positionData, null);
+    // 3. Récupérer les données validées
+    $geoCodeId = intval($inputData['id']);
+    $planId = intval($inputData['plan_id']);
+    $posX = floatval($inputData['pos_x']);
+    $posY = floatval($inputData['pos_y']);
+    // Utiliser l'opérateur null coalescent ?? pour gérer les valeurs potentiellement absentes
+    $width = isset($inputData['width']) ? intval($inputData['width']) : null;
+    $height = isset($inputData['height']) ? intval($inputData['height']) : null;
+    // Pour anchor_x/y, vérifier si c'est null avant de convertir en float
+    $anchorX = isset($inputData['anchor_x']) ? floatval($inputData['anchor_x']) : null;
+    $anchorY = isset($inputData['anchor_y']) ? floatval($inputData['anchor_y']) : null;
+    // Récupérer position_id s'il existe (pour les mises à jour)
+    $positionId = isset($inputData['position_id']) ? intval($inputData['position_id']) : null;
 
-            if ($savedPosition && isset($savedPosition['id'])) {
-                // 5a. Répondre Succès avec les données
-                header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'position' => $savedPosition]);
-                exit; // <-- TRÈS IMPORTANT
-            } else {
-                // Si le manager retourne false ou des données invalides
-                throw new Exception("La sauvegarde de la position a échoué dans le Manager ou n'a pas retourné d'ID.");
-            }
+// Log pour vérifier les données reçues juste avant l'appel manager
+    error_log("apiSavePositionAction - Données reçues : " . print_r([
+        'geoCodeId' => $geoCodeId, 'planId' => $planId, 'posX' => $posX, 'posY' => $posY,
+        'width' => $width, 'height' => $height, 'anchorX' => $anchorX, 'anchorY' => $anchorY,
+        'positionId' => $positionId // Vérifier si cet ID est correct lors d'un déplacement
+    ], true));
 
-        } catch (Exception $e) {
-            // 5b. Répondre Erreur
+
+    // 4. Tenter la sauvegarde via le BON Manager et avec les BONS arguments
+    try {
+        // Utiliser l'instance de PlanManager créée dans le constructeur
+        $manager = $this->planManager;
+
+        // Appeler la méthode avec les arguments séparés
+        $savedPosition = $manager->savePosition(
+            $geoCodeId,
+            $planId,
+            $posX,
+            $posY,
+            $width,
+            $height,
+            $anchorX,
+            $anchorY,
+            $positionId // Sera null pour une insertion, ou l'ID pour une mise à jour
+        );
+
+        // Vérifier si la sauvegarde a réussi ET a retourné des données valides
+        if ($savedPosition && isset($savedPosition['id'])) {
+            // 5a. Répondre Succès avec les données (no change)
             header('Content-Type: application/json');
-            http_response_code(500); // Erreur serveur
-            error_log("Erreur apiSavePosition: " . $e->getMessage()); // Log l'erreur
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            echo json_encode(['success' => true, 'position' => $savedPosition]);
             exit; // <-- TRÈS IMPORTANT
+        } else {
+            // Si le manager retourne false ou des données invalides
+            $lastDbError = $manager->getLastError(); // Essayer de récupérer l'erreur BDD
+            $errorMsg = "La sauvegarde de la position a échoué dans le Manager.";
+            if ($lastDbError) {
+                $errorMsg .= " Erreur BDD: " . ($lastDbError[2] ?? print_r($lastDbError, true));
+            }
+             error_log("apiSavePositionAction ERREUR: " . $errorMsg); // Log côté serveur
+            throw new Exception($errorMsg);
         }
+
+    } catch (Exception $e) {
+        // 5b. Répondre Erreur (no change)
+        header('Content-Type: application/json');
+        http_response_code(500); // Erreur serveur
+        error_log("Erreur apiSavePosition: " . $e->getMessage()); // Log l'erreur
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit; // <-- TRÈS IMPORTANT
     }
+    // --- MODIFICATIONS END ---
+}
 
     /**
      * API: Supprime une position spécifique (un tag/texte).

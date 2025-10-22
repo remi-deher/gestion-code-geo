@@ -91,7 +91,7 @@ switch ($action) {
 
     // Plans (Actions AJAX pour l'éditeur)
     case 'getAvailableCodesForPlan': $planController->apiGetAvailableCodesAction(); break;
-    case 'savePosition': $planController->apiSavePositionAction(); break;
+    case 'apiSavePosition': $planController->apiSavePositionAction(); break;
     case 'removePosition': $planController->removePositionAction(); break;
     case 'removeMultiplePositions': $planController->removeMultiplePositionsAction(); break;
 
