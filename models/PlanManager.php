@@ -590,4 +590,46 @@ class PlanManager {
         }
     }
 
+/**
+     * Récupère tous les codes qui ont été placés sur un plan spécifique.
+     * C'est la fonction appelée au chargement de la page de l'éditeur.
+     * @param int $planId L'ID du plan
+     * @return array La liste des codes placés avec leurs données de position
+     */
+    public function getPlacedCodesForPlan($planId) {
+        $sql = "SELECT 
+                    gc.id, 
+                    gc.code_geo, 
+                    gc.libelle, 
+                    gc.commentaire, 
+                    gc.zone, 
+                    gc.univers, 
+                    gp.plan_id, 
+                    gp.pos_x, 
+                    gp.pos_y, 
+                    gp.width, 
+                    gp.height, 
+                    gp.anchor_x, 
+                    gp.anchor_y,
+                    gp.drawing_data,
+                    gp.id AS position_id  -- <<< CORRECTION : AJOUTER CETTE LIGNE
+                FROM 
+                    geo_codes gc
+                JOIN 
+                    geo_positions gp ON gc.id = gp.geo_code_id
+                WHERE 
+                    gp.plan_id = ?
+                    AND gc.deleted_at IS NULL";
+        
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$planId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            // Gérer l'erreur, par exemple en la loggant
+            error_log("Erreur dans getPlacedCodesForPlan: " . $e->getMessage());
+            return []; // Retourner un tableau vide en cas d'erreur
+        }
+    }
+
 } // Fin de la classe PlanManager

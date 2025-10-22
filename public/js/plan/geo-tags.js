@@ -7,6 +7,7 @@
 import { getCanvasInstance } from './canvas.js';
 import { convertPixelsToPercent, convertPercentToPixels, showToast } from '../modules/utils.js';
 import { savePosition, removePosition, removeMultiplePositions } from '../modules/api.js';
+import { showLoading, hideLoading } from './ui.js';
 import { sizePresets, GEO_TAG_FONT_SIZE } from '../modules/config.js';
 import { fetchAndClassifyCodes } from './sidebar.js'; // Importer pour rafraîchir
 
@@ -357,8 +358,12 @@ export function hideToolbar() {
  * Supprime l'élément géo sélectionné (Tag OU Texte).
  * Appelée depuis main.js (raccourci clavier) ou la toolbar.
  */
+/**
+ * Gère la suppression de l'objet sélectionné (tag ou texte).
+ */
 export async function deleteSelectedGeoElement() {
-    const target = selectedFabricObject; // Use the stored object
+    // Utilise l'objet stocké globalement (défini par 'handleObjectSelected' dans main.js)
+    const target = selectedFabricObject; 
 
     if (!target || !(target.customData?.isGeoTag || target.customData?.isPlacedText)) {
         console.warn("deleteSelectedGeoElement: No valid geo element selected.");
@@ -366,26 +371,42 @@ export async function deleteSelectedGeoElement() {
     }
 
     const customData = target.customData;
-    // --- CORRECTION 1: Use code_geo ---
     const { position_id, id: geoCodeId, code_geo, plan_id } = customData;
     const isTag = customData.isGeoTag;
     const elementType = isTag ? "l'étiquette" : "le texte";
 
-    console.log("deleteSelectedGeoElement - Data for deletion:", { position_id, geoCodeId, plan_id }); // Keep this log
+    console.log("deleteSelectedGeoElement - Data for deletion:", { position_id, geoCodeId, plan_id, code_geo });
 
-    // --- CORRECTION 2: Use code_geo in the error check ---
-    if (!geoCodeId || !position_id || !plan_id) {
-        // Use code_geo here for the message
+    // !!! CORRECTION : 'deleteAllInstances' DOIT ÊTRE DÉCLARÉE ICI !!!
+    // Récupère l'état de la checkbox (assurez-vous que l'ID HTML est correct)
+    const deleteAllCheckbox = document.getElementById('delete-all-instances-checkbox');
+    const deleteAllInstances = deleteAllCheckbox ? deleteAllCheckbox.checked : false; // 'false' par défaut si introuvable
+
+    // Logique de vérification des ID
+    // Si on ne supprime PAS tout, on a besoin d'un position_id
+    // Si on supprime TOUT, on a juste besoin du geoCodeId et du plan_id
+    if (!geoCodeId || !plan_id || (!deleteAllInstances && !position_id)) {
         console.error(`ERROR: Cannot delete ${elementType} ${code_geo}. Missing ID data:`, customData);
-        // Use code_geo here for the toast
-        showToast(`Error deleting ${code_geo}.`, "danger");
+        showToast(`Erreur suppression ${code_geo}. Données ID manquantes.`, "danger");
         return;
     }
 
-    // ... (rest of the code for confirmation) ...
+    // Préparer le message de confirmation
+    let confirmMsg = `Voulez-vous vraiment supprimer ${elementType} "${code_geo}" ?`;
+    if (deleteAllInstances) {
+        // Essayer de récupérer le compte (s'il est stocké dans customData)
+        const count = customData.count || '?'; 
+        confirmMsg = `Voulez-vous vraiment supprimer TOUTES les ${count} instances de "${code_geo}" de ce plan ?`;
+    }
 
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    showLoading('Suppression...');
     try {
         let success;
+        // La variable 'deleteAllInstances' est maintenant définie et utilisable
         if (deleteAllInstances) {
             console.log(`Calling API removeMultiplePositions with geoCodeId=${geoCodeId}, planId=${plan_id}`);
             success = await removeMultiplePositions(geoCodeId, plan_id);
@@ -395,23 +416,35 @@ export async function deleteSelectedGeoElement() {
         }
 
         if (success) {
-            // ... (code to remove elements from canvas) ...
+            // Supprimer les objets du canvas
+            if (deleteAllInstances) {
+                // Trouver tous les objets avec le même geoCodeId
+                const objectsToRemove = fabricCanvas.getObjects().filter(obj =>
+                    (obj.customData?.isGeoTag || obj.customData?.isPlacedText) &&
+                    obj.customData.id === geoCodeId
+                );
+                objectsToRemove.forEach(obj => fabricCanvas.remove(obj));
+            } else {
+                // Supprimer juste la cible
+                fabricCanvas.remove(target);
+            }
+            fabricCanvas.requestRenderAll();
 
-            // --- CORRECTION 3: Use code_geo in success toast ---
-            showToast(`${elementType} "${code_geo}" deleted.`, "success");
+            showToast(`${elementType} "${code_geo}" supprimé(s).`, "success");
 
-            await fetchAndClassifyCodes(); // Refresh sidebar lists
+            await fetchAndClassifyCodes(); // Rafraîchir la sidebar
 
-            fabricCanvas.discardActiveObject().renderAll();
-            hideToolbar();
+            fabricCanvas.discardActiveObject(); // Force la désélection
+            hideToolbar(); // Cacher la toolbar après suppression
+
         } else {
-            // --- CORRECTION 4: Use code_geo in server failure toast ---
-            showToast(`Deletion of ${code_geo} failed on server.`, "warning");
+            showToast(`La suppression de ${code_geo} a échoué côté serveur.`, "warning");
         }
     } catch (error) {
         console.error(`API error deleting ${elementType}:`, error);
-        // --- CORRECTION 5: Use code_geo in API error toast ---
-        showToast(`Error deleting ${code_geo}: ${error.message}`, "danger");
+        showToast(`Erreur suppression ${code_geo}: ${error.message}`, "danger");
+    } finally {
+        hideLoading();
     }
 }
 
