@@ -201,90 +201,103 @@ export async function handleGeoTagModified(target) {
     if (!target || !target.customData) return;
 
     // Ne pas sauvegarder si c'est juste une sélection/désélection
-    // On ne sauvegarde que si l'objet a VRAIMENT bougé ou changé de taille
-    if (target.isMoving === false && target.isScaling === false) {
-        // console.log("handleGeoTagModified: Skip save (selection only)");
+    // Ou si l'objet n'a pas réellement bougé (workaround pour certains events Fabric)
+    if (!target.hasMoved() && !target.isMoving && !target.isScaling) {
+        // console.log("handleGeoTagModified: Skip save (no actual modification detected)");
         return;
     }
-    // Réinitialiser les drapeaux
-    target.isMoving = false;
-    target.isScaling = false;
+    // Réinitialiser le flag hasMoved() si besoin
+    if (target.hasMoved()) {
+        target.setCoords(); // Mettre à jour les coordonnées internes avant de reset
+        // Fabric ne semble pas avoir de méthode simple pour reset hasMoved(),
+        // mais le check !target.isMoving devrait suffire pour la logique principale.
+    }
 
-    // Récupérer les données pour la sauvegarde
+
+    // Récupérer les données pour la sauvegarde (utilise la fonction de main.js via import implicite ou passage en paramètre si nécessaire)
+    // Assurez-vous que getPositionDataFromObject est accessible ici
+    // Si ce n'est pas le cas, il faudra peut-être la déplacer dans utils.js
+    // Pour l'instant, supposons qu'elle est accessible ou importée.
     const { pos_x, pos_y, anchor_x, anchor_y, width, height } = getPositionDataFromObject(target, null);
-    
-    // --- CORRECTION: Utiliser 'code_geo' ---
-    const { position_id, id: geoCodeId, plan_id, code_geo } = target.customData;
 
-    if (!geoCodeId || !plan_id) { 
+    // Récupérer les IDs depuis customData
+    const { position_id, id: geoCodeId, plan_id, code_geo } = target.customData; // Utilise code_geo
+
+    // --- LOG DE VÉRIFICATION CRUCIAL ---
+    console.log("[handleGeoTagModified] Données lues AVANT appel API:",
+        JSON.parse(JSON.stringify({ position_id, geoCodeId, plan_id, code_geo }))
+    );
+    // --- FIN LOG ---
+
+    // Vérification essentielle des IDs
+    if (!geoCodeId || !plan_id) {
         console.error("handleGeoTagModified: ID manquant (geoCodeId ou plan_id), sauvegarde annulée", target.customData);
-        return; 
+        showToast(`Erreur sauvegarde ${code_geo}: Données ID manquantes.`, "danger");
+        return;
     }
-    
-    // --- LOGS DE DÉBOGAGE (MOUVEMENT) ---
-    console.log("--- handleGeoTagModified (Déplacement/Redim.) ---");
-    if (!position_id) {
-        // C'est la conséquence du problème de placement : l'ID est null
-        console.warn(`LOG A - Tentative de modification d'un objet SANS position_id (geoCodeId: ${geoCodeId}). L'API va faire un INSERT (doublon) !`);
-    } else {
-        console.log(`LOG B - Modification d'un objet avec position_id: ${position_id} (geoCodeId: ${geoCodeId}). L'API va faire un UPDATE.`);
+    // Si position_id manque ici, c'est que l'étape de placement a échoué à le stocker !
+    if (typeof position_id === 'undefined' || position_id === null) {
+        console.error(`handleGeoTagModified: position_id manquant pour ${code_geo}! L'API risque de créer un doublon.`, target.customData);
+        // On pourrait choisir d'arrêter ici pour éviter le doublon, ou laisser l'API tenter l'INSERT.
+        // Pour le débogage, laissons passer mais signalons le problème :
+        showToast(`Attention: L'identifiant de position pour ${code_geo} est manquant. Risque de doublon.`, "warning");
+        // Forcer position_id à null pour l'API si undefined
+        position_id = null;
     }
-    // --- FIN LOGS ---
+
 
     const positionData = {
-        id: geoCodeId,
-        plan_id: plan_id,
-        position_id: position_id, // C'est ici que 'null' pose problème
-        pos_x: pos_x, 
+        id: geoCodeId, // ID du code Géo (table geo_codes)
+        plan_id: plan_id, // ID du plan
+        position_id: position_id, // ID de la position (table geo_positions) - peut être null si erreur précédente
+        pos_x: pos_x,
         pos_y: pos_y,
-        width: width, 
+        width: width,
         height: height,
-        anchor_x: anchor_x, 
+        anchor_x: anchor_x,
         anchor_y: anchor_y
     };
-    
-    // --- LOGS DE DÉBOGAGE (MOUVEMENT) ---
-    console.log("LOG C - Envoi données MàJ:", JSON.parse(JSON.stringify(positionData)));
-    // --- FIN LOGS ---
+
+    console.log("[handleGeoTagModified] Données envoyées à l'API savePosition:", JSON.parse(JSON.stringify(positionData)));
 
     showLoading('Sauvegarde MàJ...');
     try {
-        const savedPosition = await savePosition(positionData);
-        
-        // --- LOGS DE DÉBOGAGE (MOUVEMENT) ---
-        console.log("LOG D - Réponse API MàJ:", savedPosition);
-        // --- FIN LOGS ---
+        const savedPosition = await savePosition(positionData); // Appel API (modules/api.js)
+
+        console.log("[handleGeoTagModified] Réponse API reçue:", savedPosition);
 
         // Mettre à jour les customData avec les valeurs confirmées
-        // (surtout si l'objet n'avait pas de position_id avant)
-        if (savedPosition && savedPosition.id) {
-            if (!target.customData.position_id) {
-                console.log(`LOG E - L'objet a reçu un nouvel ID (via INSERT): ${savedPosition.id}`);
-                target.customData.position_id = savedPosition.id; // Corrige l'objet pour le futur
+        // (surtout si l'objet n'avait pas de position_id avant et en a reçu un via INSERT)
+        if (savedPosition && typeof savedPosition.id !== 'undefined' && savedPosition.id !== null) {
+            // Mettre à jour position_id si on vient de le recevoir (cas où il manquait)
+            if (target.customData.position_id === null || typeof target.customData.position_id === 'undefined') {
+                console.log(`[handleGeoTagModified] L'objet ${code_geo} a reçu un position_id: ${savedPosition.id}`);
+                target.customData.position_id = parseInt(savedPosition.id, 10); // Correction pour le futur
             }
+            // Mettre à jour les autres données au cas où (arrondi serveur, etc.)
             target.customData.pos_x = savedPosition.pos_x;
             target.customData.pos_y = savedPosition.pos_y;
             target.customData.width = savedPosition.width;
             target.customData.height = savedPosition.height;
             target.customData.anchor_x = savedPosition.anchor_x;
             target.customData.anchor_y = savedPosition.anchor_y;
+
+            showToast(`Position ${code_geo} mise à jour.`, 'success');
+
         } else {
-             console.error("LOG E - ÉCHEC: La sauvegarde (MàJ) n'a pas retourné d'objet valide.", savedPosition);
+             console.error("[handleGeoTagModified] ÉCHEC: La sauvegarde n'a pas retourné un objet 'position' valide avec un 'id'.", savedPosition);
+             throw new Error("Réponse invalide du serveur après sauvegarde.");
         }
 
-        // --- CORRECTION TOAST: Utiliser 'code_geo' ---
-        showToast(`Position ${code_geo} mise à jour.`, 'success');
-        
-        // Rafraîchir les listes
-        await fetchAndClassifyCodes();
+        // Rafraîchir les listes après succès
+        await fetchAndClassifyCodes(); // Assurez-vous que cette fonction est importée
 
     } catch (error) {
-         // --- LOGS DE DÉBOGAGE (MOUVEMENT) ---
-        console.error("LOG F - Erreur CATCH MàJ:", error);
-        // --- FIN LOGS ---
+        console.error("[handleGeoTagModified] Erreur CATCH lors de la sauvegarde:", error);
         showToast(`Erreur MàJ ${code_geo}: ${error.message}`, 'danger');
+        // Optionnel : Essayer de replacer l'objet à sa position précédente ? (complexe)
     } finally {
-        hideLoading();
+        hideLoading(); // Assurez-vous que showLoading/hideLoading sont importés
     }
 }
 

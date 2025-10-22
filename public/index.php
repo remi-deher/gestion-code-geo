@@ -92,8 +92,8 @@ switch ($action) {
     // Plans (Actions AJAX pour l'éditeur)
     case 'getAvailableCodesForPlan': $planController->apiGetAvailableCodesAction(); break;
     case 'apiSavePosition': $planController->apiSavePositionAction(); break;
-    case 'removePosition': $planController->removePositionAction(); break;
-    case 'removeMultiplePositions': $planController->removeMultiplePositionsAction(); break;
+    case 'apiRemovePosition': $planController->apiRemovePositionAction(); break;
+    case 'apiRemoveAllPositions': $planController->apiRemoveAllPositionsAction(); break;
 
     // Plans (NOUVELLES Actions Dessin AJAX / Pages)
     case 'createBlankPlan': $planController->createBlankPlanAction(); break;
