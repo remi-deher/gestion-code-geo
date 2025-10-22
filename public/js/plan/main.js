@@ -445,12 +445,42 @@ function triggerAutoSaveDrawing(forceSave = false) {
 /** Sauvegarde manuelle (pour plan SVG existant) */
 async function saveModifiedSvgPlan() {
     if (planType !== 'svg' || !currentPlanId) { throw new Error("Non applicable"); }
-    // Exporte TOUT le canvas (y compris dessins + SVG modifiés), sauf la grille
+
+    // Récupérer les dimensions originales si elles ont été stockées
+    const viewBox = window.originalSvgViewBox || null; // Utilise 'window' pour variable globale simple
+    const width = window.originalSvgWidth || null;
+    const height = window.originalSvgHeight || null;
+
+    // Si un format spécifique est choisi (et pas 'Original')
+    if (currentPageSizeFormat !== 'Original' && PAGE_SIZES[currentPageSizeFormat]) {
+        const selectedSize = PAGE_SIZES[currentPageSizeFormat];
+        viewBox = selectedSize.viewBox;
+        width = selectedSize.width;
+        height = selectedSize.height;
+        console.log(`Utilisation du format ${currentPageSizeFormat} pour la sauvegarde.`);
+    } else {
+        console.log("Utilisation des dimensions originales pour la sauvegarde.");
+    }
+
+    const options = {
+        suppressPreamble: true, // Pour un SVG plus propre
+        viewBox: viewBox,       // Tentative pour inclure le viewBox original
+        width: width,           // Tentative pour inclure width original
+        height: height          // Tentative pour inclure height original
+    };
+
+    // Exporte le canvas en SVG (sauf la grille), en passant les options
     const svgString = fabricCanvas.toSVG(
         ['customData', 'baseStrokeWidth'], // Propriétés à inclure
-        obj => obj.isGridLine ? null : obj // Fonction de filtrage (exclut grille)
+        obj => obj.isGridLine ? null : obj, // Fonction de filtrage
+        options // Ajout des options ici
     );
-    await updateSvgPlan(currentPlanId, svgString); // Appel API
+
+    console.log("SVG généré avec options:", options); // Débogage
+    console.log("SVG Début:", svgString.substring(0, 200)); // Débogage
+
+    // Appel API (inchangé)
+    await updateSvgPlan(currentPlanId, svgString);
 }
 
 // ===================================
@@ -988,6 +1018,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         // --- MISE EN PLACE DES ÉCOUTEURS ---
         // (Appelé APRÈS que les fonctions handlers soient définies)
         setupEventListeners();
+
+	const pageFormatSelect = document.getElementById('page-format-select');
+	if (pageFormatSelect) {
+    	pageFormatSelect.addEventListener('change', () => {
+        	currentPageSizeFormat = pageFormatSelect.value;
+        	console.log("Format de page sélectionné:", currentPageSizeFormat);
+        	// Optionnel : Redessiner des guides visuels sur le canvas ?
+         	drawPageGuides(currentPageSizeFormat);
+    	});
+}
 
         // --- Placement éléments initiaux & Chargement codes sidebar ---
         if (planType !== 'svg_creation') {

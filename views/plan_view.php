@@ -211,6 +211,14 @@
             </div>
         </div>
 
+<select id="page-format-select" class="form-select form-select-sm">
+  <option value="Original">Taille Originale</option>
+  <option value="A4_Portrait">A4 Portrait</option>
+  <option value="A4_Landscape">A4 Paysage</option>
+  <option value="A3_Portrait">A3 Portrait</option>
+  <option value="A3_Landscape">A3 Paysage</option>
+</select>
+
         <div id="tag-edit-toolbar" class="tag-toolbar no-print">
              <button id="toolbar-highlight" class="btn btn-sm btn-info" title="Surligner toutes les instances"><i class="bi bi-search"></i></button>
 
