@@ -408,44 +408,59 @@ class PlanController extends BaseController {
      * API: Sauvegarde (crée ou met à jour) une position d'élément géo.
      * Accepte width/height null pour les textes.
      */
-    public function apiSavePositionAction() {
-        header('Content-Type: application/json');
-        $input = json_decode(file_get_contents('php://input'), true);
-        
-        // Vérification des champs requis
-        if (!isset($input['id']) || !isset($input['plan_id']) || !isset($input['pos_x']) || !isset($input['pos_y'])) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Données invalides (id, plan_id, pos_x, pos_y requis)']);
-            exit();
+
+public function apiSavePositionAction() {
+        // 1. Lire les données JSON envoyées
+        $inputJSON = file_get_contents('php://input');
+        $inputData = json_decode($inputJSON, true); // Tableau associatif
+
+        // 2. Validation simple
+        if (empty($inputData) || empty($inputData['id']) || empty($inputData['plan_id']) || !isset($inputData['pos_x']) || !isset($inputData['pos_y'])) {
+            header('Content-Type: application/json');
+            http_response_code(400); // Mauvaise requête
+            echo json_encode(['success' => false, 'error' => 'Données de position invalides ou manquantes.']);
+            exit;
         }
 
+        // 3. Préparer les données pour le Manager
+        // Note: $inputData['id'] est l'ID du GeoCode, pas l'ID de la position (qui est null ici car c'est une création)
+        $positionData = [
+            'geo_code_id' => intval($inputData['id']), // Renommer pour clarifier ?
+            'plan_id'     => intval($inputData['plan_id']),
+            'pos_x'       => floatval($inputData['pos_x']),
+            'pos_y'       => floatval($inputData['pos_y']),
+            'width'       => $inputData['width'] ?? null, // Peut être null
+            'height'      => $inputData['height'] ?? null, // Peut être null
+            'anchor_x'    => $inputData['anchor_x'] ?? null, // Peut être null (ID SVG ou %)
+            'anchor_y'    => $inputData['anchor_y'] ?? null  // Peut être null (%)
+        ];
+
+        // 4. Tenter la sauvegarde via le Manager
         try {
-            $savedData = $this->planManager->savePosition(
-                (int)$input['id'],          // ID du code géo
-                (int)$input['plan_id'],
-                (float)$input['pos_x'],
-                (float)$input['pos_y'],
-		// Convertit en INT si non vide, sinon NULL
-                !empty($input['width']) ? (int)$input['width'] : null,
-                !empty($input['height']) ? (int)$input['height'] : null,
-                // Convertit en FLOAT si non vide, sinon NULL
-                !empty($input['anchor_x']) ? (float)$input['anchor_x'] : null,
-                !empty($input['anchor_y']) ? (float)$input['anchor_y'] : null,
-                // Convertit en INT si non vide, sinon NULL
-                !empty($input['position_id']) ? (int)$input['position_id'] : null
-            );
+            // Assurez-vous que votre Manager a une méthode pour ça
+            // et qu'elle retourne bien les données complètes (avec le nouvel ID)
+            $manager = new GeoCodeManager(); // Ou PlanManager
+            // Le 'null' indique que c'est une insertion (pas de position_id existant)
+            $savedPosition = $manager->savePosition($positionData, null);
 
-            if ($savedData) {
-                echo json_encode(['success' => true, 'position' => $savedData]);
+            if ($savedPosition && isset($savedPosition['id'])) {
+                // 5a. Répondre Succès avec les données
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'position' => $savedPosition]);
+                exit; // <-- TRÈS IMPORTANT
             } else {
-                throw new Exception('Erreur lors de la sauvegarde en base de données (savePosition a échoué).');
+                // Si le manager retourne false ou des données invalides
+                throw new Exception("La sauvegarde de la position a échoué dans le Manager ou n'a pas retourné d'ID.");
             }
+
         } catch (Exception $e) {
-            http_response_code(500);
-            error_log('apiSavePosition ERREUR: ' . $e->getMessage() . ' | Input: ' . print_r($input, true));
+            // 5b. Répondre Erreur
+            header('Content-Type: application/json');
+            http_response_code(500); // Erreur serveur
+            error_log("Erreur apiSavePosition: " . $e->getMessage()); // Log l'erreur
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit; // <-- TRÈS IMPORTANT
         }
-        exit();
     }
 
     /**

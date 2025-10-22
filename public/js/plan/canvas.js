@@ -213,7 +213,7 @@ export async function loadPlanImage(imageUrl) {
 
 /**
  * Ajuste le zoom et le pan pour afficher le plan entier.
- * Aligne en haut à gauche avec padding, au lieu de centrer.
+ * MODIFIÉ pour aligner en haut à gauche avec padding, au lieu de centrer.
  */
 export function resetZoom() {
     if (!fabricCanvas || !canvasContainer) return;
@@ -221,6 +221,7 @@ export function resetZoom() {
     const containerWidth = canvasContainer.clientWidth;
     const containerHeight = canvasContainer.clientHeight;
 
+    // --- CORRECTION : Ajout d'un padding pour l'alignement ---
     const padding = 20; // Espace (en pixels) entre le bord du canvas et le plan
 
     let planWidth = containerWidth;  // Fallback
@@ -258,11 +259,18 @@ export function resetZoom() {
     const scaleY = (containerHeight - padding * 2) / planHeight;
     const scale = Math.min(scaleX, scaleY);
 
-    // Calcul du Pan (vpt[4] et vpt[5]) pour aligner en haut à gauche avec padding
+    // --- CORRECTION : Calcul du Pan (vpt[4] et vpt[5]) ---
+    // On veut que le point (planOffsetX, planOffsetY) du plan
+    // se retrouve au point (padding, padding) de l'écran.
+    // L'équation est : (point_plan_X * scale) + panX = point_ecran_X
+    // Donc : (planOffsetX * scale) + vpt[4] = padding
+    // vpt[4] = padding - (planOffsetX * scale)
+
     const panX = padding - (planOffsetX * scale);
     const panY = padding - (planOffsetY * scale);
 
     fabricCanvas.setViewportTransform([scale, 0, 0, scale, panX, panY]);
+    // --- FIN CORRECTION ---
 
     console.log(`ResetZoom: Viewport ajusté. Scale: ${scale.toFixed(3)}, Pan: (${panX.toFixed(1)}, ${panY.toFixed(1)})`);
 
@@ -282,6 +290,7 @@ export function zoomCanvas(factor, point = null) {
     const currentZoom = fabricCanvas.getZoom();
     let newZoom = currentZoom * factor;
 
+    // Limites de zoom (optionnel)
     const minZoom = 0.05;
     const maxZoom = 20;
     if (newZoom < minZoom) newZoom = minZoom;
@@ -289,11 +298,13 @@ export function zoomCanvas(factor, point = null) {
 
     if (newZoom === currentZoom) return; // Pas de changement
 
+    // Si aucun point n'est spécifié, zoome sur le centre de la vue actuelle
     if (!point) {
         point = fabricCanvas.getVpCenter();
     }
 
     fabricCanvas.zoomToPoint(point, newZoom);
+    // Les événements viewport:transformed gèrent la mise à jour de la grille/traits
 }
 
 
@@ -338,12 +349,14 @@ export function toggleGridDisplay(show) {
 
 /** Active/Désactive le magnétisme à la grille. */
 export function toggleSnapToGrid(snap) {
+    // Si l'argument 'snap' est un événement, lire la valeur de la checkbox
     if (snap instanceof Event && snap.target) {
         snapToGrid = snap.target.checked;
-    } else if (typeof snap === 'boolean') {
+    } else if (typeof snap === 'boolean') { // Sinon, utiliser la valeur booléenne passée
         snapToGrid = snap;
     }
     console.log("Magnétisme grille:", snapToGrid);
+    // Mettre à jour l'état de la checkbox si elle existe
     const snapToggleCheckbox = document.getElementById('snap-toggle');
     if (snapToggleCheckbox) {
         snapToggleCheckbox.checked = snapToGrid;
@@ -352,6 +365,7 @@ export function toggleSnapToGrid(snap) {
 
 /** Retourne l'état actuel du magnétisme. */
 export function getSnapToGrid() {
+    // Lit l'état actuel de la checkbox si elle existe, sinon utilise la variable
     const snapToggleCheckbox = document.getElementById('snap-toggle');
     if (snapToggleCheckbox) {
         snapToGrid = snapToggleCheckbox.checked;
@@ -376,6 +390,7 @@ export function updateGrid(zoom) {
     const showGrid = gridToggleCheckbox ? gridToggleCheckbox.checked : false;
     // --- FIN CORRECTION ---
 
+    // Ne rien dessiner si la case est décochée
     if (!showGrid) {
         fabricCanvas.requestRenderAll();
         return;
@@ -480,8 +495,14 @@ export function getOriginalPlanDimensions() {
  */
 export function drawPageGuides(format) {
     if (!fabricCanvas) return;
-    console.log(`--- Début drawPageGuides ---`);
-    console.log(`Format reçu: "${format}"`);
+    
+    // --- Logs de débogage ---
+    // console.log(`--- Début drawPageGuides ---`);
+    // console.log(`Format reçu: "${format}" (Type: ${typeof format})`);
+    // console.log(`PAGE_SIZES est défini:`, typeof PAGE_SIZES !== 'undefined');
+    // console.log(`Clés de PAGE_SIZES:`, Object.keys(PAGE_SIZES));
+    // console.log(`Tentative d'accès PAGE_SIZES["${format}"]:`, PAGE_SIZES[format]);
+    // --- Fin Logs ---
 
     // Supprime l'ancien guide s'il existe
     if (pageGuideRect) {
@@ -490,15 +511,15 @@ export function drawPageGuides(format) {
     }
 
     const isOriginal = (format === 'Original');
-    const formatData = PAGE_SIZES[format]; // Récupère l'objet {width: ..., viewBox: ...}
+    const formatData = PAGE_SIZES[format]; 
     const hasValidFormatData = !!formatData;
     const hasViewBox = hasValidFormatData && !!formatData.viewBox;
 
-    // Condition décomposée pour le débogage
+    // Condition décomposée
     if (isOriginal || !hasValidFormatData || !hasViewBox) {
         fabricCanvas.requestRenderAll();
-        console.log("Guides de page désactivés (Original ou format invalide).");
-        return;
+        // console.log("Guides de page désactivés (Original ou format invalide).");
+        return; // <= C'est ici que ça sortait si les clés ne correspondaient pas
     }
 
     // --- LE CODE DE DESSIN EST ATTEINT ---
@@ -506,26 +527,9 @@ export function drawPageGuides(format) {
     const viewBox = sizeInfo.viewBox;
     const zoom = fabricCanvas.getZoom();
 
-    console.log(`Dessin du guide pour ${format}:`, sizeInfo);
+    console.log(`Dessin du guide pour ${format}:`, sizeInfo); // <= Ce log devrait maintenant apparaître
 
-    // Style de test (rouge, plein, épais)
-    pageGuideRect = new fabric.Rect({
-        left: viewBox.x,
-        top: viewBox.y,
-        width: viewBox.width,
-        height: viewBox.height,
-        fill: 'transparent',
-        stroke: 'red', // Rouge vif pour être sûr de le voir
-        strokeWidth: 3 / zoom, // Épais
-        baseStrokeWidth: 3,
-        // strokeDashArray: [5 / zoom, 5 / zoom], // Enlevé pour le test
-        selectable: false,
-        evented: false,
-        isPageGuide: true
-    });
-    
-    // Style de production (plus discret)
-    /*
+    // Style de production (discret)
     pageGuideRect = new fabric.Rect({
         left: viewBox.x,
         top: viewBox.y,
@@ -540,18 +544,12 @@ export function drawPageGuides(format) {
         evented: false,
         isPageGuide: true
     });
-    */
 
     fabricCanvas.add(pageGuideRect);
     console.log("Guide ajouté au canvas:", pageGuideRect);
 
-    // Mettre au premier plan pour le test
-    pageGuideRect.bringToFront();
-    // En production, vous voudrez le mettre à l'arrière (mais au-dessus du fond)
-    // pageGuideRect.sendToBack(); 
-    // Si sendToBack() le cache, essayez de le mettre juste au-dessus des objets SVG
-    // if(svgObjects.length > 0) fabricCanvas.moveTo(pageGuideRect, 1);
-    // else pageGuideRect.sendToBack();
+    // Envoie le guide à l'arrière-plan (juste au-dessus du fond, mais derrière les objets)
+    pageGuideRect.sendToBack();
 
     fabricCanvas.requestRenderAll();
     console.log("Rendu demandé après ajout/mise à jour du guide.");

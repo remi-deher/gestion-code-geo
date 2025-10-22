@@ -1,20 +1,20 @@
 /**
- * Fonctions utilitaires partagées.
- * VERSION MISE A JOUR: Utilise les dimensions globales (window.original...) pour les conversions.
+ * Module utilitaire pour les conversions de coordonnées et les notifications.
+ * VERSION CORRIGÉE : Utilise les variables globales (window.original...) pour les calculs.
  */
-import { getCanvasInstance } from '../plan/canvas.js';
 
 /**
- * Convertit les coordonnées en pourcentage (0-100) en pixels absolus sur le canvas Fabric,
- * en tenant compte de l'origine et de la taille du plan (viewBox ou dimensions).
+ * Convertit les coordonnées en pourcentage (0-100) en pixels absolus sur le canvas Fabric.
  * @param {number} percentX - Coordonnée X en pourcentage (0-100).
  * @param {number} percentY - Coordonnée Y en pourcentage (0-100).
- * @param {fabric.Canvas} fabricCanvas - L'instance du canvas Fabric (optionnelle, mais bonne pratique).
+ * @param {fabric.Canvas} fabricCanvas - L'instance du canvas Fabric.
  * @returns {{left: number, top: number}} Coordonnées en pixels (référentiel "monde" non zoomé).
  */
-export function convertPercentToPixels(percentX, percentY, fabricCanvas = null) {
-    if (!fabricCanvas) fabricCanvas = getCanvasInstance();
-    if (!fabricCanvas) return { left: NaN, top: NaN };
+export function convertPercentToPixels(percentX, percentY, fabricCanvas) {
+    if (!fabricCanvas) {
+        console.warn("convertPercentToPixels: Canvas non fourni.");
+        return { left: NaN, top: NaN };
+    }
 
     // Utilise les dimensions originales stockées dans window par canvas.js
     const planWidth = window.originalSvgWidth || fabricCanvas.getWidth();
@@ -35,22 +35,22 @@ export function convertPercentToPixels(percentX, percentY, fabricCanvas = null) 
     const left = relativeLeft + planOffsetX;
     const top = relativeTop + planOffsetY;
 
-    // console.log(`PercentToPixel: (${percentX}%, ${percentY}%) -> (${left.toFixed(1)}, ${top.toFixed(1)})`);
     return { left, top };
 }
 
 
 /**
- * Convertit les coordonnées en pixels absolus (référentiel "monde" non zoomé) en pourcentage (0-100)
- * par rapport au fond (viewBox SVG original ou image).
+ * Convertit les coordonnées en pixels absolus (référentiel "monde") en pourcentage (0-100).
  * @param {number} worldX - Coordonnée X en pixels (référentiel "monde").
  * @param {number} worldY - Coordonnée Y en pixels (référentiel "monde").
- * @param {fabric.Canvas} fabricCanvas - L'instance du canvas Fabric (optionnelle).
+ * @param {fabric.Canvas} fabricCanvas - L'instance du canvas Fabric.
  * @returns {{posX: number, posY: number}} Coordonnées en pourcentage.
  */
-export function convertPixelsToPercent(worldX, worldY, fabricCanvas = null) {
-     if (!fabricCanvas) fabricCanvas = getCanvasInstance();
-     if (!fabricCanvas) return { posX: 0, posY: 0 };
+export function convertPixelsToPercent(worldX, worldY, fabricCanvas) {
+     if (!fabricCanvas) {
+         console.warn("convertPixelsToPercent: Canvas non fourni.");
+         return { posX: 0, posY: 0 };
+     }
 
     // Utilise les dimensions originales stockées dans window par canvas.js
     const planWidth = window.originalSvgWidth || fabricCanvas.getWidth();
@@ -71,7 +71,6 @@ export function convertPixelsToPercent(worldX, worldY, fabricCanvas = null) {
     const posX = Math.max(0, Math.min(100, (relativeX / planWidth) * 100));
     const posY = Math.max(0, Math.min(100, (relativeY / planHeight) * 100));
 
-    // console.log(`PixelToPercent: (${worldX}, ${worldY}) -> (${posX}%, ${posY}%)`);
     return { posX, posY };
 }
 

@@ -105,38 +105,42 @@ let currentPageSizeFormat = 'Original';
 
 function handleMouseDown(options) {
     const evt = options.e;
-    
-    // Ignorer clic droit (bouton 3 dans Fabric.js) ou Ctrl+clic
+    // Ignorer clic droit ou Ctrl+clic
     if (options.button === 3 || evt.ctrlKey) { return; }
-
-    // --- CORRECTION ICI ---
-    // Démarrer Pan si Alt pressé ou clic molette (bouton 2 dans Fabric.js)
-    // La version précédente incluait "options.button === 1" (clic gauche), ce qui était l'erreur.
+    // Démarrer Pan si Alt pressé ou clic molette
     if (evt.altKey || options.button === 2) {
         startPan(evt);
         return;
     }
-    // --- FIN CORRECTION ---
-
     // Gérer placement flèche
     if (getIsDrawingArrowMode && getIsDrawingArrowMode()) {
         handleArrowEndPoint(options); // Géré par geo-tags.js
         return;
     }
 
+    // --- CORRECTION : VÉRIFIER LE MODE TAG EN PREMIER ---
+    const currentTool = getCurrentDrawingTool();
+    if (currentTool === 'tag') {
+        // Si on est en mode placement, on laisse handleCanvasClick gérer l'événement
+        // qu'on ait cliqué sur un objet (target) ou sur le fond (null)
+        handleCanvasClick(options);
+        return; // Important: ne rien faire d'autre
+    }
+    // --- FIN CORRECTION ---
+
+    // Si on n'est PAS en mode tag, continuer la logique normale :
     const target = options.target;
-    // Si on clique sur un objet, on ne fait rien ici (géré par 'selection:created')
+    
+    // Si on clique sur un objet existant (et pas la grille)
     if (target && !target.isGridLine) {
+        // C'est un clic de sélection normal, on ne fait rien ici
+        // (géré par les événements 'selection:created', etc.)
         return;
     }
 
-    // Si on clique sur le fond (target est null)
-    const currentTool = getCurrentDrawingTool();
-    if (currentTool === 'tag') {
-        handleCanvasClick(options); // Gère le placement de tag
-    }
-    else if (currentTool !== 'select') {
-        startDrawing(options); // Géré par drawing-tools.js
+    // Si on clique sur le fond du canvas
+    if (currentTool !== 'select') {
+        startDrawing(options); // Démarrer dessin (rect, line, etc.)
     }
     else {
         // Outil sélection + clic sur fond = désélection
@@ -290,24 +294,27 @@ async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint = null) {
     if (!fabricObject || !geoCodeId) { return; }
     showLoading("Sauvegarde position...");
     try {
-        const center = clickPoint || fabricObject.getCenterPoint();
-        const { posX, posY } = convertPixelsToPercent(center.x, center.y, fabricCanvas);
+        // Utilise le point de clic si disponible ET si l'objet n'est pas ancré à un SVG
+        // Sinon, utilise le centre de l'objet (qui sera le centre de la forme SVG ou le point de clic si placé librement)
+        const center = (clickPoint && !fabricObject.customData?.anchorSvgId) ? clickPoint : fabricObject.getCenterPoint();
+        const { posX, posY } = convertPixelsToPercent(center.x, center.y, fabricCanvas); // Utilise utils.js corrigé
 
         const positionData = {
-            id: parseInt(geoCodeId, 10), // ID du GéoCode
+            id: parseInt(geoCodeId, 10),
             plan_id: currentPlanId,
             pos_x: posX,
             pos_y: posY,
             width: fabricObject.customData.isGeoTag ? (fabricObject.width * fabricObject.scaleX) : null,
             height: fabricObject.customData.isGeoTag ? (fabricObject.height * fabricObject.scaleY) : null,
-            anchor_x: fabricObject.customData.anchorSvgId || fabricObject.customData.anchorXPercent || null,
-            anchor_y: fabricObject.customData.anchorYPercent || null,
-            position_id: null // Nouvel ID de position
+            // Pour les textes placés au clic, anchorSvgId est null, on sauve null
+            anchor_x: fabricObject.customData.anchorSvgId || null,
+            anchor_y: fabricObject.customData.anchorYPercent || null, // N'existe que pour les tags image
+            position_id: null
         };
 
         const savedPosition = await savePosition(positionData); // Appel API
 
-        // Met à jour l'objet sur le canvas avec son ID de position
+        // Met à jour l'objet sur le canvas
         fabricObject.set('customData', {
             ...fabricObject.customData,
             position_id: savedPosition.id,
@@ -316,15 +323,14 @@ async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint = null) {
             pos_y: savedPosition.pos_y,
             id: parseInt(geoCodeId, 10)
         });
-
-        // Cas spécifique: si c'est un texte SVG, l'ancre retournée est l'ID SVG
-        if (fabricObject.customData.isPlacedText && !fabricObject.customData.anchorSvgId) {
-            fabricObject.customData.anchorSvgId = savedPosition.anchor_x;
+        // Si c'est un texte, s'assure que anchorSvgId est bien celui retourné (même si null)
+        if (fabricObject.customData.isPlacedText) {
+             fabricObject.customData.anchorSvgId = savedPosition.anchor_x;
         }
 
         fabricCanvas.requestRenderAll();
         showToast(`Code "${fabricObject.customData.codeGeo}" placé.`, 'success');
-        await fetchAndClassifyCodes(); // Met à jour les listes "Dispo" et "Placés"
+        await fetchAndClassifyCodes(); // Met à jour les listes
 
     } catch (error) {
         showToast(`Échec sauvegarde: ${error.message}`, 'error');
@@ -332,8 +338,7 @@ async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint = null) {
     }
     finally {
         hideLoading();
-        setActiveTool('select'); // Revient à l'outil sélection
-        updateDrawingToolButtons();
+        // Le retour en mode 'select' est géré par handleCanvasClick après l'appel à handleObjectPlaced
     }
 }
 
@@ -813,31 +818,40 @@ function createInitialGeoElements(placedGeoCodes, planType) {
 }
 
 /** Crée un objet Texte pour plan SVG */
-function placeTextOnSvg(codeData, targetSvgShape) {
+// Ajout du paramètre optionnel 'clickPoint'
+function placeTextOnSvg(codeData, targetSvgShape, clickPoint = null) {
     let textCoords;
     let anchorId = null; // ID de la forme SVG
 
+    // Priorité : Ancrage à la forme SVG si fournie
     if (targetSvgShape?.getCenterPoint) {
-        // Ancré à une forme SVG
         textCoords = targetSvgShape.getCenterPoint();
         anchorId = targetSvgShape.customData?.svgId; // L'ID SVG de la forme
-    } else if (codeData.pos_x !== null && codeData.pos_y !== null) {
-        // Position % (fallback si forme non trouvée ou si déplacé manuellement)
+    }
+    // Sinon, utiliser le point de clic s'il est fourni
+    else if (clickPoint && !isNaN(clickPoint.x) && !isNaN(clickPoint.y)) {
+        textCoords = { x: clickPoint.x, y: clickPoint.y };
+        console.log(`Placement texte ${codeData.code_geo} au point de clic`);
+    }
+    // Fallback (si ni forme ni clic, devrait être rare maintenant)
+    else if (codeData.pos_x !== null && codeData.pos_y !== null) {
         const { left, top } = convertPercentToPixels(codeData.pos_x, codeData.pos_y, fabricCanvas);
         if (!isNaN(left) && !isNaN(top)) {
             textCoords = { x: left, y: top };
-            console.log(`Placement texte ${codeData.code_geo} par fallback %`);
+            console.warn(`Placement texte ${codeData.code_geo} par fallback % (pas de forme/clic)`);
         }
         else { console.error(`Coords invalides pour ${codeData.code_geo}`); return null; }
     } else {
         // Pas de coordonnées
+        console.error(`Impossible de déterminer les coords pour ${codeData.code_geo}`);
         return null;
     }
 
+    // Création de l'objet texte (inchangé)
     const textObject = new fabric.IText(codeData.code_geo || 'ERR', {
         left: textCoords.x, top: textCoords.y,
         originX: 'center', originY: 'center',
-        fontSize: GEO_TEXT_FONT_SIZE,
+        fontSize: GEO_TEXT_FONT_SIZE, // Assurez-vous que cette constante est définie
         fill: '#000000', stroke: '#FFFFFF', paintFirst: 'stroke',
         strokeWidth: 0.5, baseStrokeWidth: 0.5,
         fontFamily: 'Arial', textAlign: 'center', fontWeight: 'bold',
@@ -847,7 +861,7 @@ function placeTextOnSvg(codeData, targetSvgShape) {
         customData: {
             ...codeData,
             isPlacedText: true, isGeoTag: false,
-            anchorSvgId: anchorId, // ID de la forme SVG (ou null)
+            anchorSvgId: anchorId, // ID de la forme SVG (ou null si placé au clic)
             id: parseInt(codeData.id, 10), // ID du GéoCode
             position_id: codeData.position_id ? parseInt(codeData.position_id, 10) : null, // ID de la Position
             plan_id: parseInt(currentPlanId, 10)
@@ -904,11 +918,11 @@ function placeTagAtPoint(codeData, point) {
 // ===================================
 
 /** Gère le clic sur le canvas en mode 'tag' (placement) */
-function handleCanvasClick(options) {
+async function handleCanvasClick(options) {
     const mode = getCurrentDrawingTool();
     if (mode !== 'tag') return; // Sécurité
 
-    const pointer = fabricCanvas.getPointer(options.e);
+    const pointer = fabricCanvas.getPointer(options.e); // Coordonnées du clic
     const selectedCodeEl = document.querySelector('#dispo-list .list-group-item.active');
 
     if (!selectedCodeEl) {
@@ -921,16 +935,25 @@ function handleCanvasClick(options) {
     try {
         const codeData = JSON.parse(selectedCodeEl.dataset.codeData);
         let placedObject = null;
+        const targetShape = options.target; // L'objet cliqué (peut être null)
 
+        // --- CORRECTION LOGIQUE SVG ---
         if (planType === 'svg') {
-            const targetShape = options.target;
-            // Nécessite de cliquer sur une forme SVG
+            // Cas 1: Clic sur une forme SVG existante -> Ancrer le texte à la forme
             if (targetShape?.isSvgShape) {
-                placedObject = placeTextOnSvg(codeData, targetShape);
-            } else {
-                showToast("Cliquez sur une forme SVG.", "info");
-                return; // Reste en mode placement
+                console.log("Placement sur forme SVG:", targetShape.customData?.svgId || targetShape);
+                placedObject = placeTextOnSvg(codeData, targetShape); // Utilise le centre de la forme
             }
+            // Cas 2: Clic sur le fond ou sur une forme DESSINÉE -> Placer au point cliqué
+            else {
+                console.log("Placement SVG au point cliqué (pas sur forme SVG de base).");
+                // On appelle placeTextOnSvg SANS targetShape.
+                // Il utilisera les coordonnées du clic (via pointer) comme fallback.
+                // Note: placeTextOnSvg doit être capable de gérer targetSvgShape = null
+                 placedObject = placeTextOnSvg(codeData, null, pointer); // Ajout de 'pointer'
+            }
+        // --- FIN CORRECTION LOGIQUE SVG ---
+
         } else if (planType === 'image') {
             // Place le tag au point cliqué
             placedObject = placeTagAtPoint(codeData, pointer);
@@ -941,21 +964,26 @@ function handleCanvasClick(options) {
              fabricCanvas.setActiveObject(placedObject);
              placedObject.moveTo(999); // Au premier plan
              fabricCanvas.requestRenderAll();
-             // Sauvegarde la position (await est géré dans la fonction)
-             handleObjectPlaced(placedObject, codeData.id, pointer);
+             // Sauvegarde la position (handleObjectPlaced utilise le centre de l'objet ou le point de clic)
+             await handleObjectPlaced(placedObject, codeData.id, pointer); // Passe le point de clic
+             // Après placement réussi, repasse en mode sélection
+             setActiveTool('select');
+             updateDrawingToolButtons();
+             handleObjectDeselected(); // Désélectionne dans la sidebar
         } else {
-             // Si échec, repasse en mode select
+             // Si échec création objet
+             showToast("Impossible de créer l'objet à placer.", "warning");
              setActiveTool('select');
              updateDrawingToolButtons();
         }
     } catch (e) {
-        console.error("Erreur parse codeData:", e);
-        showToast("Erreur lecture données code.", "danger");
-        setActiveTool('select');
+        console.error("Erreur lors du placement:", e);
+        showToast(`Erreur placement: ${e.message}`, "danger");
+        setActiveTool('select'); // Revenir à l'outil sélection en cas d'erreur
         updateDrawingToolButtons();
     }
+    // Note: Le retour en mode 'select' est maintenant géré dans le 'if (placedObject)' et le 'catch'
 }
-
 
 // --- DÉMARRAGE ---
 document.addEventListener('DOMContentLoaded', async () => {
