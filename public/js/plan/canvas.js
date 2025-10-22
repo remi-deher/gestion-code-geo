@@ -14,11 +14,11 @@ let snapToGrid = true; // État du magnétisme
 
 // --- AJOUT : Dimensions des Pages ---
 const PAGE_SIZES = {
-    'A4_Portrait': { width: 595, height: 842, viewBox: { x: 0, y: 0, width: 595, height: 842 } },
-    'A4_Landscape': { width: 842, height: 595, viewBox: { x: 0, y: 0, width: 842, height: 595 } },
-    'A3_Portrait': { width: 842, height: 1191, viewBox: { x: 0, y: 0, width: 842, height: 1191 } },
-    'A3_Landscape': { width: 1191, height: 842, viewBox: { x: 0, y: 0, width: 1191, height: 842 } },
-    'Original': { width: null, height: null, viewBox: null } // Pour garder les dimensions chargées
+    'A4-P': { width: 595, height: 842, viewBox: { x: 0, y: 0, width: 595, height: 842 } }, // Était 'A4_Portrait'
+    'A4-L': { width: 842, height: 595, viewBox: { x: 0, y: 0, width: 842, height: 595 } }, // Était 'A4_Landscape'
+    'A3-P': { width: 842, height: 1191, viewBox: { x: 0, y: 0, width: 842, height: 1191 } }, // Était 'A3_Portrait'
+    'A3-L': { width: 1191, height: 842, viewBox: { x: 0, y: 0, width: 1191, height: 842 } }, // Était 'A3_Landscape'
+    'Original': { width: null, height: null, viewBox: null }
 };
 
 // --- Variables globales pour stocker les dimensions du SVG chargé ---
@@ -30,6 +30,7 @@ let svgBoundingBox = null; // Bounding box calculée des objets (fallback)
 // Références aux objets SVG et lignes de grille
 let svgObjects = [];
 let gridLines = [];
+let pageGuideRect = null;
 
 /**
  * Initialise le canvas Fabric.js.
