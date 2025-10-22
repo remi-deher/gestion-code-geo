@@ -103,13 +103,19 @@ let autoSaveTimeout; // Pour la sauvegarde automatique
 
 function handleMouseDown(options) {
     const evt = options.e;
-    // Ignorer clic droit ou Ctrl+clic
+    
+    // Ignorer clic droit (bouton 3 dans Fabric.js) ou Ctrl+clic
     if (options.button === 3 || evt.ctrlKey) { return; }
-    // Démarrer Pan si Alt pressé ou clic molette (bouton 1 ou 2 selon navigateur)
-    if (evt.altKey || options.button === 1 || options.button === 2) {
+
+    // --- CORRECTION ICI ---
+    // Démarrer Pan si Alt pressé ou clic molette (bouton 2 dans Fabric.js)
+    // La version précédente incluait "options.button === 1" (clic gauche), ce qui était l'erreur.
+    if (evt.altKey || options.button === 2) {
         startPan(evt);
         return;
     }
+    // --- FIN CORRECTION ---
+
     // Gérer placement flèche
     if (getIsDrawingArrowMode && getIsDrawingArrowMode()) {
         handleArrowEndPoint(options); // Géré par geo-tags.js
@@ -122,7 +128,7 @@ function handleMouseDown(options) {
         return;
     }
 
-    // Si on clique sur le fond
+    // Si on clique sur le fond (target est null)
     const currentTool = getCurrentDrawingTool();
     if (currentTool === 'tag') {
         handleCanvasClick(options); // Gère le placement de tag
@@ -412,7 +418,7 @@ function triggerAutoSaveDrawing(forceSave = false) {
     clearTimeout(autoSaveTimeout); // Annule le timeout précédent
 
     autoSaveTimeout = setTimeout(async () => {
-         showLoading("Sauvegarde auto..."); // Montre un feedback
+         if (forceSave) showLoading("Sauvegarde..."); // Montre un feedback si forcé
          console.log("Sauvegarde auto des annotations...");
          const drawingData = fabricCanvas.toJSON(['customData', 'selectable', 'evented', 'baseStrokeWidth']);
          // Filtre pour ne garder que les objets de dessin
@@ -431,7 +437,7 @@ function triggerAutoSaveDrawing(forceSave = false) {
          } catch(error) {
              showToast(`Erreur sauvegarde annotations: ${error.message}`, "danger");
          } finally {
-             hideLoading(); // Cache le feedback
+             if (forceSave) hideLoading(); // Cache le feedback si forcé
          }
     }, forceSave ? 0 : 2500); // 0ms si forcé, 2.5s sinon
 }
@@ -559,8 +565,9 @@ function updateGroupButtonStates() {
     if (activeObject) {
         if (activeObject.type === 'activeSelection') {
             const objects = activeObject.getObjects();
-            // --- CORRECTION ---
+            // --- CORRECTION (pour autoriser groupement SVG) ---
             // Autorise le groupement tant qu'il n'y a pas de tag géo ou de grille
+            // La vérification obj.isSvgShape a été retirée.
             canGroup = objects.length > 1 && !objects.some(obj => obj.customData?.isGeoTag || obj.customData?.isPlacedText || obj.isGridLine);
         } else if (activeObject.type === 'group' && !(activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText)) {
             // Autorise de dégrouper tout groupe qui n'est pas un tag géo
@@ -1216,7 +1223,7 @@ function setupEventListeners() {
     if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetZoom);
     if (lockBtn) lockBtn.addEventListener('click', () => { setCanvasLock(!getCanvasLock()); updateLockButtonState(); });
 
-    // --- CORRECTION LOGIQUE SAUVEGARDE ---
+    // --- LOGIQUE SAUVEGARDE (Corrigée) ---
     if (saveDrawingBtn) {
         saveDrawingBtn.addEventListener('click', async () => {
             console.log("Clic sur 'Sauvegarder', planType:", planType);
@@ -1290,7 +1297,7 @@ function setupEventListeners() {
          // Affiche un avertissement seulement si on est en mode création
          if(planType === 'svg_creation') console.warn("Bouton #save-new-svg-plan-btn ou input #new-plan-name non trouvé(s).");
     }
-    // --- FIN CORRECTION LOGIQUE SAUVEGARDE ---
+    // --- FIN LOGIQUE SAUVEGARDE ---
 
 
     // --- Toolbar Dessin (Outils) ---
