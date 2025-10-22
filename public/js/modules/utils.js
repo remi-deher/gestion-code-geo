@@ -1,123 +1,78 @@
 /**
  * Fonctions utilitaires partagées.
- * VERSION MISE A JOUR: Prend en compte la BBox SVG pour les conversions de coordonnées.
+ * VERSION MISE A JOUR: Utilise les dimensions globales (window.original...) pour les conversions.
  */
 import { getCanvasInstance } from '../plan/canvas.js';
 
 /**
  * Convertit les coordonnées en pourcentage (0-100) en pixels absolus sur le canvas Fabric,
- * en tenant compte de l'origine et de l'échelle du fond (image ou BBox SVG).
+ * en tenant compte de l'origine et de la taille du plan (viewBox ou dimensions).
  * @param {number} percentX - Coordonnée X en pourcentage (0-100).
  * @param {number} percentY - Coordonnée Y en pourcentage (0-100).
- * @param {fabric.Canvas} fabricCanvas - L'instance du canvas Fabric.
+ * @param {fabric.Canvas} fabricCanvas - L'instance du canvas Fabric (optionnelle, mais bonne pratique).
  * @returns {{left: number, top: number}} Coordonnées en pixels (référentiel "monde" non zoomé).
  */
-export function convertPercentToPixels(percentX, percentY, fabricCanvas) {
+export function convertPercentToPixels(percentX, percentY, fabricCanvas = null) {
+    if (!fabricCanvas) fabricCanvas = getCanvasInstance();
     if (!fabricCanvas) return { left: NaN, top: NaN };
 
-    const bgImage = fabricCanvas.backgroundImage;
-    const svgBBox = getSvgOriginalBBox(); // Récupère la BBox calculée au chargement
+    // Utilise les dimensions originales stockées dans window par canvas.js
+    const planWidth = window.originalSvgWidth || fabricCanvas.getWidth();
+    const planHeight = window.originalSvgHeight || fabricCanvas.getHeight();
+    const planOffsetX = window.originalSvgViewBox?.x || 0;
+    const planOffsetY = window.originalSvgViewBox?.y || 0;
 
-    let refLeft = 0, refTop = 0, refWidth = 0, refHeight = 0;
-
-    if (bgImage && bgImage.originalWidth > 0 && bgImage.originalHeight > 0) {
-        // Cas 1: Image de fond (plan 'image')
-        // Référence = dimensions originales de l'image, à l'origine (0,0) du canvas
-        refLeft = bgImage.left; // Doit être 0
-        refTop = bgImage.top;   // Doit être 0
-        refWidth = bgImage.originalWidth;
-        refHeight = bgImage.originalHeight;
-        // console.log("convertPercentToPixels using bgImage");
-    } else if (svgBBox && svgBBox.width > 0 && svgBBox.height > 0) {
-        // Cas 2: BBox SVG (plan 'svg')
-        // Référence = dimensions et position de la BBox originale
-        refLeft = svgBBox.left;
-        refTop = svgBBox.top;
-        refWidth = svgBBox.width;
-        refHeight = svgBBox.height;
-        // console.log("convertPercentToPixels using svgBBox");
-    } else {
-        console.warn("convertPercentToPixels - Référence (Image ou BBox SVG) invalide. Utilisation du canvas.");
-        // Fallback: utiliser les dimensions du canvas (moins précis, ne scale pas)
-        refWidth = fabricCanvas.getWidth();
-        refHeight = fabricCanvas.getHeight();
+    if (!planWidth || !planHeight || planWidth <= 0 || planHeight <= 0) {
+        console.error("Dimensions du plan invalides pour conversion en pixels", { planWidth, planHeight });
+        return { left: NaN, top: NaN };
     }
 
-    if (refWidth === 0 || refHeight === 0) return { left: NaN, top: NaN };
+    // Calcule la position en pixels par rapport à l'origine du plan (0,0 dans le viewBox)
+    const relativeLeft = (percentX / 100) * planWidth;
+    const relativeTop = (percentY / 100) * planHeight;
 
-    // Calcule la position en pixels dans le "monde" (référentiel 1:1)
-    const worldX = refLeft + (percentX / 100) * refWidth;
-    const worldY = refTop + (percentY / 100) * refHeight;
-    
-    // Note: C'est à l'appelant (ex: création de l'objet Fabric) de gérer le viewportTransform
-    // Les objets Fabric sont créés dans le "monde", pas sur "l'écran".
-    
-    // console.log(`In: ${percentX}%, ${percentY}% -> Out (World): ${worldX}, ${worldY}`);
-    return { left: worldX, top: worldY };
+    // Ajoute l'offset du viewBox pour obtenir les coordonnées absolues sur le canvas
+    const left = relativeLeft + planOffsetX;
+    const top = relativeTop + planOffsetY;
+
+    // console.log(`PercentToPixel: (${percentX}%, ${percentY}%) -> (${left.toFixed(1)}, ${top.toFixed(1)})`);
+    return { left, top };
 }
 
 
 /**
  * Convertit les coordonnées en pixels absolus (référentiel "monde" non zoomé) en pourcentage (0-100)
- * par rapport au fond (image ou BBox SVG original).
+ * par rapport au fond (viewBox SVG original ou image).
  * @param {number} worldX - Coordonnée X en pixels (référentiel "monde").
  * @param {number} worldY - Coordonnée Y en pixels (référentiel "monde").
- * @param {fabric.Canvas} fabricCanvas - L'instance du canvas Fabric.
+ * @param {fabric.Canvas} fabricCanvas - L'instance du canvas Fabric (optionnelle).
  * @returns {{posX: number, posY: number}} Coordonnées en pourcentage.
  */
-export function convertPixelsToPercent(worldX, worldY, fabricCanvas) {
+export function convertPixelsToPercent(worldX, worldY, fabricCanvas = null) {
+     if (!fabricCanvas) fabricCanvas = getCanvasInstance();
      if (!fabricCanvas) return { posX: 0, posY: 0 };
 
-    const bgImage = fabricCanvas.backgroundImage;
-    const svgBBox = getSvgOriginalBBox();
+    // Utilise les dimensions originales stockées dans window par canvas.js
+    const planWidth = window.originalSvgWidth || fabricCanvas.getWidth();
+    const planHeight = window.originalSvgHeight || fabricCanvas.getHeight();
+    const planOffsetX = window.originalSvgViewBox?.x || 0;
+    const planOffsetY = window.originalSvgViewBox?.y || 0;
 
-    let refLeft = 0, refTop = 0, refWidth = 0, refHeight = 0;
-
-    if (bgImage && bgImage.originalWidth > 0 && bgImage.originalHeight > 0) {
-        // Cas 1: Image de fond
-        refLeft = bgImage.left;
-        refTop = bgImage.top;
-        refWidth = bgImage.originalWidth;
-        refHeight = bgImage.originalHeight;
-        // console.log("convertPixelsToPercent using bgImage");
-    } else if (svgBBox && svgBBox.width > 0 && svgBBox.height > 0) {
-        // Cas 2: BBox SVG
-        refLeft = svgBBox.left;
-        refTop = svgBBox.top;
-        refWidth = svgBBox.width;
-        refHeight = svgBBox.height;
-        // console.log("convertPixelsToPercent using svgBBox");
-    } else {
-        console.warn("convertPixelsToPercent - Référence (Image ou BBox SVG) invalide.");
-        refWidth = fabricCanvas.getWidth(); // Fallback peu fiable
-        refHeight = fabricCanvas.getHeight();
-    }
-
-    if (refWidth === 0 || refHeight === 0) {
+    if (planWidth === 0 || planHeight === 0) {
+        console.warn("convertPixelsToPercent - Dimensions de plan invalides.");
         return { posX: 0, posY: 0 };
     }
 
     // Calcul des coordonnées relatives (en pixels) par rapport à l'origine de la référence
-    const relativeX = worldX - refLeft;
-    const relativeY = worldY - refTop;
+    const relativeX = worldX - planOffsetX;
+    const relativeY = worldY - planOffsetY;
 
     // Calcul du pourcentage par rapport aux dimensions de la référence
-    const posX = Math.max(0, Math.min(100, (relativeX / refWidth) * 100));
-    const posY = Math.max(0, Math.min(100, (relativeY / refHeight) * 100));
+    const posX = Math.max(0, Math.min(100, (relativeX / planWidth) * 100));
+    const posY = Math.max(0, Math.min(100, (relativeY / planHeight) * 100));
 
-    // console.log(`In (World): ${worldX}, ${worldY} -> Out: ${posX}%, ${posY}%`);
+    // console.log(`PixelToPercent: (${worldX}, ${worldY}) -> (${posX}%, ${posY}%)`);
     return { posX, posY };
-}
-
-/**
- * Magnétise une valeur à la grille la plus proche.
- * @param {number} coord - Coordonnée (non zoomée).
- * @param {number} gridSize - Taille de la grille (non zoomée).
- * @returns {number} Coordonnée magnétisée.
- */
-export function snapToGridValue(coord, gridSize) {
-    if (gridSize <= 0) return coord;
-    return Math.round(coord / gridSize) * gridSize;
 }
 
 /**
