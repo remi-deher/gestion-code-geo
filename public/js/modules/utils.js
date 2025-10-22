@@ -2,7 +2,7 @@
  * Fonctions utilitaires partagées.
  * VERSION MISE A JOUR: Prend en compte la BBox SVG pour les conversions de coordonnées.
  */
-import { getCanvasInstance, getSvgOriginalBBox } from '../plan/canvas.js';
+import { getCanvasInstance } from '../plan/canvas.js';
 
 /**
  * Convertit les coordonnées en pourcentage (0-100) en pixels absolus sur le canvas Fabric,

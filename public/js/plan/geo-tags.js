@@ -4,7 +4,7 @@
  * 2. Textes placés ('isPlacedText') - principalement pour plan 'svg'.
  * Gère aussi la toolbar d'édition, les flèches (pour étiquettes), et le surlignage.
  */
-import { getCanvasInstance, getSvgOriginalBBox } from './canvas.js';
+import { getCanvasInstance } from './canvas.js';
 import { convertPixelsToPercent, convertPercentToPixels, showToast } from '../modules/utils.js';
 import { savePosition, removePosition, removeMultiplePositions } from '../modules/api.js';
 import { sizePresets, GEO_TAG_FONT_SIZE } from '../modules/config.js';
