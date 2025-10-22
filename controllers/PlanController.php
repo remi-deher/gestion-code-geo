@@ -505,7 +505,7 @@ public function apiSavePositionAction() {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'ID de position manquant']);
         }
-        exit();
+        exit;
     }
 
     /**
@@ -522,7 +522,7 @@ public function apiSavePositionAction() {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Données invalides (id, plan_id) pour suppression multiple.']);
         }
-        exit();
+        exit;
     }
 
     /**

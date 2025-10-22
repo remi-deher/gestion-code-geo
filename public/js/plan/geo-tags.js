@@ -324,6 +324,8 @@ export async function deleteSelectedGeoElement() {
     const isTag = customData.isGeoTag;
     const elementType = isTag ? "l'étiquette" : "le texte";
 
+    console.log("deleteSelectedGeoElement - Données pour suppression:", { position_id, geoCodeId, plan_id });
+
     if (!geoCodeId || !position_id || !plan_id) {
         console.error(`ERREUR: Impossible de supprimer ${elementType} ${codeGeo}. Données ID manquantes:`, customData);
         showToast(`Erreur suppression ${codeGeo}.`, "danger"); 
@@ -355,8 +357,10 @@ export async function deleteSelectedGeoElement() {
     try {
         let success;
         if (deleteAllInstances) {
-            success = await removeMultiplePositions(geoCodeId, plan_id);
+            console.log(`Appel API removeMultiplePositions avec geoCodeId=${geoCodeId}, planId=${plan_id}`);
+	    success = await removeMultiplePositions(geoCodeId, plan_id);
         } else {
+	    console.log(`Appel API removePosition avec positionId=${position_id}`);
             success = await removePosition(position_id);
         }
 
