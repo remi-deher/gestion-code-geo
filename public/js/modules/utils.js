@@ -49,7 +49,7 @@ export function convertPercentToPixels(percentX, percentY, fabricCanvas) {
 export function convertPixelsToPercent(worldX, worldY, fabricCanvas) {
      if (!fabricCanvas) {
          console.warn("convertPixelsToPercent: Canvas non fourni.");
-         return { posX: 0, posY: 0 };
+         return {posX: 0, posY: 0 };
      }
 
     // Utilise les dimensions originales stockées dans window par canvas.js

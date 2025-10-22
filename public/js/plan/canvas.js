@@ -554,3 +554,20 @@ export function drawPageGuides(format) {
     fabricCanvas.requestRenderAll();
     console.log("Rendu demandé après ajout/mise à jour du guide.");
 }
+
+/**
+ * Retourne les dimensions originales (non-zoomées) du plan chargé.
+ * Ces dimensions sont utilisées comme référence pour les calculs en pourcentage.
+ * @returns {Object} Un objet { width, height }
+ */
+export function getCanvasDimensions() {
+    // Ces variables globales sont définies lors du chargement (loadSvgPlan ou loadImagePlan)
+    const width = window.originalSvgWidth || window.originalImageWidth || fabricCanvas.getWidth();
+    const height = window.originalSvgHeight || window.originalImageHeight || fabricCanvas.getHeight();
+
+    if (width === 0 || height === 0) {
+        console.warn("getCanvasDimensions: Dimensions originales non trouvées ou nulles.", { width, height });
+    }
+
+    return { width, height };
+}

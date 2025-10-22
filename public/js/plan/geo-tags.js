@@ -193,53 +193,99 @@ export function addArrowToTag(tagGroup) {
 }
 
 /**
- * Gère la modification (déplacement) d'une ÉTIQUETTE GÉO (appelé depuis main.js).
- * @param {fabric.Group} target - L'étiquette (isGeoTag) qui a été modifiée.
+ * Gère la sauvegarde d'un objet (tag/texte) qui a été modifié (déplacé, redimensionné).
+ * @param {fabric.Object} target L'objet fabric qui a été modifié.
  */
 export async function handleGeoTagModified(target) {
-     if (!target?.customData?.isGeoTag) return; // Ne traite que les vrais tags
+    if (!target || !target.customData) return;
 
-     const { position_id, id: geoCodeId, currentWidth, currentHeight, anchorXPercent, anchorYPercent, plan_id, codeGeo } = target.customData;
-     
-     if (!geoCodeId || !position_id || !plan_id) {
-        console.error(`ERREUR: Impossible de sauvegarder modif tag ${codeGeo}. Données ID manquantes:`, target.customData);
-        showToast(`Erreur sauvegarde tag ${codeGeo}.`, "danger"); return;
+    // Ne pas sauvegarder si c'est juste une sélection/désélection
+    // On ne sauvegarde que si l'objet a VRAIMENT bougé ou changé de taille
+    if (target.isMoving === false && target.isScaling === false) {
+        // console.log("handleGeoTagModified: Skip save (selection only)");
+        return;
     }
-     
-     const centerPoint = target.getCenterPoint();
-     const { posX, posY } = convertPixelsToPercent(centerPoint.x, centerPoint.y, fabricCanvas);
-     
-     const positionData = {
-         id: geoCodeId,
-         position_id: position_id,
-         plan_id: plan_id,
-         pos_x: posX,
-         pos_y: posY,
-         width: currentWidth, // Conserver la taille
-         height: currentHeight,
-         anchor_x: anchorXPercent, // Conserver l'ancre
-         anchor_y: anchorYPercent
-     };
-     
-     try {
-        const savedData = await savePosition(positionData);
-        console.log("Nouvelle position étiquette sauvegardée:", savedData);
-        // Mettre à jour les données locales
-        target.customData.pos_x = savedData.pos_x;
-        target.customData.pos_y = savedData.pos_y;
-     } catch(error) {
-        console.error("Erreur API sauvegarde position tag:", error);
-        showToast(`Erreur sauvegarde tag ${codeGeo}: ${error.message}`, "danger");
-     }
+    // Réinitialiser les drapeaux
+    target.isMoving = false;
+    target.isScaling = false;
 
-     // Redessiner la flèche si elle existe
-     if (target.arrowLine || (anchorXPercent !== null && anchorYPercent !== null)) {
-        addArrowToTag(target);
-     }
-     
-     showToolbar(target); // Réafficher toolbar à la bonne position
+    // Récupérer les données pour la sauvegarde
+    const { pos_x, pos_y, anchor_x, anchor_y, width, height } = getPositionDataFromObject(target, null);
+    
+    // --- CORRECTION: Utiliser 'code_geo' ---
+    const { position_id, id: geoCodeId, plan_id, code_geo } = target.customData;
+
+    if (!geoCodeId || !plan_id) { 
+        console.error("handleGeoTagModified: ID manquant (geoCodeId ou plan_id), sauvegarde annulée", target.customData);
+        return; 
+    }
+    
+    // --- LOGS DE DÉBOGAGE (MOUVEMENT) ---
+    console.log("--- handleGeoTagModified (Déplacement/Redim.) ---");
+    if (!position_id) {
+        // C'est la conséquence du problème de placement : l'ID est null
+        console.warn(`LOG A - Tentative de modification d'un objet SANS position_id (geoCodeId: ${geoCodeId}). L'API va faire un INSERT (doublon) !`);
+    } else {
+        console.log(`LOG B - Modification d'un objet avec position_id: ${position_id} (geoCodeId: ${geoCodeId}). L'API va faire un UPDATE.`);
+    }
+    // --- FIN LOGS ---
+
+    const positionData = {
+        id: geoCodeId,
+        plan_id: plan_id,
+        position_id: position_id, // C'est ici que 'null' pose problème
+        pos_x: pos_x, 
+        pos_y: pos_y,
+        width: width, 
+        height: height,
+        anchor_x: anchor_x, 
+        anchor_y: anchor_y
+    };
+    
+    // --- LOGS DE DÉBOGAGE (MOUVEMENT) ---
+    console.log("LOG C - Envoi données MàJ:", JSON.parse(JSON.stringify(positionData)));
+    // --- FIN LOGS ---
+
+    showLoading('Sauvegarde MàJ...');
+    try {
+        const savedPosition = await savePosition(positionData);
+        
+        // --- LOGS DE DÉBOGAGE (MOUVEMENT) ---
+        console.log("LOG D - Réponse API MàJ:", savedPosition);
+        // --- FIN LOGS ---
+
+        // Mettre à jour les customData avec les valeurs confirmées
+        // (surtout si l'objet n'avait pas de position_id avant)
+        if (savedPosition && savedPosition.id) {
+            if (!target.customData.position_id) {
+                console.log(`LOG E - L'objet a reçu un nouvel ID (via INSERT): ${savedPosition.id}`);
+                target.customData.position_id = savedPosition.id; // Corrige l'objet pour le futur
+            }
+            target.customData.pos_x = savedPosition.pos_x;
+            target.customData.pos_y = savedPosition.pos_y;
+            target.customData.width = savedPosition.width;
+            target.customData.height = savedPosition.height;
+            target.customData.anchor_x = savedPosition.anchor_x;
+            target.customData.anchor_y = savedPosition.anchor_y;
+        } else {
+             console.error("LOG E - ÉCHEC: La sauvegarde (MàJ) n'a pas retourné d'objet valide.", savedPosition);
+        }
+
+        // --- CORRECTION TOAST: Utiliser 'code_geo' ---
+        showToast(`Position ${code_geo} mise à jour.`, 'success');
+        
+        // Rafraîchir les listes
+        await fetchAndClassifyCodes();
+
+    } catch (error) {
+         // --- LOGS DE DÉBOGAGE (MOUVEMENT) ---
+        console.error("LOG F - Erreur CATCH MàJ:", error);
+        // --- FIN LOGS ---
+        showToast(`Erreur MàJ ${code_geo}: ${error.message}`, 'danger');
+    } finally {
+        hideLoading();
+    }
 }
-
 
 // --- Gestion Toolbar ---
 

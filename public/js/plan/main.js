@@ -4,7 +4,7 @@ import {
     getCanvasInstance, resizeCanvas,
     resetZoom, setCanvasLock, getCanvasLock,
     findSvgShapeByCodeGeo, toggleSnapToGrid, getSnapToGrid,
-    zoomCanvas,
+    zoomCanvas, getCanvasDimensions,
     updateGrid, updateStrokesWidth,
     drawPageGuides
 } from './canvas.js';
@@ -289,56 +289,88 @@ function handleObjectDeselected() {
 // === CRUD GÉO (Placer, Déplacer, Supprimer) ===
 // ===================================
 
-/** Appelé lors du placement initial d'un tag/texte géo */
-async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint = null) {
-    if (!fabricObject || !geoCodeId) { return; }
-    showLoading("Sauvegarde position...");
+/**
+ * Gère la sauvegarde d'un objet (tag/texte) qui vient d'être placé.
+ * @param {fabric.Object} fabricObject L'objet fabric qui a été ajouté/placé.
+ * @param {number} geoCodeId L'ID du geo_code (passé depuis le clic ou drop).
+ * @param {Object} clickPoint Point (x,y) du clic initial (pour fallback si objet n'a pas de centre).
+ */
+async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint) {
+    if (!fabricObject || !geoCodeId || !currentPlanId) {
+        console.error("handleObjectPlaced: Données manquantes", { fabricObject, geoCodeId, currentPlanId });
+        showToast("Erreur sauvegarde: Données initiales manquantes.", "danger");
+        return;
+    }
+
+    const isText = fabricObject.customData?.isPlacedText;
+    const { pos_x, pos_y, anchor_x, anchor_y, width, height } = getPositionDataFromObject(fabricObject, clickPoint);
+
+    const positionData = {
+        id: geoCodeId,
+        plan_id: currentPlanId,
+        pos_x: pos_x,
+        pos_y: pos_y,
+        width: width,
+        height: height,
+        anchor_x: isText ? anchor_x : null, // Ne sauvegarde l'ancre que pour le texte (SVG)
+        anchor_y: isText ? anchor_y : null,
+        // Pour un NOUVEAU placement, position_id doit être null pour forcer un INSERT.
+        position_id: null
+    };
+
+    // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
+    console.log("--- handleObjectPlaced (Placement) ---");
+    // LOG 1: Vérifier les données envoyées à l'API
+    console.log("LOG 1 - Envoi des données:", JSON.parse(JSON.stringify(positionData)));
+    // --- FIN LOGS ---
+
+    showLoading('Sauvegarde position...');
     try {
-        // Utilise le point de clic si disponible ET si l'objet n'est pas ancré à un SVG
-        // Sinon, utilise le centre de l'objet (qui sera le centre de la forme SVG ou le point de clic si placé librement)
-        const center = (clickPoint && !fabricObject.customData?.anchorSvgId) ? clickPoint : fabricObject.getCenterPoint();
-        const { posX, posY } = convertPixelsToPercent(center.x, center.y, fabricCanvas); // Utilise utils.js corrigé
+        // APPEL API
+        const savedPosition = await savePosition(positionData); // `savePosition` est importé de api.js
 
-        const positionData = {
-            id: parseInt(geoCodeId, 10),
-            plan_id: currentPlanId,
-            pos_x: posX,
-            pos_y: posY,
-            width: fabricObject.customData.isGeoTag ? (fabricObject.width * fabricObject.scaleX) : null,
-            height: fabricObject.customData.isGeoTag ? (fabricObject.height * fabricObject.scaleY) : null,
-            // Pour les textes placés au clic, anchorSvgId est null, on sauve null
-            anchor_x: fabricObject.customData.anchorSvgId || null,
-            anchor_y: fabricObject.customData.anchorYPercent || null, // N'existe que pour les tags image
-            position_id: null
-        };
+        // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
+        // LOG 2: Vérifier la réponse BRUTE de l'API
+        console.log("LOG 2 - Réponse de savePosition (api.js):", savedPosition);
+        // --- FIN LOGS ---
 
-        const savedPosition = await savePosition(positionData); // Appel API
+        // CRUCIAL: Mettre à jour le customData de l'objet Fabric avec l'ID de la BDD
+        if (savedPosition && savedPosition.id) {
+            
+            // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
+            // LOG 3: Confirmer que l'ID a été trouvé et va être assigné
+            console.log("LOG 3 - ID de position reçu:", savedPosition.id);
+            // --- FIN LOGS ---
 
-        // Met à jour l'objet sur le canvas
-        fabricObject.set('customData', {
-            ...fabricObject.customData,
-            position_id: savedPosition.id,
-            plan_id: savedPosition.plan_id,
-            pos_x: savedPosition.pos_x,
-            pos_y: savedPosition.pos_y,
-            id: parseInt(geoCodeId, 10)
-        });
-        // Si c'est un texte, s'assure que anchorSvgId est bien celui retourné (même si null)
-        if (fabricObject.customData.isPlacedText) {
-             fabricObject.customData.anchorSvgId = savedPosition.anchor_x;
+            fabricObject.customData.position_id = savedPosition.id;
+            // Mettre à jour aussi pos_x/pos_y au cas où
+            fabricObject.customData.pos_x = savedPosition.pos_x;
+            fabricObject.customData.pos_y = savedPosition.pos_y;
+
+        } else {
+            // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
+            // LOG 4: L'API a répondu mais n'a pas renvoyé un ID valide
+            console.error("LOG 4 - ÉCHEC: La sauvegarde n'a pas retourné d'ID valide.", savedPosition);
+            // --- FIN LOGS ---
         }
 
-        fabricCanvas.requestRenderAll();
-        showToast(`Code "${fabricObject.customData.code_geo}" placé.`, 'success');
-        await fetchAndClassifyCodes(); // Met à jour les listes
+        // --- CORRECTION TOAST: Utiliser 'code_geo' (snake_case) ---
+        showToast(`Code ${fabricObject.customData.code_geo} placé.`, 'success');
+
+        // Rafraîchir les listes de la sidebar
+        await fetchAndClassifyCodes();
 
     } catch (error) {
-        showToast(`Échec sauvegarde: ${error.message}`, 'error');
-        if (fabricObject) fabricCanvas.remove(fabricObject); // Annule le placement visuel
-    }
-    finally {
+        // --- LOGS DE DÉBOGAGE (PLACEMENT) ---
+        // LOG 5: L'appel API a échoué (erreur réseau, 500, JSON invalide, etc.)
+        console.error("LOG 5 - Erreur dans le CATCH de handleObjectPlaced:", error);
+        // --- FIN LOGS ---
+
+        showToast(`Échec sauvegarde: ${error.message}`, 'danger');
+        // En cas d'échec, on supprime l'objet du canvas pour éviter les objets "fantômes" sans ID
+        fabricCanvas.remove(fabricObject);
+    } finally {
         hideLoading();
-        // Le retour en mode 'select' est géré par handleCanvasClick après l'appel à handleObjectPlaced
     }
 }
 
@@ -1415,4 +1447,79 @@ function setupEventListeners() {
     // Les autres boutons (flèche, taille, surbrillance) sont gérés dans geo-tags.js
 
     console.log("All event listeners attached.");
+}
+
+/**
+ * Extrait les données de position pertinentes d'un objet Fabric pour la sauvegarde.
+ * Calcule les positions relatives (en %) pour le type 'svg'
+ * Calcule les positions absolues (en px) pour le type 'image'
+ * @param {fabric.Object} fabricObject L'objet dont on veut les coordonnées.
+ * @param {Object} [clickPoint=null] Point (x,y) du clic initial (utilisé en fallback si l'objet n'a pas de centre).
+ * @returns {Object} Un objet { pos_x, pos_y, anchor_x, anchor_y, width, height }
+ */
+function getPositionDataFromObject(fabricObject, clickPoint = null) {
+    const isText = fabricObject.customData?.isPlacedText;
+
+    // 1. Déterminer le point de référence (x, y) en PIXELS
+    let refPoint;
+    if (fabricObject.getCenterPoint()) {
+        // Cas 1: Tag (image) ou Texte (svg) placé librement.
+        // On utilise le centre de l'objet comme point de référence.
+        refPoint = fabricObject.getCenterPoint();
+    } else if (clickPoint) {
+        // Cas 2: Fallback (clic initial, ex: lors de la création)
+        refPoint = clickPoint;
+    } else {
+        console.error("getPositionDataFromObject: Impossible de déterminer le point de référence.");
+        refPoint = { x: 0, y: 0 }; // Fallback ultime
+    }
+
+    // 2. Obtenir les dimensions en PIXELS
+    const pixelWidth = fabricObject.getScaledWidth();
+    const pixelHeight = fabricObject.getScaledHeight();
+
+    // 3. Préparer le retour de données (par défaut en pixels)
+    let data = {
+        pos_x: refPoint.x,
+        pos_y: refPoint.y,
+        anchor_x: null, // Simplifié pour l'instant
+        anchor_y: null,
+        width: pixelWidth,
+        height: pixelHeight
+    };
+
+    // 4. Convertir les coordonnées si planType est 'svg'
+    // 'planType' et 'fabricCanvas' sont des variables globales de main.js
+    if (planType === 'svg') {
+        
+        // --- Conversion de la Position (X, Y) ---
+        // On utilise VOTRE fonction de utils.js en lui passant le canvas global
+        const percentPos = convertPixelsToPercent(refPoint.x, refPoint.y, fabricCanvas); 
+        data.pos_x = percentPos.posX;
+        data.pos_y = percentPos.posY;
+
+        // --- Conversion des Dimensions (Width, Height) ---
+        // Votre fonction ne gère pas les dimensions, on le fait manuellement
+        // en utilisant les mêmes variables globales qu'elle (window.originalSvgWidth)
+        const planWidth = window.originalSvgWidth || fabricCanvas.getWidth();
+        const planHeight = window.originalSvgHeight || fabricCanvas.getHeight();
+
+        if (planWidth > 0 && planHeight > 0) {
+            data.width = (pixelWidth / planWidth) * 100;
+            data.height = (pixelHeight / planHeight) * 100;
+        } else {
+            console.error("getPositionDataFromObject: Dimensions du plan (window.originalSvgWidth) non valides. Sauvegarde des dimensions en 0.");
+            data.width = 0;
+            data.height = 0;
+        }
+
+        // Gestion de l'ancre (si on la réintroduit plus tard)
+        if (isText && fabricObject.customData?.anchor_x != null) {
+             // ... logique d'ancre ...
+        }
+
+    } 
+    // Pour 'image', on laisse en pixels (rien à faire, les valeurs de 'data' sont déjà en pixels)
+
+    return data;
 }
