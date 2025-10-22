@@ -810,7 +810,7 @@ function createInitialGeoElements(placedGeoCodes, planType) {
                 if (placement.plan_id != currentPlanId) return;
 
                 // Fusionne les infos du code et de son placement
-                const elementData = { ...codeInfo, ...placement, id: codeInfo.id, position_id: placement.id };
+		const elementData = { ...codeInfo, ...placement, id: codeInfo.id, position_id: placement.position_id };
                 delete elementData.placements; // Nettoyage
 
                 // Cas 1: Texte sur plan SVG (pas de width/height)

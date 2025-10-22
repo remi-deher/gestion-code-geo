@@ -596,7 +596,7 @@ class PlanManager {
      * @param int $planId L'ID du plan
      * @return array La liste des codes placés avec leurs données de position
      */
-    public function getPlacedCodesForPlan($planId) {
+public function getPlacedCodesForPlan($planId) {
         $sql = "SELECT 
                     gc.id, 
                     gc.code_geo, 
@@ -612,7 +612,7 @@ class PlanManager {
                     gp.anchor_x, 
                     gp.anchor_y,
                     gp.drawing_data,
-                    gp.id AS position_id  -- <<< CORRECTION : AJOUTER CETTE LIGNE
+                    gp.id AS position_id  -- <<< CORRECTION : CETTE LIGNE EST CRUCIALE
                 FROM 
                     geo_codes gc
                 JOIN 
