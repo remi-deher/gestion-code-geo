@@ -3,7 +3,7 @@
  * groupement, et presse-papiers.
  * VERSION MODIFIÉE : Permet de grouper les éléments SVG de base (isSvgShape).
  */
-import { getCanvasInstance, getSnapToGrid } from './canvas.js';
+import { getCanvasInstance, getSnapToGrid, getCanvasLock } from './canvas.js';
 import { showToast } from '../modules/utils.js';
 import { GRID_SIZE } from '../modules/config.js'; // Importé pour le magnétisme
 
