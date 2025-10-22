@@ -20,14 +20,12 @@ const PAGE_SIZES = {
     'A3_Landscape': { width: 1191, height: 842, viewBox: { x: 0, y: 0, width: 1191, height: 842 } },
     'Original': { width: null, height: null, viewBox: null } // Pour garder les dimensions chargées
 };
-// --- FIN AJOUT ---
 
-// --- AJOUT : Variables globales pour stocker les dimensions du SVG chargé ---
+// --- Variables globales pour stocker les dimensions du SVG chargé ---
 let originalSvgWidth = null;
 let originalSvgHeight = null;
 let originalSvgViewBox = null; // Format attendu: { x: number, y: number, width: number, height: number }
 let svgBoundingBox = null; // Bounding box calculée des objets (fallback)
-// --- FIN AJOUT ---
 
 // Références aux objets SVG et lignes de grille
 let svgObjects = [];
@@ -494,4 +492,51 @@ export function updateStrokesWidth(zoom) {
 export function findSvgShapeByCodeGeo(svgId) {
     if (!svgId) return null;
     return svgObjects.find(obj => obj.customData?.svgId === svgId) || null;
+}
+
+/**
+ * Dessine un rectangle en pointillés représentant le format de page sélectionné.
+ * @param {string} format - La clé du format (ex: 'A4_Portrait') depuis PAGE_SIZES.
+ */
+export function drawPageGuides(format) {
+    if (!fabricCanvas) return;
+
+    // Supprime l'ancien guide s'il existe
+    if (pageGuideRect) {
+        fabricCanvas.remove(pageGuideRect);
+        pageGuideRect = null;
+    }
+
+    // Ne rien dessiner si format 'Original' ou invalide
+    if (format === 'Original' || !PAGE_SIZES[format] || !PAGE_SIZES[format].viewBox) {
+        fabricCanvas.requestRenderAll(); // Assure que l'ancien guide est bien effacé
+        console.log("Guides de page désactivés (Original ou format invalide).");
+        return;
+    }
+
+    const sizeInfo = PAGE_SIZES[format];
+    const viewBox = sizeInfo.viewBox;
+    const zoom = fabricCanvas.getZoom(); // Pour ajuster l'épaisseur du trait
+
+    console.log(`Dessin du guide pour ${format}:`, sizeInfo);
+
+    // Crée le rectangle de guide
+    pageGuideRect = new fabric.Rect({
+        left: viewBox.x,
+        top: viewBox.y,
+        width: viewBox.width,
+        height: viewBox.height,
+        fill: 'transparent',       // Pas de remplissage
+        stroke: '#adb5bd',         // Couleur grise
+        strokeWidth: 1 / zoom,     // Épaisseur constante quelle que soit le zoom
+        baseStrokeWidth: 1,        // Stocke l'épaisseur de base
+        strokeDashArray: [5 / zoom, 5 / zoom], // Pointillés (5px visible, 5px vide) ajustés au zoom
+        selectable: false,         // Non sélectionnable
+        evented: false,            // Ne réagit pas aux événements souris
+        isPageGuide: true          // Marqueur custom (optionnel)
+    });
+
+    fabricCanvas.add(pageGuideRect);
+    pageGuideRect.sendToBack(); // Envoie derrière tous les autres objets
+    fabricCanvas.requestRenderAll();
 }

@@ -5,7 +5,8 @@ import {
     resetZoom, setCanvasLock, getCanvasLock,
     findSvgShapeByCodeGeo, toggleSnapToGrid, getSnapToGrid,
     zoomCanvas,
-    updateGrid, updateStrokesWidth
+    updateGrid, updateStrokesWidth,
+    drawPageGuides
 } from './canvas.js';
 
 import {
@@ -92,6 +93,7 @@ let initialPlacedGeoCodes;
 let universColors;
 let planUnivers;
 let autoSaveTimeout; // Pour la sauvegarde automatique
+let currentPageSizeFormat = 'Original';
 
 // ===================================
 // === DÉFINITION DES GESTIONNAIRES & FONCTIONS ===
