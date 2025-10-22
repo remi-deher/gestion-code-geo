@@ -370,42 +370,78 @@ async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint) {
 
 /** Appelé lors du déplacement d'un TEXTE géo (plan SVG) */
 async function handleObjectMoved(target) {
-    if (!target?.customData?.position_id || !target.customData?.id) { return; }
-    // Cette fonction est pour les textes (isPlacedText). Les tags (isGeoTag) utilisent handleGeoTagModified
+    if (!target?.customData?.id) { // On a juste besoin de l'ID du code géo pour commencer
+        console.warn("handleObjectMoved: Cible ou customData.id manquant.");
+        return;
+    }
+    
+    // Cette fonction est pour les textes (isPlacedText).
     if (!target.customData.isPlacedText) {
-        console.warn("handleObjectMoved appelé pour un non-texte (devrait être handleGeoTagModified ?)", target);
+        console.warn("handleObjectMoved appelé pour un non-texte.", target);
         return;
     }
 
-    // On pourrait ajouter un "debounce" ici pour ne pas appeler l'API à chaque pixel
+    // Récupérer les IDs
+    const positionId = target.customData.position_id || null; // Peut être null si l'objet a été chargé avec l'ancien bug
+    const geoCodeId = target.customData.id;
+
+    // --- LOG 7 (Vérification pour le déplacement) ---
+    console.log(`[handleObjectMoved] LOG 7 - Déplacement objet. position_id lu: ${positionId}, geoCodeId: ${geoCodeId}`);
+
+    if (!geoCodeId || !currentPlanId) {
+        showToast("Erreur sauvegarde: ID du code ou du plan manquant.", "danger");
+        return;
+    }
+
     showLoading("Mise à jour position...");
     try {
         const center = target.getCenterPoint();
         const { posX, posY } = convertPixelsToPercent(center.x, center.y, fabricCanvas);
-        const positionId = target.customData.position_id;
-        const geoCodeId = target.customData.id;
 
+        // --- CORRECTION ---
+        // Le position_id DOIT être DANS l'objet positionData
         const positionData = {
             id: parseInt(geoCodeId, 10),
             plan_id: currentPlanId,
-            pos_x: posX, // Nouvelle position %
-            pos_y: posY, // Nouvelle position %
-            width: null, // Pas de taille pour les textes
+            position_id: positionId, // <-- AJOUTÉ ICI
+            pos_x: posX,
+            pos_y: posY,
+            width: null, 
             height: null,
-            anchor_x: target.customData.anchorSvgId || null, // L'ancre SVG ne change pas
-            anchor_y: null
+            anchor_x: target.customData.anchorSvgId || null,
+            anchor_y: null,
+            code_geo: target.customData.code_geo // Pour le toast
         };
+        // --- FIN CORRECTION ---
 
-        const updatedPosition = await savePosition(positionData, positionId); // Appel API (Update)
+        // --- CORRECTION ---
+        // L'appel API ne prend qu'UN SEUL argument
+        const updatedPosition = await savePosition(positionData); 
 
-        showToast(`Position "${target.customData.codeGeo}" màj.`, 'success');
-        target.set('customData', { ...target.customData, pos_x: updatedPosition.pos_x, pos_y: updatedPosition.pos_y });
+        // Mettre à jour le customData de l'objet sur le canvas
+        if (updatedPosition && updatedPosition.id) {
+            target.customData.position_id = updatedPosition.id; // Assure que l'ID est à jour (surtout s'il était null)
+            target.customData.pos_x = updatedPosition.pos_x;
+            target.customData.pos_y = updatedPosition.pos_y;
+            
+            showToast(`Position "${target.customData.code_geo}" màj.`, 'success');
+            
+            // Rafraîchir la sidebar si l'objet vient d'être "fixé" (passant de null à un ID)
+            if (positionId === null) {
+                await fetchAndClassifyCodes();
+            }
+        } else {
+             throw new Error("La réponse de l'API (savePosition) est invalide.");
+        }
+        
         target.setCoords();
         if (fabricCanvas.getActiveObject() === target) {
             showToolbar(target); // Garde la toolbar visible
         }
+
     } catch (error) {
-        showToast(`Échec màj: ${error.message}`, 'error');
+        console.error("[handleObjectMoved] Erreur CATCH:", error);
+        showToast(`Échec màj: ${error.message}`, 'danger');
     }
     finally {
         hideLoading();
