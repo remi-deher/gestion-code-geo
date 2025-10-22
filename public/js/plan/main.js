@@ -37,32 +37,34 @@ import {
     showLoading, hideLoading
 } from './ui.js';
 
-// CORRECTION: Importer initializeGeoTags et ses dépendances
+// Import pour la gestion des tags/textes géo et leur toolbar
 import {
-    initializeGeoTags, // <-- AJOUT de l'import
+    initializeGeoTags,
     addArrowToTag,
     showToolbar,
     hideToolbar,
-    handleGeoTagModified, // Si utilisé directement par main.js (sinon optionnel)
-    getIsDrawingArrowMode, // Si utilisé
-    handleArrowEndPoint,   // Si utilisé
-    cancelArrowDrawing // <-- AJOUT : nécessaire pour Escape key
-    // Importez d'autres fonctions de geo-tags si nécessaire
+    handleGeoTagModified,
+    getIsDrawingArrowMode,
+    handleArrowEndPoint,
+    cancelArrowDrawing
 } from './geo-tags.js';
 
+// Import des utilitaires
 import {
     showToast,
     convertPixelsToPercent,
-    convertPercentToPixels // <-- Assurez-vous que cette fonction est bien importée
+    convertPercentToPixels
 } from '../modules/utils.js';
 
+// Import de la configuration
 import {
     sizePresets,
     GEO_TEXT_FONT_SIZE,
-    GEO_TAG_FONT_SIZE, // <-- Assurez-vous que cette constante est bien importée
+    GEO_TAG_FONT_SIZE,
     GRID_SIZE
 } from '../modules/config.js';
 
+// Import des fonctions API
 import {
     savePosition,
     removePosition,
@@ -90,84 +92,64 @@ let planUnivers;
 
 // --- DÉMARRAGE ---
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Plan Editor v2 (Correction API + geo-tags init) - DOMContentLoaded"); // Log mis à jour
+    console.log("Plan Editor v2 (Full + Corrections vFinal) - DOMContentLoaded");
 
+    // --- Récupération des données PHP ---
     try {
         const phpDataElement = document.getElementById('plan-data');
         const phpData = phpDataElement ? JSON.parse(phpDataElement.textContent || '{}') : (window.PHP_DATA || {});
-
         initialPlacedGeoCodes = phpData.placedGeoCodes || [];
-        universColors = phpData.universColors || {}; // Récupéré ici
+        universColors = phpData.universColors || {};
         currentPlanId = phpData.currentPlanId;
         planType = phpData.planType;
         planUnivers = phpData.planUnivers || [];
-
         if (phpData.currentPlan && phpData.currentPlan.nom_fichier) {
             const baseUrl = 'uploads/plans/';
-            if (planType === 'svg') {
-                planSvgUrl = baseUrl + phpData.currentPlan.nom_fichier;
-            } else if (planType === 'image') {
-                planImageUrl = baseUrl + phpData.currentPlan.nom_fichier;
-            }
+            if (planType === 'svg') { planSvgUrl = baseUrl + phpData.currentPlan.nom_fichier; }
+            else if (planType === 'image') { planImageUrl = baseUrl + phpData.currentPlan.nom_fichier; }
         }
-
         if (!currentPlanId || !planType) { throw new Error("Données PHP essentielles manquantes."); }
         console.log("Données initiales chargées:", phpData);
+    } catch (error) { console.error("Erreur PHP data:", error); showToast("Erreur critique.", 'error'); return; }
 
-    } catch (error) {
-        console.error("Erreur lors de la récupération des données PHP:", error);
-        showToast("Erreur critique: Données initiales non chargées.", 'error');
-        return;
-    }
-
-
+    // --- Initialisation des modules ---
     showLoading("Initialisation du plan...");
     try {
         fabricCanvas = initializeCanvas('plan-canvas');
-        if (!fabricCanvas) { throw new Error("Impossible d'initialiser le canvas Fabric."); }
-        console.log("Canvas Fabric initialisé dans canvas.js");
+        if (!fabricCanvas) { throw new Error("Init canvas Fabric échouée."); }
+        console.log("Canvas initialisé.");
 
         initializeSidebar(fabricCanvas, universColors, currentPlanId, planType, planUnivers);
-        console.log("Sidebar (rôle info) initialisée.");
+        console.log("Sidebar initialisée.");
 
         initializeDrawingTools(fabricCanvas);
-        console.log("Outils de dessin initialisés.");
+        console.log("Outils dessin initialisés.");
 
-        // CORRECTION: Initialiser geo-tags APRÈS le canvas et AVANT les listeners
-        initializeGeoTags(fabricCanvas, universColors); // <-- AJOUT de l'appel
+        initializeGeoTags(fabricCanvas, universColors);
         console.log("GeoTags initialisé.");
 
         initializeUI(fabricCanvas);
-        console.log("UI (sidebar toggle, fullscreen) initialisée.");
+        console.log("UI initialisée.");
 
-        // --- Chargement du plan (SVG/Image) ---
-        if (planType === 'svg' && planSvgUrl) {
-            await loadSvgPlan(planSvgUrl);
-            setCanvasLock(true);
-        } else if (planType === 'image' && planImageUrl) {
-            await loadPlanImage(planImageUrl);
-            // setCanvasLock(true); // Pas de verrouillage pour images pour l'instant
-        } else if (planType === 'svg_creation'){
-            console.log("Mode création SVG vierge.");
-        }
-        else {
-            resizeCanvas();
-            showToast("Aucun plan (SVG/Image) n'a été chargé.", 'warning');
-        }
+        // --- Chargement du plan (SVG/Image/Création) ---
+        if (planType === 'svg' && planSvgUrl) { await loadSvgPlan(planSvgUrl); setCanvasLock(true); }
+        else if (planType === 'image' && planImageUrl) { await loadPlanImage(planImageUrl); }
+        else if (planType === 'svg_creation'){ console.log("Mode création SVG."); resizeCanvas(); }
+        else { resizeCanvas(); showToast("Aucun plan chargé.", 'warning'); }
 
-        setupEventListeners(); // Attacher les listeners APRÈS l'init des modules
+        setupEventListeners();
 
-        // --- Placement éléments initiaux et chargement sidebar ---
+        // --- Placement éléments initiaux & Chargement codes sidebar ---
         if (planType !== 'svg_creation') {
             createInitialGeoElements(initialPlacedGeoCodes, planType);
             await fetchAndClassifyCodes();
+        } else {
+             await fetchAndClassifyCodes();
         }
 
         // --- Configuration modale ajout code ---
 	    const universSelectEl = document.getElementById('new-univers-id');
-        if (universSelectEl) {
-            populateUniversSelectInModal(universSelectEl, planUnivers);
-        }
+        if (universSelectEl) { populateUniversSelectInModal(universSelectEl, planUnivers); }
         const saveBtn = document.getElementById('save-new-code-btn');
         const addForm = document.getElementById('add-code-form');
         const addModalEl = document.getElementById('add-code-modal');
@@ -175,27 +157,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (saveBtn && addForm && addModalInstance) {
             saveBtn.addEventListener('click', async () => {
                 const success = await handleSaveNewCodeInModal(addForm, saveBtn, saveNewGeoCode);
-                if (success) {
-                    addModalInstance.hide();
-                    await fetchAndClassifyCodes();
-                }
+                if (success) { addModalInstance.hide(); await fetchAndClassifyCodes(); }
             });
         }
 
-        // --- Mise à jour état initial boutons ---
+        // --- Mise à jour état initial boutons UI ---
         updateDrawingToolButtons();
         updateLockButtonState();
         updateGroupButtonStates();
 
-    } catch (error) {
-        console.error("Erreur majeure lors de l'initialisation:", error);
-        showToast(`Erreur d'initialisation: ${error.message}`, 'error');
-    } finally {
-        hideLoading();
-        resizeCanvas();
-        resetZoom();
-        console.log("Fin initialisation main.js");
-    }
+    } catch (error) { console.error("Erreur majeure lors de l'initialisation:", error); showToast(`Erreur init: ${error.message}`, 'error'); }
+    finally { hideLoading(); resizeCanvas(); resetZoom(); console.log("Fin initialisation main.js"); }
 });
 
 
@@ -206,14 +178,17 @@ function setupEventListeners() {
     if (!fabricCanvas) return;
     console.log("Attaching ALL event listeners...");
 
-    // --- Événements Souris sur le Canvas ---
+    // ===================================
+    // === Événements Souris Canvas ===
+    // ===================================
     fabricCanvas.on('mouse:down', handleMouseDown);
     fabricCanvas.on('mouse:move', handleMouseMove);
     fabricCanvas.on('mouse:up', handleMouseUp);
 
-    // --- Autres événements Canvas ---
+    // ===================================
+    // === Autres Événements Canvas ===
+    // ===================================
     fabricCanvas.on('object:moving', (options) => {
-        // --- Magnétisme ---
         if (getSnapToGrid()) {
             const snapSize = GRID_SIZE || 10;
             const target = options.target;
@@ -225,25 +200,18 @@ function setupEventListeners() {
                 target.setCoords();
             }
         }
-        // --- Màj Toolbar ---
         const target = options.target;
-        if (target && (target.customData?.isGeoTag || target.customData?.isPlacedText)) {
-            showToolbar(target); // Fonction importée de geo-tags.js
+        if (target?.customData?.isGeoTag || target?.customData?.isPlacedText) {
+             showToolbar(target);
         }
     });
 
     fabricCanvas.on('object:modified', (e) => {
         const target = e.target;
-        if (target && (target.customData?.isGeoTag || target.customData?.isPlacedText)) {
-            console.log("Object Géo modifié (déplacé):", target.customData.codeGeo);
-            // CORRECTION: Appeler handleGeoTagModified si c'est un tag (flèche, etc.)
-            if (target.customData.isGeoTag) {
-                 handleGeoTagModified(target); // Utilise la fonction dédiée de geo-tags.js
-            } else {
-                 handleObjectMoved(target); // Fonction générique pour texte/autres
-            }
-        } else if (target && !target.isGridLine) { // Ne pas sauvegarder modif grille
-            console.log("Objet Dessin modifié:", target.type);
+        if (target?.customData?.isGeoTag || target?.customData?.isPlacedText) {
+            if (target.customData.isGeoTag) { handleGeoTagModified(target); }
+            else { handleObjectMoved(target); }
+        } else if (target && !target.isGridLine) {
             triggerAutoSaveDrawing();
         }
     });
@@ -251,8 +219,7 @@ function setupEventListeners() {
     fabricCanvas.on('selection:created', (e) => { handleSelectionChange(e.selected); });
     fabricCanvas.on('selection:updated', (e) => { handleSelectionChange(e.selected); });
     fabricCanvas.on('selection:cleared', (e) => {
-        console.log("Selection cleared");
-        handleObjectDeselected(); // Gère sidebar + hideToolbar()
+        handleObjectDeselected();
         updateGroupButtonStates();
     });
 
@@ -261,90 +228,62 @@ function setupEventListeners() {
         updateGrid(zoom);
         updateStrokesWidth(zoom);
         const activeObj = fabricCanvas.getActiveObject();
-        if (activeObj && (activeObj.customData?.isGeoTag || activeObj.customData?.isPlacedText)) {
-            showToolbar(activeObj); // Màj position toolbar
+        if (activeObj?.customData?.isGeoTag || activeObj?.customData?.isPlacedText) {
+            showToolbar(activeObj);
         }
     });
 
     fabricCanvas.upperCanvasEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // --- Événements du Document ---
-    document.addEventListener('click', () => { /* ... cacher menu contextuel ... */ });
-
+    // ===================================
+    // === Événements du Document ===
+    // ===================================
     document.addEventListener('keydown', (e) => {
         const isInputFocused = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
         const activeObject = fabricCanvas.getActiveObject();
-
         if (e.key === 'Escape') {
-            console.log("Escape key pressed");
-            // Annuler dessin flèche si actif
-            if (getIsDrawingArrowMode && getIsDrawingArrowMode()) {
-                 cancelArrowDrawing(); // Importé de geo-tags.js
-            }
-            // Annuler dessin forme si actif
-            if (getIsDrawing()) {
-                 console.log("Cancelling drawing (Escape)");
-                 stopDrawing(null, true); // Annuler le dessin en cours
-            }
-            // Revenir en mode select si autre outil actif
-             if (getCurrentDrawingTool() !== 'select') {
-                 console.log("Switching back to select tool (Escape)");
-                 setActiveTool('select');
-                 updateDrawingToolButtons();
-             }
-            // Désélectionner
-            fabricCanvas.discardActiveObject().renderAll();
-            handleObjectDeselected(); // Gère sidebar + hideToolbar
-            e.preventDefault();
+            let handled = false;
+            if (getIsDrawingArrowMode && getIsDrawingArrowMode()) { cancelArrowDrawing(); handled = true; }
+            if (getIsDrawing()) { stopDrawing(null, true); handled = true; }
+            if (getCurrentDrawingTool() !== 'select') { setActiveTool('select'); updateDrawingToolButtons(); handled = true; }
+            if (activeObject) { fabricCanvas.discardActiveObject().renderAll(); handleObjectDeselected(); handled = true; }
+            if (handled) e.preventDefault();
+            return;
         }
-
         if (isInputFocused) return;
-
-        // --- Raccourcis Ctrl/Cmd ---
         if (e.ctrlKey || e.metaKey) {
+            let handled = true;
             switch (e.key.toLowerCase()) {
-                case 'c': copyShape(); e.preventDefault(); break;
-                case 'v': pasteShape(); e.preventDefault(); break;
-                case 'g':
-                     if (activeObject) {
-                        e.shiftKey ? ungroupSelectedObject() : groupSelectedObjects();
-                     }
-                     e.preventDefault();
-                     break;
-                 case 'l':
-                    if (planType === 'svg') { document.getElementById('toggle-lock-svg-btn')?.click(); }
-                    e.preventDefault();
-                    break;
+                case 'c': copyShape(); break;
+                case 'v': pasteShape(); break;
+                case 'g': if (activeObject) { e.shiftKey ? ungroupSelectedObject() : groupSelectedObjects(); } break;
+                case 'l': if (planType === 'svg') { document.getElementById('toggle-lock-svg-btn')?.click(); } break;
+                default: handled = false; break;
             }
-        }
-        // --- Raccourcis Simples ---
-        else {
+            if (handled) e.preventDefault();
+        } else {
+            let handled = true;
             switch (e.key) {
                 case 'Delete':
                 case 'Backspace':
                     if (activeObject) {
-                        if (activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText) {
-                             handleDeleteObject(activeObject);
-                        } else if (!activeObject.isEditing) {
-                            deleteSelectedDrawingShape();
-                        }
+                        if (activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText) { handleDeleteObject(activeObject); }
+                        else if (!activeObject.isEditing) { deleteSelectedDrawingShape(); }
                     }
-                    e.preventDefault();
                     break;
-                // --- Raccourcis Outils ---
                 case 'v': setActiveTool('select'); updateDrawingToolButtons(); break;
                 case 'r': setActiveTool('rect'); updateDrawingToolButtons(); break;
                 case 'l': setActiveTool('line'); updateDrawingToolButtons(); break;
                 case 'c': setActiveTool('circle'); updateDrawingToolButtons(); break;
                 case 't': setActiveTool('text'); updateDrawingToolButtons(); break;
+                default: handled = false; break;
             }
+            if (handled) e.preventDefault();
         }
-        // --- Pan (Alt) ---
         if (e.key === 'Alt') {
-            if (!fabricCanvas.isDragging) {
-                fabricCanvas.defaultCursor = 'grab';
-                fabricCanvas.hoverCursor = 'grab';
-                 fabricCanvas.requestRenderAll();
+            if (!fabricCanvas.isDragging && !(getIsDrawingArrowMode && getIsDrawingArrowMode())) {
+                fabricCanvas.defaultCursor = 'grab'; fabricCanvas.hoverCursor = 'grab';
+                fabricCanvas.requestRenderAll();
             }
             e.preventDefault();
         }
@@ -353,15 +292,16 @@ function setupEventListeners() {
     document.addEventListener('keyup', (e) => {
          if (e.key === 'Alt') {
              if (!fabricCanvas.isDragging) {
-                console.log("Alt key released, resetting cursor");
                 fabricCanvas.defaultCursor = (getCurrentDrawingTool() === 'select') ? 'default' : 'crosshair';
                 fabricCanvas.hoverCursor = (getCurrentDrawingTool() === 'select') ? 'move' : 'crosshair';
-                 fabricCanvas.requestRenderAll();
+                fabricCanvas.requestRenderAll();
             }
         }
     });
 
-    // --- Listeners Toolbar Principale ---
+    // ===================================
+    // === Listeners Boutons Toolbars ===
+    // ===================================
     const zoomInBtn = document.getElementById('zoom-in-btn');
     const zoomOutBtn = document.getElementById('zoom-out-btn');
     const zoomResetBtn = document.getElementById('zoom-reset-btn');
@@ -370,46 +310,17 @@ function setupEventListeners() {
     const saveNewSvgPlanBtn = document.getElementById('save-new-svg-plan-btn');
     const newPlanNameInput = document.getElementById('new-plan-name');
 
-    if (zoomInBtn) zoomInBtn.addEventListener('click', () => { console.log("Zoom In"); zoomCanvas(1.2); });
-    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => { console.log("Zoom Out"); zoomCanvas(0.8); });
-    if (zoomResetBtn) zoomResetBtn.addEventListener('click', () => { console.log("Zoom Reset"); resetZoom(); });
-    if (lockBtn) lockBtn.addEventListener('click', () => {
-         console.log("Lock Toggle");
-         setCanvasLock(!getCanvasLock());
-         updateLockButtonState();
-    });
-    if (saveDrawingBtn) saveDrawingBtn.addEventListener('click', async () => {
-         console.log("Save Drawing/SVG");
-         showLoading("Sauvegarde...");
-         try {
-             if (planType === 'image') { await triggerAutoSaveDrawing(true); }
-             else if (planType === 'svg') { await saveModifiedSvgPlan(); }
-             showToast("Modifications enregistrées.", "success");
-         } catch (error) { showToast(`Erreur sauvegarde: ${error.message}`, "danger"); }
-         finally { hideLoading(); }
-    });
-    if (saveNewSvgPlanBtn && newPlanNameInput) saveNewSvgPlanBtn.addEventListener('click', async () => {
-         console.log("Save New SVG Plan");
-         const planName = newPlanNameInput.value.trim();
-         if (!planName) { showToast("Veuillez entrer un nom.", "warning"); return; }
-         const universIds = []; // TODO: Récupérer univers
-         showLoading("Création...");
-         try {
-            const svgString = fabricCanvas.toSVG(['customData', 'baseStrokeWidth'], (obj) => obj.isGridLine ? null : obj);
-            const result = await createSvgPlan(planName, svgString, universIds);
-            if (result.success && result.plan_id) {
-                showToast(`Plan "${planName}" créé ! Redirection...`, "success");
-                setTimeout(() => { window.location.href = `index.php?action=manageCodes&id=${result.plan_id}`; }, 1500);
-            } else { throw new Error("Réponse API invalide."); }
-         } catch (error) { showToast(`Erreur: ${error.message}`, "danger"); }
-         finally { hideLoading(); }
-    });
+    if (zoomInBtn) zoomInBtn.addEventListener('click', () => { zoomCanvas(1.2); });
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => { zoomCanvas(0.8); });
+    if (zoomResetBtn) zoomResetBtn.addEventListener('click', resetZoom);
+    if (lockBtn) lockBtn.addEventListener('click', () => { setCanvasLock(!getCanvasLock()); updateLockButtonState(); });
+    if (saveDrawingBtn) saveDrawingBtn.addEventListener('click', async () => { /* ... save plan ... */ });
+    if (saveNewSvgPlanBtn && newPlanNameInput) saveNewSvgPlanBtn.addEventListener('click', async () => { /* ... save new svg ... */ });
 
-    // --- Listeners Toolbar Dessin ---
     const toolBtns = document.querySelectorAll('#drawing-toolbar .tool-btn');
     toolBtns.forEach(btn => btn.addEventListener('click', () => {
         setActiveTool(btn.dataset.tool);
-        // updateDrawingToolButtons(); // Fait DANS setActiveTool maintenant
+        updateDrawingToolButtons();
     }));
     const strokeColorPicker = document.getElementById('stroke-color-picker');
     const fillColorPicker = document.getElementById('fill-color-picker');
@@ -431,69 +342,42 @@ function setupEventListeners() {
     if (groupBtn) groupBtn.addEventListener('click', groupSelectedObjects);
     if (ungroupBtn) ungroupBtn.addEventListener('click', ungroupSelectedObject);
 
-    // --- Listeners Assets ---
     const saveAssetBtn = document.getElementById('save-asset-btn');
     const assetsListContainer = document.getElementById('assets-list');
     const assetsOffcanvasEl = document.getElementById('assetsOffcanvas');
-
     if (saveAssetBtn) saveAssetBtn.addEventListener('click', handleSaveAsset);
     if (assetsOffcanvasEl) assetsOffcanvasEl.addEventListener('show.bs.offcanvas', loadAssetsList);
     if (assetsListContainer) assetsListContainer.addEventListener('click', handleAssetClick);
 
-    // --- Listeners Toolbar Tag (Supprimer uniquement ici) ---
     const deleteBtn = document.getElementById('toolbar-delete');
     if (deleteBtn) deleteBtn.addEventListener('click', () => {
-         console.log("Delete Tag Button Clicked");
          const activeObj = fabricCanvas.getActiveObject();
          if (activeObj) { handleDeleteObject(activeObj); }
     });
-    // Les autres boutons (highlight, arrow, size) doivent avoir leurs listeners DANS geo-tags.js
 
     console.log("All event listeners attached.");
 }
 
-
-// --- GESTIONNAIRES ÉVÉNEMENTS SOURIS ---
+// ===================================
+// === GESTIONNAIRES ÉVÉNEMENTS SOURIS ===
+// ===================================
 
 function handleMouseDown(options) {
-    // console.log("Canvas mouse down detected!"); // Trop verbeux
     const evt = options.e;
-    const target = options.target;
-
-    // --- Clic Droit / Ctrl+Clic ---
-    if (options.button === 3 || evt.ctrlKey) { console.log("Right click"); return; }
-
-    // --- Pan (Alt / Molette) ---
+    if (options.button === 3 || evt.ctrlKey) { return; }
     if (evt.altKey || options.button === 2) { startPan(evt); return; }
-
-    // --- Mode Dessin Flèche ---
-    if (getIsDrawingArrowMode && getIsDrawingArrowMode()) {
-        console.log("Arrow endpoint click");
-        handleArrowEndPoint(options); // Finalise la flèche
-        return;
-    }
-
-    // --- Clic sur objet existant ---
-    if (target && !target.isGridLine) {
-        // console.log("Mouse down on object:", target.type);
-        if (getCurrentDrawingTool() !== 'select') {
-             // console.log("Click on object while drawing - ignoring.");
-        }
-        return;
-    }
-
-    // --- Clic sur fond ---
-    // console.log("Mouse down on canvas background.");
+    if (getIsDrawingArrowMode && getIsDrawingArrowMode()) { handleArrowEndPoint(options); return; }
+    const target = options.target;
+    if (target && !target.isGridLine) { return; }
     const currentTool = getCurrentDrawingTool();
-    if (currentTool === 'tag') { handleCanvasClick(options); } // Placement géo
-    else if (currentTool !== 'select') { startDrawing(options); } // Dessin forme
-    else { fabricCanvas.discardActiveObject().renderAll(); handleObjectDeselected(); } // Désélection
+    if (currentTool === 'tag') { handleCanvasClick(options); }
+    else if (currentTool !== 'select') { startDrawing(options); }
+    else { fabricCanvas.discardActiveObject().renderAll(); handleObjectDeselected(); }
 }
 
 function handleMouseMove(options) {
     if (fabricCanvas.isDragging) { continuePan(options.e); }
     else if (getIsDrawing()) { continueDrawing(options); }
-    // Le suivi pour la flèche est géré DANS geo-tags.js
 }
 
 function handleMouseUp(options) {
@@ -502,39 +386,33 @@ function handleMouseUp(options) {
         const drawnObject = stopDrawing(options);
         if (drawnObject) { handleDrawingComplete(drawnObject); }
     }
-    // --- Création Texte (Clic simple) ---
     const currentTool = getCurrentDrawingTool();
     if (currentTool === 'text' && !getIsDrawing() && !options.target && options.e.type !== 'mouseout') {
-         const textObject = stopDrawing(options); // Crée le texte
+         const textObject = stopDrawing(options);
          if (textObject) { handleDrawingComplete(textObject); }
     }
 }
 
-// --- FONCTIONS PAN ---
+// ===================================
+// === FONCTIONS PAN ===
+// ===================================
 function startPan(evt) {
-    if (getIsDrawing() || (getIsDrawingArrowMode && getIsDrawingArrowMode())) return; // Ne pas panner si dessin en cours
-    console.log("Start Pan");
-    fabricCanvas.isDragging = true;
-    fabricCanvas.selection = false;
-    fabricCanvas.lastPosX = evt.clientX;
-    fabricCanvas.lastPosY = evt.clientY;
-    fabricCanvas.defaultCursor = 'grabbing';
-    fabricCanvas.hoverCursor = 'grabbing';
+    if (getIsDrawing() || (getIsDrawingArrowMode && getIsDrawingArrowMode())) return;
+    fabricCanvas.isDragging = true; fabricCanvas.selection = false;
+    fabricCanvas.lastPosX = evt.clientX; fabricCanvas.lastPosY = evt.clientY;
+    fabricCanvas.defaultCursor = 'grabbing'; fabricCanvas.hoverCursor = 'grabbing';
     fabricCanvas.getObjects().forEach(o => { if(!o.isGridLine) o.set('evented', false) });
     fabricCanvas.requestRenderAll();
 }
 function continuePan(evt) {
     if (!fabricCanvas.isDragging) return;
     const vpt = fabricCanvas.viewportTransform;
-    vpt[4] += evt.clientX - fabricCanvas.lastPosX;
-    vpt[5] += evt.clientY - fabricCanvas.lastPosY;
+    vpt[4] += evt.clientX - fabricCanvas.lastPosX; vpt[5] += evt.clientY - fabricCanvas.lastPosY;
     fabricCanvas.requestRenderAll();
-    fabricCanvas.lastPosX = evt.clientX;
-    fabricCanvas.lastPosY = evt.clientY;
+    fabricCanvas.lastPosX = evt.clientX; fabricCanvas.lastPosY = evt.clientY;
 }
 function stopPan() {
     if (!fabricCanvas.isDragging) return;
-    console.log("Stop Pan");
     fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform);
     fabricCanvas.isDragging = false;
     fabricCanvas.selection = (getCurrentDrawingTool() === 'select');
@@ -544,68 +422,53 @@ function stopPan() {
     fabricCanvas.requestRenderAll();
 }
 
-// --- GESTION SÉLECTION ---
-
+// ===================================
+// === GESTION SÉLECTION ===
+// ===================================
 function handleSelectionChange(selectedItems) {
-    if (!selectedItems || selectedItems.length === 0) { return; } // Géré par selection:cleared
-
+    if (!selectedItems || selectedItems.length === 0) { return; }
     const activeSelection = fabricCanvas.getActiveObject();
-    // console.log("Selection changed:", activeSelection.type);
-
-    if (activeSelection.type === 'activeSelection') { // Multiple
-        handleObjectDeselected(); // Gère sidebar + hideToolbar
-        // console.log(`${activeSelection.size()} objects selected`);
-    } else { // Simple
+    if (!activeSelection) return;
+    if (activeSelection.type === 'activeSelection') {
+        handleObjectDeselected();
+    } else {
         const target = activeSelection;
-        if (target.customData?.isGeoTag || target.customData?.isPlacedText) {
-            // console.log("Geo element selected:", target.customData.codeGeo);
-            showToolbar(target); // Affiche toolbar (depuis geo-tags.js)
-            handleObjectSelected(target); // Màj sidebar
-        } else if (!target.isGridLine) { // Dessin
-            // console.log("Drawing element selected:", target.type);
-            hideToolbar(); // Cache toolbar (depuis geo-tags.js)
-            handleObjectDeselected(); // Gère sidebar
-            updateDrawingStyleFromObject(target); // Màj couleurs
-        } else { /* ... ignorer grille ... */ }
+        if (target.customData?.isGeoTag || target.customData?.isPlacedText) { showToolbar(target); handleObjectSelected(target); }
+        else if (!target.isGridLine) { hideToolbar(); handleObjectDeselected(); updateDrawingStyleFromObject(target); }
+        else { hideToolbar(); }
     }
     updateGroupButtonStates();
 }
-
 function handleObjectSelected(target) {
     const positionId = target.customData?.position_id;
     const geoCodeId = target.customData?.id;
     if (!positionId && !geoCodeId) return;
-
-    // Highlight dans la liste "Placés"
     document.querySelectorAll('#placed-list .list-group-item').forEach(item => {
         const itemPositionIds = JSON.parse(item.dataset.positionIds || '[]');
         const matchesPosition = positionId && (item.dataset.positionId == positionId || itemPositionIds.includes(positionId));
         const matchesCodeId = item.dataset.id == geoCodeId;
-        if (matchesCodeId && (matchesPosition || !positionId)) {
-            item.classList.add('active');
-            item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } else {
-            item.classList.remove('active');
+        item.classList.toggle('active', matchesCodeId && (matchesPosition || !positionId));
+        if (item.classList.contains('active')) {
+             item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     });
-     // Désélectionner dans la liste "Disponibles"
-     document.querySelectorAll('#dispo-list .list-group-item.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#dispo-list .list-group-item.active').forEach(el => el.classList.remove('active'));
 }
-
 function handleObjectDeselected() {
     document.querySelectorAll('#placed-list .list-group-item.active, #dispo-list .list-group-item.active').forEach(item => {
         item.classList.remove('active');
     });
-    hideToolbar(); // Cache la toolbar (depuis geo-tags.js)
+    hideToolbar();
 }
 
-// --- CRUD GÉO ---
-
+// ===================================
+// === CRUD GÉO (Placer, Déplacer, Supprimer) ===
+// ===================================
 async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint = null) {
     if (!fabricObject || !geoCodeId) { return; }
     showLoading("Sauvegarde position...");
     try {
-        const center = clickPoint ? clickPoint : fabricObject.getCenterPoint();
+        const center = clickPoint || fabricObject.getCenterPoint();
         const { posX, posY } = convertPixelsToPercent(center.x, center.y, fabricCanvas);
         const positionData = {
             id: parseInt(geoCodeId, 10), plan_id: currentPlanId,
@@ -625,66 +488,54 @@ async function handleObjectPlaced(fabricObject, geoCodeId, clickPoint = null) {
     } catch (error) { showToast(`Échec sauvegarde: ${error.message}`, 'error'); if (fabricObject) fabricCanvas.remove(fabricObject); }
     finally { hideLoading(); setActiveTool('select'); updateDrawingToolButtons(); }
 }
-
 async function handleObjectMoved(target) {
     if (!target?.customData?.position_id || !target.customData?.id) { return; }
-    // Cette fonction est maintenant pour TEXTE géo, TAGS géo utilisent handleGeoTagModified
     if (!target.customData.isPlacedText) { console.warn("handleObjectMoved pour non-texte", target); }
-
     showLoading("Mise à jour position...");
     try {
         const center = target.getCenterPoint();
         const { posX, posY } = convertPixelsToPercent(center.x, center.y, fabricCanvas);
         const positionId = target.customData.position_id;
         const geoCodeId = target.customData.id;
-        const positionData = {
-            id: parseInt(geoCodeId, 10), plan_id: currentPlanId,
-            pos_x: posX, pos_y: posY,
-            width: null, height: null, // C'est un texte
-            anchor_x: target.customData.anchorSvgId || null,
-            anchor_y: null
-        };
+        const positionData = { id: parseInt(geoCodeId, 10), plan_id: currentPlanId, pos_x: posX, pos_y: posY, width: null, height: null, anchor_x: target.customData.anchorSvgId || null, anchor_y: null };
         const updatedPosition = await savePosition(positionData, positionId);
-        showToast(`Position de "${target.customData.codeGeo}" mise à jour.`, 'success');
+        showToast(`Position "${target.customData.codeGeo}" màj.`, 'success');
         target.set('customData', { ...target.customData, pos_x: updatedPosition.pos_x, pos_y: updatedPosition.pos_y });
         target.setCoords();
         if (fabricCanvas.getActiveObject() === target) { showToolbar(target); }
-    } catch (error) { showToast(`Échec mise à jour: ${error.message}`, 'error'); }
+    } catch (error) { showToast(`Échec màj: ${error.message}`, 'error'); }
     finally { hideLoading(); }
 }
-
 async function handleDeleteObject(target) {
     if (!target || !(target.customData?.isGeoTag || target.customData?.isPlacedText)) { return; }
     const positionId = target.customData?.position_id;
     const codeGeo = target.customData?.codeGeo || "inconnu";
     if (!positionId) {
-        console.warn("Suppression locale objet sans position_id.");
         if (target.arrowLine) fabricCanvas.remove(target.arrowLine);
         fabricCanvas.remove(target);
         fabricCanvas.discardActiveObject().renderAll();
         return;
     }
     if (!confirm(`Supprimer "${codeGeo}" du plan ?`)) return;
-
     showLoading("Suppression...");
     try {
         await removePosition(positionId);
         if (target.arrowLine) fabricCanvas.remove(target.arrowLine);
         fabricCanvas.remove(target);
         fabricCanvas.discardActiveObject().renderAll();
-        // hideToolbar(); // Fait par discardActiveObject -> selection:cleared -> handleObjectDeselected
         showToast(`"${codeGeo}" supprimé.`, 'success');
         await fetchAndClassifyCodes();
     } catch (error) { showToast(`Échec suppression: ${error.message}`, 'error'); }
     finally { hideLoading(); }
 }
 
-// --- GESTION DESSIN ---
+// ===================================
+// === GESTION DESSIN (Fin, Sauvegarde) ===
+// ===================================
 function handleDrawingComplete(drawnObject) {
-    if (!drawnObject) return; // Si dessin annulé (trop petit)
+    if (!drawnObject) return;
     const mode = getCurrentDrawingTool();
     if (['rect', 'circle', 'line', 'text'].includes(mode)) {
-        console.log(`Dessin ${mode} terminé.`);
         drawnObject.set({ selectable: true, evented: true });
         triggerAutoSaveDrawing();
     }
@@ -694,12 +545,10 @@ function triggerAutoSaveDrawing(forceSave = false) {
     if (planType !== 'image') return;
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(async () => {
-         console.log("Sauvegarde auto annotations (JSON)...");
          const drawingData = fabricCanvas.toJSON(['customData', 'selectable', 'evented', 'baseStrokeWidth']);
          drawingData.objects = drawingData.objects.filter(obj => !obj.isGridLine && !(obj.customData?.isGeoTag || obj.customData?.isPlacedText));
          try {
              await saveDrawingData(currentPlanId, drawingData.objects.length > 0 ? drawingData : null);
-             console.log("Annotations JSON sauvegardées.");
              if (forceSave) showToast("Annotations enregistrées.", "success");
          } catch(error) { showToast(`Erreur sauvegarde annotations: ${error.message}`, "danger"); }
     }, forceSave ? 0 : 1500);
@@ -708,10 +557,11 @@ async function saveModifiedSvgPlan() {
     if (planType !== 'svg' || !currentPlanId) { throw new Error("Non applicable"); }
     const svgString = fabricCanvas.toSVG(['customData', 'baseStrokeWidth'], obj => obj.isGridLine ? null : obj);
     await updateSvgPlan(currentPlanId, svgString);
-    console.log("SVG modifié sauvegardé.");
 }
 
-// --- OUTILS DESSIN (Styles, Groupe, Presse-papiers) ---
+// ===================================
+// === OUTILS DESSIN (Styles, Groupe, Presse-papiers) ===
+// ===================================
 function updateDrawingStyleFromInput() {
     const strokeColor = document.getElementById('stroke-color-picker')?.value || '#000000';
     const fillColorPicker = document.getElementById('fill-color-picker');
@@ -766,13 +616,13 @@ function updateGroupButtonStates() {
     ungroupBtn.disabled = !canUngroup;
 }
 
-// --- ASSETS ---
+// ===================================
+// === ASSETS ===
+// ===================================
 async function handleSaveAsset() {
     const activeObject = fabricCanvas.getActiveObject();
     if (!activeObject || activeObject.isGridLine || activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText || activeObject.isSvgShape) { showToast("Sélectionnez un ou plusieurs objets DESSINÉS.", "warning"); return; }
-     if (activeObject.type === 'activeSelection') {
-         if (activeObject.getObjects().some(obj => obj.isGridLine || obj.customData?.isGeoTag || obj.customData?.isPlacedText || obj.isSvgShape)) { showToast("La sélection contient des éléments non enregistrables.", "warning"); return; }
-     }
+    if (activeObject.type === 'activeSelection' && activeObject.getObjects().some(obj => obj.isGridLine || obj.customData?.isGeoTag || obj.customData?.isPlacedText || obj.isSvgShape)) { showToast("La sélection contient des éléments non enregistrables.", "warning"); return; }
     const assetName = prompt("Nom pour cet asset :");
     if (!assetName || assetName.trim() === '') { showToast("Nom invalide.", "info"); return; }
     showLoading("Sauvegarde asset...");
@@ -798,8 +648,7 @@ async function loadAssetsList() {
         if (assets.length === 0) { listContainer.innerHTML = '<p class="text-muted small">Aucun asset.</p>'; return; }
         assets.forEach(asset => {
             const item = document.createElement('a');
-            item.href = '#';
-            item.className = 'list-group-item list-group-item-action asset-item';
+            item.href = '#'; item.className = 'list-group-item list-group-item-action asset-item';
             item.dataset.assetId = asset.id; item.textContent = asset.name;
             listContainer.appendChild(item);
         });
@@ -820,7 +669,7 @@ async function handleAssetClick(event) {
             const objectToAdd = objects[0];
             const center = fabricCanvas.getVpCenter();
             objectToAdd.set({ left: center.x, top: center.y, originX: 'center', originY: 'center', selectable: true, evented: true });
-            objectToAdd.customData = assetDataObject.customData || {};
+            objectToAdd.customData = { ...(assetDataObject.customData || {}), justCreated: true };
             objectToAdd.baseStrokeWidth = assetDataObject.baseStrokeWidth || 1;
             const zoom = fabricCanvas.getZoom();
             objectToAdd.set('strokeWidth', (objectToAdd.baseStrokeWidth || 1) / zoom);
@@ -836,7 +685,9 @@ async function handleAssetClick(event) {
      finally { hideLoading(); }
 }
 
-// --- UTILITAIRES ---
+// ===================================
+// === UTILITAIRES UI ===
+// ===================================
 function updateDrawingToolButtons() {
     const currentTool = getCurrentDrawingTool();
     document.querySelectorAll('#drawing-toolbar .tool-btn').forEach(btn => {
@@ -851,17 +702,15 @@ function updateLockButtonState() {
      const btnText = lockBtn.querySelector('.btn-text');
      const btnIcon = lockBtn.querySelector('i');
      if (btnText) btnText.textContent = isLocked ? 'Verrouillé' : 'Déverrouillé';
-     if (btnIcon) {
-         btnIcon.classList.toggle('bi-lock-fill', isLocked);
-         btnIcon.classList.toggle('bi-unlock-fill', !isLocked);
-     }
+     if (btnIcon) { btnIcon.className = isLocked ? 'bi bi-lock-fill' : 'bi bi-unlock-fill'; }
 }
 
-// --- CRÉATION ÉLÉMENTS INITIAUX ---
+// ===================================
+// === CRÉATION ÉLÉMENTS INITIAUX ===
+// ===================================
 function createInitialGeoElements(placedGeoCodes, planType) {
-    console.log(`Création de ${placedGeoCodes.length} éléments géo initiaux...`);
     if (!fabricCanvas || !placedGeoCodes || placedGeoCodes.length === 0) { return; }
-    let createdCount = 0;
+    console.log(`Création de ${placedGeoCodes.length} éléments géo...`);
     const elementsToCreate = [];
     placedGeoCodes.forEach(codeInfo => {
         if (codeInfo.placements && Array.isArray(codeInfo.placements)) {
@@ -894,46 +743,45 @@ function createInitialGeoElements(placedGeoCodes, planType) {
             addArrowToTag(el);
         }
     });
-    console.log(`${elementsToCreate.length} éléments géo initiaux créés sur le canvas.`);
+    console.log(`${elementsToCreate.length} éléments géo créés sur le canvas.`);
     fabricCanvas.requestRenderAll();
 }
 
 function placeTextOnSvg(codeData, targetSvgShape) {
-    let textCoords = { x: 0, y: 0 }; let anchorId = null;
+    let textCoords; let anchorId = null;
     if (targetSvgShape?.getCenterPoint) {
-        const center = targetSvgShape.getCenterPoint(); textCoords = { x: center.x, y: center.y };
+        textCoords = targetSvgShape.getCenterPoint();
         anchorId = targetSvgShape.customData?.svgId;
-        // console.log(`Placement texte ${codeData.code_geo} sur SVG ${anchorId}`);
-    }
-    else if (codeData.pos_x !== null && codeData.pos_y !== null) {
+    } else if (codeData.pos_x !== null && codeData.pos_y !== null) {
         const { left, top } = convertPercentToPixels(codeData.pos_x, codeData.pos_y, fabricCanvas);
-        if (!isNaN(left) && !isNaN(top)) { textCoords = { x: left, y: top }; console.log(`Placement texte ${codeData.code_geo} par coords % (fallback)`); }
-        else { return null; }
-    } else { const center = fabricCanvas.getCenter(); textCoords = { x: center.left, y: center.top }; }
-    const textToShow = codeData.code_geo || 'ERREUR'; const fontSize = (GEO_TEXT_FONT_SIZE || 16);
-    const textObject = new fabric.IText(textToShow, {
-        left: textCoords.x, top: textCoords.y, originX: 'center', originY: 'center', fontSize: fontSize,
+        if (!isNaN(left) && !isNaN(top)) { textCoords = { x: left, y: top }; console.log(`Placement texte ${codeData.code_geo} par fallback %`); }
+        else { console.error(`Coords invalides pour ${codeData.code_geo}`); return null; }
+    } else { return null; }
+    const textObject = new fabric.IText(codeData.code_geo || 'ERR', {
+        left: textCoords.x, top: textCoords.y, originX: 'center', originY: 'center', fontSize: GEO_TEXT_FONT_SIZE,
         fill: '#000000', stroke: '#FFFFFF', paintFirst: 'stroke', strokeWidth: 0.5, baseStrokeWidth: 0.5,
         fontFamily: 'Arial', textAlign: 'center', fontWeight: 'bold',
         selectable: true, evented: true, hasControls: false, hasBorders: true, borderColor: '#007bff', cornerSize: 0, transparentCorners: true, lockRotation: true,
         customData: { ...codeData, isPlacedText: true, isGeoTag: false, anchorSvgId: anchorId, id: parseInt(codeData.id, 10), position_id: codeData.position_id ? parseInt(codeData.position_id, 10) : null, plan_id: parseInt(currentPlanId, 10) }
     });
-    return textObject; // Retourne l'objet pour ajout groupé
+    return textObject;
 }
 function placeTagAtPoint(codeData, point) {
     if (!point || isNaN(point.x) || isNaN(point.y)) { return null; }
     const universColor = universColors[codeData.univers_nom] || codeData.univers_color ||'#6c757d';
-    const codeText = codeData.code_geo || 'ERR'; const tagWidth = codeData.width || sizePresets.medium.width; const tagHeight = codeData.height || sizePresets.medium.height;
+    const tagWidth = codeData.width || sizePresets.medium.width; const tagHeight = codeData.height || sizePresets.medium.height;
     const rect = new fabric.Rect({ width: tagWidth, height: tagHeight, fill: universColor, stroke: '#333', strokeWidth: 1, baseStrokeWidth: 1, originX: 'center', originY: 'center' });
-    const text = new fabric.Text(codeText, { fontSize: GEO_TAG_FONT_SIZE, fill: 'white', fontWeight: 'bold', fontFamily: 'Arial', originX: 'center', originY: 'center' });
+    const text = new fabric.Text(codeData.code_geo || 'ERR', { fontSize: GEO_TAG_FONT_SIZE, fill: 'white', fontWeight: 'bold', fontFamily: 'Arial', originX: 'center', originY: 'center' });
     const group = new fabric.Group([rect, text], {
         left: point.x, top: point.y, originX: 'center', originY: 'center', selectable: true, evented: true, hasControls: false, hasBorders: true, borderColor: '#007bff', cornerSize: 0, transparentCorners: true, lockRotation: true, lockScalingX: true, lockScalingY: true, hoverCursor: 'move',
         customData: { ...codeData, isGeoTag: true, isPlacedText: false, id: parseInt(codeData.id, 10), position_id: codeData.position_id ? parseInt(codeData.position_id, 10) : null, plan_id: parseInt(currentPlanId, 10), currentWidth: tagWidth, currentHeight: tagHeight, anchorXPercent: codeData.anchor_x, anchorYPercent: codeData.anchor_y }
     });
-    return group; // Retourne l'objet pour ajout groupé
+    return group;
 }
 
-// --- GESTION CLIC CANVAS (Mode Placement) ---
+// ===================================
+// === GESTION CLIC CANVAS (Mode Placement Géo) ===
+// ===================================
 function handleCanvasClick(options) {
     const mode = getCurrentDrawingTool(); if (mode !== 'tag') return;
     const pointer = fabricCanvas.getPointer(options.e);
@@ -954,7 +802,8 @@ function handleCanvasClick(options) {
              fabricCanvas.setActiveObject(placedObject);
              placedObject.moveTo(999);
              fabricCanvas.requestRenderAll();
-             handleObjectPlaced(placedObject, codeData.id, pointer); // Sauvegarde API
+             handleObjectPlaced(placedObject, codeData.id, pointer);
         } else { setActiveTool('select'); updateDrawingToolButtons(); }
-    } catch (e) { showToast("Erreur lecture données code.", "danger"); setActiveTool('select'); updateDrawingToolButtons(); }
+    } catch (e) { console.error("Erreur parse codeData:", e); showToast("Erreur lecture données code.", "danger"); setActiveTool('select'); updateDrawingToolButtons(); }
 }
+

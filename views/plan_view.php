@@ -56,9 +56,9 @@
                <i class="bi bi-plus-circle"></i> Ajouter
            </button>
        </div>
-       
+
         <div class="accordion w-100" id="sidebar-accordion">
-            
+
             <div class="accordion-item">
                 <h2 class="accordion-header" id="heading-filters">
                     <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-filters" aria-expanded="true" aria-controls="collapse-filters">
@@ -97,7 +97,7 @@
                     </div>
                 </div>
             </div>
-             
+
              <div class="accordion-item">
                 <h2 class="accordion-header" id="heading-legend">
                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-legend" aria-expanded="false" aria-controls="collapse-legend">
@@ -116,15 +116,15 @@
     </button>
 
     <div class="plan-main-content">
-        
+
         <div class="plan-toolbar no-print">
             <a href="index.php?action=listPlans" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Retour</a>
-             
-             <div class="mx-auto d-flex align-items-center"> 
+
+             <div class="mx-auto d-flex align-items-center">
                 <h3 class="mb-0 text-center me-3">
                     <i class="bi bi-pencil-square"></i> Mode Édition : <strong><?= htmlspecialchars($plan['nom']) ?></strong>
                 </h3>
-                 
+
                 <select id="page-format-select" class="form-select form-select-sm" style="width: auto;" title="Afficher un guide de page">
                     <option value="none">Pas de guide</option>
                     <option value="A4-P">A4 Portrait</option>
@@ -140,13 +140,13 @@
                      <i class="bi bi-lock-fill"></i> <span class="btn-text">Verrouillé</span>
                  </button>
                  <?php endif; ?>
-                 
+
                  <button class="btn btn-secondary" type="button" data-bs-toggle="offcanvas" data-bs-target="#assetsOffcanvas" aria-controls="assetsOffcanvas" title="Assets (Formes/Textes pré-enregistrés)">
                     <i class="bi bi-star-fill"></i>
                  </button>
 
                  <button id="save-drawing-btn" class="btn btn-success"><i class="bi bi-save"></i> Sauvegarder</button>
-                 
+
                  <a href="index.php?action=printPlan&id=<?= $plan['id'] ?>" class="btn btn-info" target="_blank" title="Imprimer le plan">
                     <i class="bi bi-printer-fill"></i>
                  </a>
@@ -166,28 +166,30 @@
                 <button type="button" class="btn btn-outline-secondary tool-btn" data-tool="text" title="Texte libre (T)"><i class="bi bi-fonts"></i></button>
              </div>
 
+             <!-- AJOUT DES BOUTONS GROUPER/DÉGROUPER -->
              <div class="btn-group me-2" role="group" aria-label="Object Manipulation">
                 <button type="button" class="btn btn-outline-secondary" id="group-btn" title="Grouper (Ctrl+G)" disabled><i class="bi bi-collection"></i></button>
                 <button type="button" class="btn btn-outline-secondary" id="ungroup-btn" title="Dégrouper (Ctrl+Shift+G)" disabled><i class="bi bi-box-arrow-up-right"></i></button>
              </div>
+             <!-- FIN DE L'AJOUT -->
 
              <div class="btn-group me-2" role="group" aria-label="Clipboard">
                  <button type="button" class="btn btn-outline-secondary" id="copy-btn" title="Copier (Ctrl+C)"><i class="bi bi-clipboard"></i></button>
                  <button type="button" class="btn btn-outline-secondary" id="paste-btn" title="Coller (Ctrl+V)"><i class="bi bi-clipboard-plus"></i></button>
              </div>
-             
+
              <div class="btn-group me-2" role="group" aria-label="Grid/Snap">
                 <input type="checkbox" class="btn-check" id="grid-toggle" autocomplete="off">
                 <label class="btn btn-outline-secondary" for="grid-toggle" title="Afficher la grille"><i class="bi bi-grid-3x3-gap"></i></label>
-                
+
                 <input type="checkbox" class="btn-check" id="snap-toggle" autocomplete="off">
                 <label class="btn btn-outline-secondary" for="snap-toggle" title="Magnétisme à la grille"><i class="bi bi-magnet"></i></label>
             </div>
 
-             <div class_=("d-flex align-items-center gap-2" style="margin-left: auto;")>
+             <div class="d-flex align-items-center gap-2" style="margin-left: auto;">
                 <label for="stroke-color-picker" class="form-label mb-0 small" title="Couleur du contour">Contour:</label>
                 <input type="color" class="form-control form-control-color" id="stroke-color-picker" value="#000000" title="Couleur du contour">
-                
+
                 <label for="fill-color-picker" class="form-label mb-0 small" title="Couleur de remplissage">Fond:</label>
                 <input type="color" class="form-control form-control-color" id="fill-color-picker" value="#FFFFFF" title="Couleur de remplissage">
                 <button type="button" class="btn btn-sm btn-outline-secondary" id="fill-transparent-btn" title="Fond transparent"><i class="bi bi-slash-circle"></i></button>
@@ -197,11 +199,11 @@
         <div id="plan-container">
             <div id="plan-loader" class="spinner-border text-primary" role="status" style="display: none;"><span class="visually-hidden">Loading...</span></div>
             <canvas id="plan-canvas"></canvas>
-            
+
             <?php if ($planType === 'image' && isset($plan['nom_fichier'])): ?>
                 <img src="uploads/plans/<?= htmlspecialchars($plan['nom_fichier']) ?>" alt="Plan source" id="map-image" style="display: none;">
             <?php endif; ?>
-            
+
             <div id="zoom-controls" class="no-print">
                 <button class="btn btn-light" id="zoom-in-btn" title="Zoomer"><i class="bi bi-zoom-in"></i></button>
                 <button class="btn btn-light" id="zoom-out-btn" title="Dézoomer"><i class="bi bi-zoom-out"></i></button>
@@ -211,15 +213,15 @@
 
         <div id="tag-edit-toolbar" class="tag-toolbar no-print">
              <button id="toolbar-highlight" class="btn btn-sm btn-info" title="Surligner toutes les instances"><i class="bi bi-search"></i></button>
-             
+
              <button id="toolbar-arrow" class="btn btn-sm btn-secondary" title="Ajouter/Modifier la flèche"><i class="bi bi-arrow-up-right"></i></button>
-             
+
              <div class="btn-group btn-group-sm" role="group" id="toolbar-size-group">
                 <button type="button" class="btn btn-secondary size-btn" data-size="small">S</button>
                 <button type="button" class="btn btn-secondary size-btn" data-size="medium">M</button>
                 <button type="button" class="btn btn-secondary size-btn" data-size="large">L</button>
             </div>
-            
+
              <button id="toolbar-delete" class="btn btn-sm btn-danger" title="Supprimer (Suppr)"><i class="bi bi-trash"></i></button>
         </div>
     </div>
@@ -309,3 +311,4 @@
 
 <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-notification-container" style="z-index: 1100">
 </div>
+
