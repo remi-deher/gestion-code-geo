@@ -450,28 +450,39 @@ async function handleObjectMoved(target) {
 
 /** Fonction générique appelée par la toolbar ou le clavier pour supprimer */
 async function handleDeleteObject(target) {
-    console.log("handleDeleteObject appelée avec target:", target);
+    console.log("handleDeleteObject appelée avec target:", target); // LOG existant
+
     if (!target) {
-         const activeObj = fabricCanvas.getActiveObject();
-         onsole.log("handleDeleteObject: target était null, activeObj trouvé:", activeObj);
-	 if (!activeObj) return;
-         target = activeObj;
+        const activeObj = fabricCanvas.getActiveObject();
+        console.log("handleDeleteObject: target était null, activeObj trouvé:", activeObj); // LOG existant
+        if (!activeObj) return;
+        target = activeObj;
     }
 
-    if (target.customData?.isGeoTag || target.customData?.isPlacedText) {
-        // C'est un tag ou texte géo -> utilise la fonction dédiée
-        console.log("handleDeleteObject: Appel de deleteSelectedGeoElement pour un élément géo.");
-	await deleteSelectedGeoElement(); // Géré par geo-tags.js (confirme, appelle l'API, rafraîchit)
+    // --- CORRECTION ICI ---
+    // Vérifier D'ABORD si c'est une sélection multiple
+    if (target.type === 'activeSelection') {
+        console.log("handleDeleteObject: C'est une sélection multiple ('activeSelection'). Appel de deleteSelectedGeoElement."); // NOUVEAU LOG
+        // On suppose qu'une sélection multiple contient des éléments géo ou des dessins
+        // deleteSelectedGeoElement saura faire le tri interne ou appeler deleteSelectedDrawingShape si besoin.
+        await deleteSelectedGeoElement(); // Appel correct pour sélection multiple
     }
+    // ENSUITE, vérifier si c'est un élément géo unique
+    else if (target.customData?.isGeoTag || target.customData?.isPlacedText) {
+        console.log("handleDeleteObject: C'est un élément géo unique. Appel de deleteSelectedGeoElement."); // LOG existant (modifié)
+        await deleteSelectedGeoElement(); // Appel correct pour sélection simple géo
+    }
+    // SINON, vérifier si c'est un dessin unique
     else if (!target.isGridLine && !target.isEditing) {
-        // C'est une forme de dessin ou un SVG
-        console.log("handleDeleteObject: Appel de deleteSelectedDrawingShape pour un dessin.");
-	deleteSelectedDrawingShape(); // Géré par drawing-tools.js (confirme, supprime localement)
-    } else {
-      console.log("handleDeleteObject: Cible non supprimable (grille, édition texte?).", target);
+        console.log("handleDeleteObject: C'est un dessin unique. Appel de deleteSelectedDrawingShape."); // LOG existant (modifié)
+        deleteSelectedDrawingShape();
     }
+    // Dernier cas : non supprimable
+    else {
+        console.log("handleDeleteObject: Cible non supprimable (grille, édition texte?).", target); // LOG existant
+    }
+    // --- FIN CORRECTION ---
 }
-
 
 // ===================================
 // === GESTION DESSIN (Fin, Sauvegarde) ===
