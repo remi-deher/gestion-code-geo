@@ -368,96 +368,113 @@ export function hideToolbar() {
 }
 
 /**
- * Supprime l'élément géo sélectionné (Tag OU Texte).
- * Appelée depuis main.js (raccourci clavier) ou la toolbar.
- */
-/**
- * Gère la suppression de l'objet sélectionné (tag ou texte).
+ * Gère la suppression de l'objet ou des objets sélectionnés (tag ou texte).
+ * CORRIGÉ POUR LA SÉLECTION MULTIPLE
  */
 export async function deleteSelectedGeoElement() {
     // Utilise l'objet stocké globalement (défini par 'handleObjectSelected' dans main.js)
-    const target = selectedFabricObject; 
+    const target = selectedFabricObject; // Ou récupérez via fabricCanvas.getActiveObject() si selectedFabricObject n'est pas fiable
 
-    if (!target || !(target.customData?.isGeoTag || target.customData?.isPlacedText)) {
-        console.warn("deleteSelectedGeoElement: No valid geo element selected.");
+    if (!target) {
+        console.warn("deleteSelectedGeoElement: Aucun objet sélectionné.");
         return;
     }
 
-    const customData = target.customData;
-    const { position_id, id: geoCodeId, code_geo, plan_id } = customData;
-    const isTag = customData.isGeoTag;
-    const elementType = isTag ? "l'étiquette" : "le texte";
+    // --- NOUVELLE LOGIQUE POUR GÉRER LA SÉLECTION SIMPLE OU MULTIPLE ---
+    let objectsToDelete = [];
+    if (target.type === 'activeSelection') {
+        // Sélection multiple : récupérer tous les objets valides dans la sélection
+        objectsToDelete = target.getObjects().filter(obj =>
+            obj.customData && (obj.customData.isGeoTag || obj.customData.isPlacedText)
+        console.log(`deleteSelectedGeoElement: Sélection multiple trouvée, ${objectsToDelete.length} objet(s) géo filtré(s).`);
+	);
+    } else if (target.customData && (target.customData.isGeoTag || target.customData.isPlacedText)) {
+        // Sélection simple d'un objet valide
+        objectsToDelete.push(target);
+	console.log("deleteSelectedGeoElement: Sélection simple.");
+    }
 
-    console.log("deleteSelectedGeoElement - Data for deletion:", { position_id, geoCodeId, plan_id, code_geo });
-
-    // !!! CORRECTION : 'deleteAllInstances' DOIT ÊTRE DÉCLARÉE ICI !!!
-    // Récupère l'état de la checkbox (assurez-vous que l'ID HTML est correct)
-    const deleteAllCheckbox = document.getElementById('delete-all-instances-checkbox');
-    const deleteAllInstances = deleteAllCheckbox ? deleteAllCheckbox.checked : false; // 'false' par défaut si introuvable
-
-    // Logique de vérification des ID
-    // Si on ne supprime PAS tout, on a besoin d'un position_id
-    // Si on supprime TOUT, on a juste besoin du geoCodeId et du plan_id
-    if (!geoCodeId || !plan_id || (!deleteAllInstances && !position_id)) {
-        console.error(`ERROR: Cannot delete ${elementType} ${code_geo}. Missing ID data:`, customData);
-        showToast(`Erreur suppression ${code_geo}. Données ID manquantes.`, "danger");
+    if (objectsToDelete.length === 0) {
+        console.warn("deleteSelectedGeoElement: La sélection ne contient aucun élément géo supprimable.");
+        // Si la sélection contient autre chose (dessins), on pourrait appeler deleteSelectedDrawingShape ici
+        if (target && !target.customData?.isGeoTag && !target.customData?.isPlacedText && !target.isGridLine) {
+             // Importez deleteSelectedDrawingShape si ce n'est pas déjà fait
+             // import { deleteSelectedDrawingShape } from './drawing-tools.js';
+             deleteSelectedDrawingShape(); // Gère la suppression des dessins
+        }
+	console.log("deleteSelectedGeoElement: Suppression annulée par l'utilisateur.");
         return;
     }
 
-    // Préparer le message de confirmation
-    let confirmMsg = `Voulez-vous vraiment supprimer ${elementType} "${code_geo}" ?`;
-    if (deleteAllInstances) {
-        // Essayer de récupérer le compte (s'il est stocké dans customData)
-        const count = customData.count || '?'; 
-        confirmMsg = `Voulez-vous vraiment supprimer TOUTES les ${count} instances de "${code_geo}" de ce plan ?`;
-    }
-
+    // --- Confirmation ---
+    const confirmMsg = `Voulez-vous vraiment supprimer ${objectsToDelete.length} élément(s) sélectionné(s) ?`;
     if (!confirm(confirmMsg)) {
         return;
     }
 
-    showLoading('Suppression...');
-    try {
-        let success;
-        // La variable 'deleteAllInstances' est maintenant définie et utilisable
-        if (deleteAllInstances) {
-            console.log(`Calling API removeMultiplePositions with geoCodeId=${geoCodeId}, planId=${plan_id}`);
-            success = await removeMultiplePositions(geoCodeId, plan_id);
-        } else {
-            console.log(`Calling API removePosition with positionId=${position_id}`);
-            success = await removePosition(position_id);
+    // --- Suppression ---
+    showLoading(`Suppression de ${objectsToDelete.length} élément(s)...`);
+    let successCount = 0;
+    let errorCount = 0;
+    const objectsToRemoveFromCanvas = [];
+    const codesAffected = new Set(); // Pour rafraîchir la sidebar plus tard
+
+    // Boucle sur chaque objet à supprimer
+    console.log("deleteSelectedGeoElement: Début de la boucle de suppression...");
+    for (const obj of objectsToDelete) {
+        const { position_id, id: geoCodeId, code_geo, plan_id } = obj.customData;
+	console.log(`deleteSelectedGeoElement: Traitement de l'objet: code=${code_geo}, position_id=${position_id}`);
+        // Vérification cruciale de l'ID de position pour la suppression individuelle
+        if (!position_id) {
+            console.error(`ERREUR: Impossible de supprimer "${code_geo}". position_id manquant.`, obj.customData);
+            errorCount++;
+            continue; // Passe au suivant
         }
 
-        if (success) {
-            // Supprimer les objets du canvas
-            if (deleteAllInstances) {
-                // Trouver tous les objets avec le même geoCodeId
-                const objectsToRemove = fabricCanvas.getObjects().filter(obj =>
-                    (obj.customData?.isGeoTag || obj.customData?.isPlacedText) &&
-                    obj.customData.id === geoCodeId
-                );
-                objectsToRemove.forEach(obj => fabricCanvas.remove(obj));
+        try {
+            console.log(`Tentative de suppression de position ID: ${position_id} (Code: ${code_geo})`);
+            const success = await removePosition(position_id); // Appel API pour chaque position_id
+            if (success) {
+                successCount++;
+                objectsToRemoveFromCanvas.push(obj); // Marquer pour suppression du canvas
+                codesAffected.add(geoCodeId); // Noter quel code géo est affecté
             } else {
-                // Supprimer juste la cible
-                fabricCanvas.remove(target);
+                console.warn(`Échec de la suppression pour position ID: ${position_id}`);
+                errorCount++;
             }
-            fabricCanvas.requestRenderAll();
-
-            showToast(`${elementType} "${code_geo}" supprimé(s).`, "success");
-
-            await fetchAndClassifyCodes(); // Rafraîchir la sidebar
-
-            fabricCanvas.discardActiveObject(); // Force la désélection
-            hideToolbar(); // Cacher la toolbar après suppression
-
-        } else {
-            showToast(`La suppression de ${code_geo} a échoué côté serveur.`, "warning");
+        } catch (error) {
+            console.error(`Erreur API lors de la suppression de position ID ${position_id}:`, error);
+            errorCount++;
         }
-    } catch (error) {
-        console.error(`API error deleting ${elementType}:`, error);
-        showToast(`Erreur suppression ${code_geo}: ${error.message}`, "danger");
-    } finally {
-        hideLoading();
+    }
+
+    // --- Finalisation ---
+    hideLoading();
+
+    // Supprimer les objets du canvas si l'API a réussi
+    objectsToRemoveFromCanvas.forEach(obj => fabricCanvas.remove(obj));
+    if (objectsToRemoveFromCanvas.length > 0) {
+        fabricCanvas.discardActiveObject(); // Désélectionne le groupe
+        fabricCanvas.requestRenderAll();
+    }
+
+    // Message final
+    let message = `${successCount} élément(s) supprimé(s).`;
+    let messageType = 'success';
+    if (errorCount > 0) {
+        message += ` ${errorCount} suppression(s) échouée(s). Vérifiez la console.`;
+        messageType = successCount > 0 ? 'warning' : 'danger';
+    }
+    showToast(message, messageType);
+
+    // Rafraîchir la sidebar si des suppressions ont réussi
+    if (successCount > 0) {
+        await fetchAndClassifyCodes();
+    }
+
+    // Assurez-vous que la toolbar est cachée si la sélection a été supprimée
+    if (objectsToRemoveFromCanvas.length > 0) {
+        hideToolbar();
     }
 }
 

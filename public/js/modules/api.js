@@ -139,10 +139,12 @@ export async function savePosition(positionData) {
  * @returns {Promise<boolean>} True si succès.
  */
 export async function removePosition(positionId) {
+    console.log(`api.js - removePosition: Appel apiFetch pour position_id=${positionId}`);
     const data = await apiFetch('index.php?action=apiRemovePosition', {
         method: 'POST',
         body: { position_id: positionId }
     });
+    console.log(`api.js - removePosition: Réponse apiFetch reçue pour ${positionId}:`, data);
     return data.success === true;
 }
 

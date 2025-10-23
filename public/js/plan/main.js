@@ -450,19 +450,25 @@ async function handleObjectMoved(target) {
 
 /** Fonction générique appelée par la toolbar ou le clavier pour supprimer */
 async function handleDeleteObject(target) {
+    console.log("handleDeleteObject appelée avec target:", target);
     if (!target) {
          const activeObj = fabricCanvas.getActiveObject();
-         if (!activeObj) return;
+         onsole.log("handleDeleteObject: target était null, activeObj trouvé:", activeObj);
+	 if (!activeObj) return;
          target = activeObj;
     }
 
     if (target.customData?.isGeoTag || target.customData?.isPlacedText) {
         // C'est un tag ou texte géo -> utilise la fonction dédiée
-        await deleteSelectedGeoElement(); // Géré par geo-tags.js (confirme, appelle l'API, rafraîchit)
+        console.log("handleDeleteObject: Appel de deleteSelectedGeoElement pour un élément géo.");
+	await deleteSelectedGeoElement(); // Géré par geo-tags.js (confirme, appelle l'API, rafraîchit)
     }
     else if (!target.isGridLine && !target.isEditing) {
         // C'est une forme de dessin ou un SVG
-        deleteSelectedDrawingShape(); // Géré par drawing-tools.js (confirme, supprime localement)
+        console.log("handleDeleteObject: Appel de deleteSelectedDrawingShape pour un dessin.");
+	deleteSelectedDrawingShape(); // Géré par drawing-tools.js (confirme, supprime localement)
+    } else {
+      console.log("handleDeleteObject: Cible non supprimable (grille, édition texte?).", target);
     }
 }
 
@@ -1301,7 +1307,8 @@ function setupEventListeners() {
                 case 'Backspace':
                     if (activeObject) {
                         // Appelle le handler générique de suppression
-                        handleDeleteObject(activeObject);
+                        console.log("Touche Suppr pressée, objet actif:", activeObject);
+			handleDeleteObject(activeObject);
                     }
                     break;
                 // Raccourcis outils
