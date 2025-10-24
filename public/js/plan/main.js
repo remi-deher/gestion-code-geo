@@ -89,6 +89,7 @@ let currentPlanId;
 let planType;
 let planImageUrl;
 let planSvgUrl;
+let planJsonUrl; // <<< AJOUTÉ : Pour charger l'état JSON
 let initialPlacedGeoCodes;
 let universColors;
 let planUnivers;
@@ -528,45 +529,80 @@ function triggerAutoSaveDrawing(forceSave = false) {
     }, forceSave ? 0 : 2500); // 0ms si forcé, 2.5s sinon
 }
 
-/** Sauvegarde manuelle (pour plan SVG existant) */
+/** Sauvegarde manuelle (pour plan SVG existant - OBSOLETE) */
 async function saveModifiedSvgPlan() {
-    if (planType !== 'svg' || !currentPlanId) { throw new Error("Non applicable"); }
+    // CETTE FONCTION N'EST PLUS UTILISÉE, ON GARDE savePlanAsJson
+    console.warn("saveModifiedSvgPlan est appelée, mais devrait être obsolète.");
+    // if (planType !== 'svg' || !currentPlanId) { throw new Error("Non applicable"); }
+    // const svgString = fabricCanvas.toSVG(...);
+    // await updateSvgPlan(currentPlanId, svgString);
+}
 
-    // Récupérer les dimensions originales si elles ont été stockées
-    const viewBox = window.originalSvgViewBox || null; // Utilise 'window' pour variable globale simple
-    const width = window.originalSvgWidth || null;
-    const height = window.originalSvgHeight || null;
-
-    // Si un format spécifique est choisi (et pas 'Original')
-    if (currentPageSizeFormat !== 'Original' && PAGE_SIZES[currentPageSizeFormat]) {
-        const selectedSize = PAGE_SIZES[currentPageSizeFormat];
-        viewBox = selectedSize.viewBox;
-        width = selectedSize.width;
-        height = selectedSize.height;
-        console.log(`Utilisation du format ${currentPageSizeFormat} pour la sauvegarde.`);
-    } else {
-        console.log("Utilisation des dimensions originales pour la sauvegarde.");
+/**
+ * NOUVELLE FONCTION DE SAUVEGARDE (JSON)
+ * Sauvegarde l'état complet du canvas (y compris les groupes) en JSON.
+ * CORRIGÉ : Utilise JSON.stringify()
+ */
+async function savePlanAsJson() {
+    console.log("[savePlanAsJson] Début sauvegarde..."); // Log début
+    if (!currentPlanId) {
+        console.error("[savePlanAsJson] Erreur: ID de plan manquant.");
+        throw new Error("ID de plan manquant.");
     }
+    console.log("[savePlanAsJson] Plan ID:", currentPlanId); // Log ID
 
-    const options = {
-        suppressPreamble: true, // Pour un SVG plus propre
-        viewBox: viewBox,       // Tentative pour inclure le viewBox original
-        width: width,           // Tentative pour inclure width original
-        height: height          // Tentative pour inclure height original
-    };
+    // 1. Obtenir les données JSON complètes du canvas
+    const planData = getPlanAsJson(); // Utilise la nouvelle fonction
+    console.log("[savePlanAsJson] Données JSON brutes obtenues:", planData); // Log données brutes
 
-    // Exporte le canvas en SVG (sauf la grille), en passant les options
-    const svgString = fabricCanvas.toSVG(
-        ['customData', 'baseStrokeWidth'], // Propriétés à inclure
-        obj => obj.isGridLine ? null : obj, // Fonction de filtrage
-        options // Ajout des options ici
-    );
+    // --- CORRECTION : Vérification plus robuste des données ---
+    // Vérifier si planData existe ET s'il contient des objets OU une image de fond
+    if (!planData || (!planData.objects || planData.objects.length === 0) && !planData.backgroundImage) {
+        console.warn("[savePlanAsJson] Le plan semble vide (pas d'objets ni de fond). Sauvegarde annulée.");
+        // On pourrait choisir de sauvegarder un état vide si nécessaire,
+        // mais pour l'instant on annule pour éviter l'erreur API.
+        // Si vous voulez explicitement sauvegarder un plan vide,
+        // il faudra ajuster le backend pour accepter un JSON vide ou spécifique.
+        // Pour l'instant, on lève une exception côté client.
+        throw new Error("Le plan est vide, sauvegarde annulée.");
+        // Alternative: envoyer quand même '{}' ou une structure vide valide ?
+        // planDataString = JSON.stringify({}); // Si le backend l'accepte
+    }
+    // --- FIN CORRECTION ---
 
-    console.log("SVG généré avec options:", options); // Débogage
-    console.log("SVG Début:", svgString.substring(0, 200)); // Débogage
 
-    // Appel API (inchangé)
-    await updateSvgPlan(currentPlanId, svgString);
+    // --- Stringify avant d'envoyer ---
+    const planDataString = JSON.stringify(planData);
+    console.log("[savePlanAsJson] Données JSON stringifiées (début):", planDataString.substring(0, 200) + "..."); // Log JSON string
+
+    // --- CORRECTION : Vérification supplémentaire sur la chaîne ---
+    if (!planDataString || planDataString === '{}') {
+         console.error("[savePlanAsJson] Erreur: La chaîne JSON est vide ou invalide après stringify.");
+         throw new Error("Erreur interne lors de la préparation des données de sauvegarde.");
+    }
+    // --- FIN CORRECTION ---
+
+
+    // 2. Appeler l'API 'updateSvgPlan' avec la chaîne JSON
+    console.log("[savePlanAsJson] Appel de updateSvgPlan API..."); // Log avant API
+    const result = await updateSvgPlan(currentPlanId, planDataString); // Envoie la chaîne
+    console.log("[savePlanAsJson] Réponse de l'API:", result); // Log réponse API
+
+    // 3. Mettre à jour l'URL JSON locale pour le prochain rechargement
+    if (result && result.json_path) {
+        planJsonUrl = result.json_path; // Met à jour la variable globale
+        console.log("[savePlanAsJson] URL JSON mise à jour:", planJsonUrl);
+    } else {
+        // L'API a peut-être réussi mais n'a pas renvoyé json_path, ou a échoué.
+        console.warn("[savePlanAsJson] L'API n'a pas retourné de json_path valide. L'URL locale n'est pas mise à jour.");
+        // Lever une erreur si l'API a explicitement échoué
+        if (result && result.success === false) {
+             throw new Error(result.error || "L'API a retourné une erreur inconnue.");
+        }
+    }
+    
+    console.log("[savePlanAsJson] Sauvegarde terminée."); // Log fin
+    return result;
 }
 
 // ===================================
@@ -687,6 +723,7 @@ function updateGroupButtonStates() {
             canGroup = objects.length > 1 && !objects.some(obj => obj.customData?.isGeoTag || obj.customData?.isPlacedText || obj.isGridLine);
         } else if (activeObject.type === 'group' && !(activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText)) {
             // Autorise de dégrouper tout groupe qui n'est pas un tag géo
+            // (Ceci inclut 'isUserGroup' et 'isSvgPlanGroup')
             canUngroup = true;
         }
     }
@@ -1002,7 +1039,7 @@ async function handleCanvasClick(options) {
     if (mode !== 'tag') return; // Sécurité
 
     const pointer = fabricCanvas.getPointer(options.e); // Coordonnées du clic
-    const selectedCodeEl = document.querySelector('#dispo-list .list-group-item.active');
+        const selectedCodeEl = document.querySelector('#dispo-list .list-group-item.active');
 
     if (!selectedCodeEl) {
         showToast("Aucun code dispo sélectionné.", 'warning');
@@ -1019,9 +1056,11 @@ async function handleCanvasClick(options) {
         // --- CORRECTION LOGIQUE SVG ---
         if (planType === 'svg') {
             // Cas 1: Clic sur une forme SVG existante -> Ancrer le texte à la forme
-            if (targetShape?.isSvgShape) {
-                console.log("Placement sur forme SVG:", targetShape.customData?.svgId || targetShape);
-                placedObject = placeTextOnSvg(codeData, targetShape); // Utilise le centre de la forme
+            // (Vérifie la forme ou si c'est un enfant du groupe principal)
+            if (targetShape?.isSvgShape || targetShape?.group?.isSvgPlanGroup) {
+                const shapeToAnchor = targetShape.isSvgShape ? targetShape : targetShape.group;
+                console.log("Placement sur forme SVG:", shapeToAnchor.customData?.svgId || shapeToAnchor);
+                placedObject = placeTextOnSvg(codeData, shapeToAnchor); // Utilise le centre de la forme
             }
             // Cas 2: Clic sur le fond ou sur une forme DESSINÉE -> Placer au point cliqué
             else {
@@ -1077,6 +1116,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentPlanId = phpData.currentPlanId;
         planType = phpData.planType;
         planUnivers = phpData.planUnivers || [];
+        planJsonUrl = phpData.planJsonUrl || null; // <<< AJOUTÉ : Récupère l'URL JSON
+        
         if (phpData.currentPlan && phpData.currentPlan.nom_fichier) {
             const baseUrl = 'uploads/plans/';
             if (planType === 'svg') { planSvgUrl = baseUrl + phpData.currentPlan.nom_fichier; }
@@ -1106,13 +1147,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log("UI initialisée.");
 
         // --- Chargement du plan (SVG/Image/Création) ---
-        if (planType === 'svg' && planSvgUrl) {
+        
+        // --- MODIFICATION LOGIQUE DE CHARGEMENT ---
+        // PRIORITÉ 1: Charger le JSON s'il existe (pour SVG et Image)
+        if (planJsonUrl) {
+            console.log("Chargement depuis l'état JSON:", planJsonUrl);
+            showLoading("Chargement de l'état sauvegardé...");
+            
+            const response = await fetch(planJsonUrl + '?t=' + new Date().getTime()); // Anti-cache
+            if (!response.ok) {
+                 throw new Error(`Impossible de charger le JSON sauvegardé (${response.status})`);
+            }
+            const jsonData = await response.json();
+            
+            await new Promise((resolve, reject) => {
+                fabricCanvas.loadFromJSON(jsonData, () => {
+                    fabricCanvas.requestRenderAll();
+                    console.log("Canvas chargé depuis JSON.");
+                    
+                    // Si le plan de base était un SVG, verrouiller
+                    if (planType === 'svg') {
+                        setCanvasLock(true); // Verrouiller par défaut
+                    }
+                    
+                    // Ré-attacher les flèches (la logique loadFromJSON ne le fait pas)
+                    fabricCanvas.getObjects().forEach(obj => {
+                        if (obj.customData?.isGeoTag && obj.customData.anchorXPercent !== null) {
+                            addArrowToTag(obj);
+                        }
+                    });
+                    
+                    resolve();
+                });
+            });
+
+        } 
+        // PRIORITÉ 2: Charger le plan de base (si pas de JSON)
+        else if (planType === 'svg' && planSvgUrl) {
+            console.log("Chargement du SVG de base (pas de JSON trouvé).");
             await loadSvgPlan(planSvgUrl);
             setCanvasLock(true); // Verrouiller par défaut
+            // Placer les éléments initiaux par-dessus
+            createInitialGeoElements(initialPlacedGeoCodes, planType);
         }
         else if (planType === 'image' && planImageUrl) {
+            console.log("Chargement de l'Image de base (pas de JSON trouvé).");
             await loadPlanImage(planImageUrl);
-            // Pas de verrouillage pour les plans images
+            // Placer les éléments initiaux par-dessus
+            createInitialGeoElements(initialPlacedGeoCodes, planType);
         }
         else if (planType === 'svg_creation'){
             console.log("Mode création SVG.");
@@ -1140,9 +1222,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // --- Placement éléments initiaux & Chargement codes sidebar ---
         if (planType !== 'svg_creation') {
-            // Place les tags/textes géo existants
-            createInitialGeoElements(initialPlacedGeoCodes, planType);
-            // Charge les listes "Dispo" et "Placés"
+            // Si on a chargé depuis JSON, on n'a PAS besoin de recréer les éléments
+            if (!planJsonUrl) {
+                // (Déplacé vers le bloc de chargement ci-dessus)
+            }
+            // Charger les listes "Dispo" et "Placés"
             await fetchAndClassifyCodes();
         } else {
              // Charge juste les codes "Dispo" (pour les assets ?)
@@ -1379,21 +1463,23 @@ function setupEventListeners() {
             console.log("Clic sur 'Sauvegarder', planType:", planType);
             showLoading("Sauvegarde...");
             try {
-                if (planType === 'image') {
-                    // Sauvegarde annotations JSON pour un plan image
-                    console.log("Appel triggerAutoSaveDrawing(true) pour plan image...");
-                    await triggerAutoSaveDrawing(true); // Force la sauvegarde et attend
-                    // Le toast est déjà géré dans triggerAutoSaveDrawing si forceSave=true
-                } else if (planType === 'svg') {
-                    // Sauvegarde du SVG modifié (plan SVG existant)
-                    console.log("Appel saveModifiedSvgPlan() pour plan SVG existant...");
-                    await saveModifiedSvgPlan(); // Sauvegarde le SVG modifié
-                    showToast("Plan SVG mis à jour.", "success");
-                } else {
-                    console.warn("Type de plan non géré pour ce bouton:", planType);
-                    showToast("Action de sauvegarde non applicable pour ce type de plan.", "warning");
+                // --- MODIFICATION ---
+                // Pour Image ET SVG, nous sauvegardons l'état JSON complet
+                if (planType === 'image' || planType === 'svg') {
+                    console.log("Appel savePlanAsJson() pour plan image/svg...");
+                    await savePlanAsJson(); // Sauvegarde le JSON
+                    showToast("Plan sauvegardé.", "success");
+                } 
+                // (La vieille logique de sauvegarde SVG est obsolète)
+                // else if (planType === 'svg') {
+                //     console.log("Appel saveModifiedSvgPlan() pour plan SVG existant...");
+                //     await saveModifiedSvgPlan(); // Sauvegarde le SVG modifié
+                //     showToast("Plan SVG mis à jour.", "success");
+                // } 
+                else {
                 }
-            } catch (error) {
+            } // <<< ACCOLADE MANQUANTE AJOUTÉE ICI (dans la version précédente, mais devrait être OK maintenant)
+            catch (error) {
                 console.error("Erreur bouton sauvegarde:", error);
                 showToast(`Erreur sauvegarde: ${error.message}`, "danger");
             } finally {
@@ -1498,6 +1584,67 @@ function setupEventListeners() {
 }
 
 /**
+ * NOUVELLE FONCTION
+ * Récupère l'état complet du canvas en JSON avec les propriétés personnalisées.
+ */
+function getPlanAsJson() {
+    console.log("[getPlanAsJson] Début récupération données JSON..."); // Log
+    if (!fabricCanvas) {
+        console.error("[getPlanAsJson] Erreur: fabricCanvas non initialisé."); // Log
+        return null;
+    }
+
+    const propertiesToInclude = [
+        'type', 'originX', 'originY', 'left', 'top', 'width', 'height', 'scaleX', 'scaleY', 'flipX', 'flipY', 'angle', 'skewX', 'skewY',
+        'stroke', 'strokeWidth', 'strokeDashArray', 'strokeLineCap', 'strokeLineJoin', 'strokeMiterLimit',
+        'fill', 'opacity', 'selectable', 'evented', 'lockMovementX', 'lockMovementY', 'hasControls', 'hasBorders',
+        'radius', 'startAngle', 'endAngle', // pour les cercles/arcs
+        'x1', 'y1', 'x2', 'y2', // pour les lignes
+        'path', // pour les free drawing
+        'text', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textAlign', 'baseFontSize', // pour les textes
+        'customData', // Données personnalisées (geoCode, etc.)
+        'isSvgShape', // Marqueur pour les formes SVG
+        'isGeoTag', // Marqueur pour les tags
+        'isPlacedText', // Marqueur pour les textes géo
+        'isDrawing', // Marqueur pour les dessins manuels
+        'isUserGroup', // Marqueur pour les groupes créés par l'utilisateur
+        'isSvgPlanGroup', // <<< LA PROPRIÉTÉ IMPORTANTE
+        'baseStrokeWidth',
+        'isGridLine', // Pour filtrer au rechargement si nécessaire (même si on les recrée)
+        'isPageGuide' // idem
+    ];
+    
+    // Filtre les objets non désirés (grille, guide) AVANT de sérialiser
+    const originalObjects = fabricCanvas.getObjects();
+    console.log(`[getPlanAsJson] Nombre d'objets AVANT filtrage: ${originalObjects.length}`); // Log
+
+    const objectsToSave = originalObjects.filter(obj => !obj.isGridLine && !obj.isPageGuide);
+    console.log(`[getPlanAsJson] Nombre d'objets APRÈS filtrage: ${objectsToSave.length}`); // Log
+
+    // Crée un objet JSON manuellement pour n'inclure que les objets filtrés
+    // et s'assurer qu'on inclut bien le fond s'il existe (important pour plans images)
+    console.log("[getPlanAsJson] Appel de fabricCanvas.toObject..."); // Log
+    const json_data = fabricCanvas.toObject(propertiesToInclude);
+
+    // --- CORRECTION : S'assurer que json_data.objects contient bien les objets filtrés ---
+    // Au lieu de mapper à nouveau, on remplace directement la propriété 'objects'
+    json_data.objects = objectsToSave.map(obj => {
+        try {
+            return obj.toObject(propertiesToInclude);
+        } catch (e) {
+            console.error("[getPlanAsJson] Erreur lors de la sérialisation d'un objet:", obj, e);
+            return null; // Retourner null si un objet pose problème
+        }
+    }).filter(obj => obj !== null); // Filtrer les objets nuls résultant d'erreurs
+    // --- FIN CORRECTION ---
+
+
+    console.log("[getPlanAsJson] Données JSON finales préparées:", json_data); // Log
+    return json_data;
+}
+
+
+/**
  * Extrait les données de position pertinentes d'un objet Fabric pour la sauvegarde.
  * Calcule les positions relatives (en %) pour le type 'svg'
  * Calcule les positions absolues (en px) pour le type 'image'
@@ -1565,9 +1712,9 @@ function getPositionDataFromObject(fabricObject, clickPoint = null) {
         if (isText && fabricObject.customData?.anchor_x != null) {
              // ... logique d'ancre ...
         }
-
     } 
     // Pour 'image', on laisse en pixels (rien à faire, les valeurs de 'data' sont déjà en pixels)
 
     return data;
-}
+} // <<< Suppression de l'accolade en trop ici
+

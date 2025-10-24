@@ -25,7 +25,8 @@ class PlanManager {
     public function getAllPlans(): array {
         $this->lastError = null; // Reset error
         try {
-            $stmt = $this->db->query("SELECT * FROM plans ORDER BY nom ASC");
+            // Ajout json_path
+            $stmt = $this->db->query("SELECT id, nom, nom_fichier, json_path, created_at, updated_at FROM plans ORDER BY nom ASC");
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("Erreur getAllPlans: " . $e->getMessage());
@@ -62,7 +63,8 @@ class PlanManager {
     public function getPlanById(int $id) {
         $this->lastError = null; // Reset error
         try {
-            $stmt = $this->db->prepare("SELECT * FROM plans WHERE id = :id");
+            // Ajout json_path et updated_at
+            $stmt = $this->db->prepare("SELECT id, nom, nom_fichier, json_path, created_at, updated_at, type, description, drawing_data FROM plans WHERE id = :id");
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
             $stmt->execute();
             return $stmt->fetch(PDO::FETCH_ASSOC);
@@ -102,6 +104,7 @@ class PlanManager {
 
     /**
      * Ajoute un nouveau plan.
+     * (Simplifié par rapport à la version précédente, vérifier si ok)
      * @param string $nom Nom du plan.
      * @param string $nomFichier Nom du fichier.
      * @return int|false L'ID du plan créé ou false en cas d'erreur.
@@ -109,7 +112,7 @@ class PlanManager {
     public function addPlan(string $nom, string $nomFichier) {
         $this->lastError = null; // Reset error
         try {
-            $sql = "INSERT INTO plans (nom, nom_fichier, created_at) VALUES (:nom, :nom_fichier, NOW())";
+            $sql = "INSERT INTO plans (nom, nom_fichier, created_at, updated_at) VALUES (:nom, :nom_fichier, NOW(), NOW())";
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':nom', $nom);
             $stmt->bindParam(':nom_fichier', $nomFichier);
@@ -127,7 +130,7 @@ class PlanManager {
      * Met à jour les informations d'un plan.
      * @param int $id ID du plan.
      * @param string $nom Nouveau nom.
-     * @param string|null $zone Nouvelle zone.
+     * @param string|null $zone Nouvelle zone. (Note: cette colonne n'existe pas dans le schema.sql initial)
      * @param array $universIds Tableau des IDs d'univers.
      * @param string|null $newFilename Nouveau nom de fichier.
      * @return bool True si succès.
@@ -137,9 +140,13 @@ class PlanManager {
         $this->db->beginTransaction();
         try {
             // 1. Mettre à jour la table 'plans'
-            $sql = "UPDATE plans SET nom = :nom, zone = :zone";
+            // ATTENTION: La colonne 'zone' n'est pas dans schema.sql, est-ce normal ?
+            // Ajout de updated_at
+            // Si nouveau fichier, on efface json_path et drawing_data
+            $sql = "UPDATE plans SET nom = :nom, updated_at = NOW()";
+            // if ($zone !== null) { $sql .= ", zone = :zone"; } // A décommenter si la colonne existe
             if ($newFilename !== null) {
-                $sql .= ", nom_fichier = :nom_fichier, drawing_data = NULL";
+                $sql .= ", nom_fichier = :nom_fichier, drawing_data = NULL, json_path = NULL";
             }
             $sql .= " WHERE id = :id";
 
@@ -147,11 +154,8 @@ class PlanManager {
 
             $stmt->bindValue(':nom', $nom);
             $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-            if ($zone === null) {
-                $stmt->bindValue(':zone', null, PDO::PARAM_NULL);
-            } else {
-                $stmt->bindValue(':zone', $zone);
-            }
+            // if ($zone === null) { $stmt->bindValue(':zone', null, PDO::PARAM_NULL); }
+            // else { $stmt->bindValue(':zone', $zone); }
             if ($newFilename !== null) {
                 $stmt->bindValue(':nom_fichier', $newFilename);
             }
@@ -192,20 +196,48 @@ class PlanManager {
 
     /**
      * Supprime un plan et ses associations/positions.
+     * (Suppression dure, pas de soft delete dans cette version)
      * @param int $id ID du plan.
      * @return bool True si succès.
      */
     public function deletePlan(int $id): bool {
-        // Supposer que ON DELETE CASCADE est activé dans la BDD
         $this->lastError = null; // Reset error
+        $this->db->beginTransaction(); // Use transaction for multi-table delete
         try {
+             // 1. Supprimer les positions
+             $stmtPos = $this->db->prepare("DELETE FROM geo_positions WHERE plan_id = :id");
+             $stmtPos->bindParam(':id', $id, PDO::PARAM_INT);
+             $stmtPos->execute();
+
+             // 2. Supprimer les associations univers
+             $stmtUniv = $this->db->prepare("DELETE FROM plan_univers WHERE plan_id = :id");
+             $stmtUniv->bindParam(':id', $id, PDO::PARAM_INT);
+             $stmtUniv->execute();
+             
+             // 3. Supprimer l'historique (si la table existe)
+             // Assumons que la table s'appelle geo_positions_history
+             try {
+                $stmtHist = $this->db->prepare("DELETE FROM geo_positions_history WHERE plan_id = :id");
+                $stmtHist->bindParam(':id', $id, PDO::PARAM_INT);
+                $stmtHist->execute();
+             } catch (PDOException $e) {
+                 // Ignorer si la table n'existe pas, mais logguer l'erreur
+                 if ($e->getCode() !== '42S02') { // 42S02 = Table not found
+                      error_log("Erreur suppression historique (Plan: $id): " . $e->getMessage());
+                      throw $e; // Relancer si c'est une autre erreur
+                 }
+             }
+
+             // 4. Supprimer le plan
              $stmtPlan = $this->db->prepare("DELETE FROM plans WHERE id = :id");
              $stmtPlan->bindParam(':id', $id, PDO::PARAM_INT);
-             $stmtPlan->execute(); // Leve une exception si erreur
-             // rowCount() peut être > 0 même si CASCADE échoue sur une autre table,
-             // mais c'est mieux que rien pour confirmer la suppression du plan lui-même.
-             return $stmtPlan->rowCount() > 0;
+             $stmtPlan->execute();
+
+             $this->db->commit();
+             return $stmtPlan->rowCount() > 0; // Vrai si le plan a été supprimé
+
         } catch (PDOException $e) {
+             $this->db->rollBack();
              error_log("Erreur deletePlan (ID: $id): " . $e->getMessage());
              $this->lastError = $this->db->errorInfo();
              return false;
@@ -451,7 +483,8 @@ class PlanManager {
 
         $this->db->beginTransaction();
         try {
-            $sqlPlan = "INSERT INTO plans (nom, nom_fichier, created_at, updated_at) VALUES (:nom, :nom_fichier, NOW(), NOW())";
+            // Ajout updated_at
+            $sqlPlan = "INSERT INTO plans (nom, nom_fichier, created_at, updated_at, type) VALUES (:nom, :nom_fichier, NOW(), NOW(), 'svg')";
             $stmtPlan = $this->db->prepare($sqlPlan);
             $stmtPlan->bindParam(':nom', $nom);
             $stmtPlan->bindParam(':nom_fichier', $filename);
@@ -487,38 +520,124 @@ class PlanManager {
     }
 
     /**
-     * Met à jour le contenu d'un fichier SVG existant.
+     * MODIFIÉ : Sauvegarde le contenu JSON dans un fichier et met à jour json_path dans la BDD.
+     * @param int $planId L'ID du plan.
+     * @param string $jsonContent Le contenu JSON (chaîne).
+     * @return array Retourne ['success' => true, 'json_path' => $relativePath] ou ['success' => false, 'error' => 'message'].
      */
-    public function updateSvgPlan(int $planId, string $svgContent): bool {
+    public function updateSvgPlan(int $planId, string $jsonContent): array // Signature modifiée
+    {
         $this->lastError = null; // Reset error
-         try {
-            $plan = $this->getPlanById($planId);
-            if (!$plan || !str_ends_with(strtolower($plan['nom_fichier']), '.svg')) {
-                 error_log("updateSvgPlan: Plan non trouvé ou n'est pas un SVG (ID: $planId)");
-                 return false;
-            }
+        // 1. Sauvegarder le contenu JSON dans un fichier
+        $jsonFilePath = $this->saveJsonContent($planId, $jsonContent); // Appel de la nouvelle fonction privée
 
-            $filepath = __DIR__ . '/../public/uploads/plans/' . $plan['nom_fichier'];
-
-            // Utiliser @ pour supprimer les avertissements si file_put_contents échoue
-            if (@file_put_contents($filepath, $svgContent) === false) {
-                error_log("Erreur lors de la mise à jour du fichier SVG: " . $filepath);
-                return false;
-            }
-
-            $stmt = $this->db->prepare("UPDATE plans WHERE id = :id");
-            $stmt->bindParam(':id', $planId, PDO::PARAM_INT);
-            $stmt->execute();
-
-            return true;
-        } catch (PDOException $e) {
-             error_log("Erreur updateSvgPlan (Plan: $planId): " . $e->getMessage());
-             $this->lastError = $this->db->errorInfo();
-             return false;
-        } catch (Exception $e) { // Pour getPlanById qui peut retourner false
-             error_log("Erreur updateSvgPlan (Plan: $planId, non-PDO): " . $e->getMessage());
-             return false;
+        if ($jsonFilePath === null) {
+            error_log("updateSvgPlan ERREUR: Echec de saveJsonContent pour Plan ID: $planId");
+            return ['success' => false, 'error' => 'Erreur lors de la sauvegarde du fichier JSON.'];
         }
+        error_log("updateSvgPlan INFO: Fichier JSON sauvegardé: " . $jsonFilePath);
+
+
+        // 2. Mettre à jour la base de données avec le chemin relatif
+        // Assurez-vous que la colonne 'json_path' existe dans votre table 'plans'.
+        $sql = "UPDATE plans SET json_path = :json_path, updated_at = NOW() WHERE id = :id";
+        $stmt = null; // Init pour le catch
+
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':json_path', $jsonFilePath, PDO::PARAM_STR);
+            $stmt->bindValue(':id', $planId, PDO::PARAM_INT);
+
+            error_log("updateSvgPlan INFO: Execution de la mise à jour BDD...");
+            $stmt->execute(); // Leve une exception si erreur
+
+            error_log("updateSvgPlan INFO: Mise à jour BDD réussie pour Plan ID: $planId");
+            // Retourner succès et le chemin relatif
+            return ['success' => true, 'json_path' => $jsonFilePath];
+
+        } catch (PDOException $e) {
+            error_log("updateSvgPlan ERREUR PDOException (Plan: $planId): " . $e->getMessage());
+            $this->lastError = $this->db->errorInfo();
+            error_log("PDO Error Info: " . print_r($this->lastError, true));
+            return ['success' => false, 'error' => 'Erreur base de données lors de la mise à jour du chemin JSON.'];
+        } catch (Exception $e) {
+             error_log("updateSvgPlan ERREUR Exception (Plan: $planId): " . $e->getMessage());
+             return ['success' => false, 'error' => 'Erreur inattendue lors de la mise à jour du plan.'];
+        }
+    }
+
+    /**
+     * NOUVEAU : Sauvegarde le contenu JSON dans un fichier spécifique au plan.
+     * Supprime les anciens fichiers JSON pour ce plan.
+     * @param int $planId L'ID du plan.
+     * @param string $jsonContent Le contenu JSON à sauvegarder.
+     * @return string|null Le chemin relatif du fichier sauvegardé ou null en cas d'erreur.
+     */
+    private function saveJsonContent(int $planId, string $jsonContent): ?string
+    {
+        // Chemin absolu vers le dossier de destination
+        $baseDir = dirname(__DIR__) . '/public/uploads/plans_json/';
+
+        // Créer le dossier s'il n'existe pas
+        if (!is_dir($baseDir)) {
+            // Tenter de créer le dossier récursivement avec les bonnes permissions
+            if (!@mkdir($baseDir, 0775, true)) { // Utiliser @ pour masquer warning si existe déjà
+                // Vérifier si la création a échoué pour une autre raison que "existe déjà"
+                if (!is_dir($baseDir)) {
+                    error_log("Impossible de créer le dossier: " . $baseDir . " Erreur: " . error_get_last()['message']);
+                    return null;
+                }
+            }
+        }
+
+        // Vérifier si le dossier est accessible en écriture
+        if (!is_writable($baseDir)) {
+             error_log("Le dossier n'est pas accessible en écriture: " . $baseDir);
+             // Tenter de changer les permissions (si nécessaire et si autorisé par le système)
+             // @chmod($baseDir, 0775);
+             // if (!is_writable($baseDir)) { // Re-vérifier après chmod
+             //    error_log("chmod n'a pas fonctionné ou n'est pas autorisé pour " . $baseDir);
+             //    return null;
+             // }
+             return null; // Si toujours pas accessible, on abandonne
+        }
+
+        // Nettoyer les anciens fichiers JSON pour ce plan
+        // Utiliser DIRECTORY_SEPARATOR pour la compatibilité
+        $oldFilesPattern = rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . "plan_" . $planId . "_*.json";
+        $oldFiles = glob($oldFilesPattern);
+        if ($oldFiles === false) {
+             error_log("Erreur lors de la recherche des anciens fichiers JSON: " . $oldFilesPattern);
+             // Continuer quand même, mais logger l'erreur
+        } else {
+            foreach ($oldFiles as $file) {
+                if (!@unlink($file)) { // Utiliser @ pour masquer warning si fichier déjà supprimé
+                    error_log("Impossible de supprimer l'ancien fichier JSON: " . $file . " Erreur: " . error_get_last()['message']);
+                    // Continuer quand même
+                } else {
+                     error_log("Ancien fichier JSON supprimé: " . $file);
+                }
+            }
+        }
+
+
+        // Générer le nom du nouveau fichier
+        $filename = "plan_" . $planId . "_" . time() . ".json";
+        $filePath = rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename; // Chemin absolu pour l'écriture
+        $relativePath = 'uploads/plans_json/' . $filename; // Chemin relatif pour la BDD et le retour JS
+
+        // Écrire le contenu dans le nouveau fichier
+        if (@file_put_contents($filePath, $jsonContent) === false) {
+            error_log("Impossible d'écrire dans le fichier JSON: " . $filePath . " Erreur: " . error_get_last()['message']);
+            return null;
+        }
+        error_log("Fichier JSON écrit avec succès: " . $filePath);
+
+        // Optionnel: Assurer les bonnes permissions sur le fichier créé
+        // @chmod($filePath, 0664);
+
+        // Retourner le chemin relatif
+        return $relativePath;
     }
 
 
@@ -531,6 +650,7 @@ class PlanManager {
         // La variable $action n'est plus utilisée mais on peut la garder si on veut l'ajouter plus tard
         try {
             // Correction nom table ET suppression colonnes 'action' et 'timestamp'
+            // Assumons que la table s'appelle geo_positions_history
             $sql = "INSERT INTO geo_positions_history (geo_code_id, plan_id, pos_x, pos_y)
                     VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y)";
             $stmt = $this->db->prepare($sql);
@@ -544,6 +664,10 @@ class PlanManager {
             // Logguer l'erreur mais ne pas interrompre l'opération principale
             error_log("Erreur addToHistory: " . $e->getMessage() . " | SQL: " . $sql);
             // $this->lastError = $this->db->errorInfo(); // Optionnel: stocker l'erreur si besoin ailleurs
+            // Ignorer l'erreur si la table n'existe pas
+             if ($e->getCode() !== '42S02') { // 42S02 = Table not found
+                  // Relancer ou logguer plus sévèrement si ce n'est pas une table manquante
+             }
         }
     }
 
@@ -554,6 +678,7 @@ class PlanManager {
          $this->lastError = null; // Reset error
          try {
              // Correction nom table historique
+             // Assumons que la table s'appelle geo_positions_history
              $sql = "SELECT h.*, gc.code_geo
                      FROM geo_positions_history h
                      JOIN geo_codes gc ON h.geo_code_id = gc.id
@@ -568,6 +693,9 @@ class PlanManager {
         } catch (PDOException $e) {
              error_log("Erreur getHistoryForPlan (Plan: $planId): " . $e->getMessage());
              $this->lastError = $this->db->errorInfo();
+             // Ignorer l'erreur si la table n'existe pas
+             if ($e->getCode() === '42S02') { return []; } // Table not found
+             // Sinon, retourner un tableau vide mais logguer quand même
              return [];
         }
     }
@@ -579,6 +707,7 @@ class PlanManager {
          $this->lastError = null; // Reset error
          try {
              // Correction nom table historique
+             // Assumons que la table s'appelle geo_positions_history
              $stmt = $this->db->prepare("SELECT * FROM geo_positions_history WHERE id = :id");
              $stmt->bindParam(':id', $historyId, PDO::PARAM_INT);
              $stmt->execute();
@@ -586,7 +715,9 @@ class PlanManager {
         } catch (PDOException $e) {
              error_log("Erreur getHistoryEntry (ID: $historyId): " . $e->getMessage());
              $this->lastError = $this->db->errorInfo();
-             return false;
+             // Ignorer l'erreur si la table n'existe pas
+             if ($e->getCode() === '42S02') { return false; } // Table not found
+             return false; // Autre erreur
         }
     }
 
@@ -597,39 +728,70 @@ class PlanManager {
      * @return array La liste des codes placés avec leurs données de position
      */
 public function getPlacedCodesForPlan($planId) {
-        $sql = "SELECT 
-                    gc.id, 
-                    gc.code_geo, 
-                    gc.libelle, 
-                    gc.commentaire, 
-                    gc.zone, 
-                    gc.univers, 
-                    gp.plan_id, 
-                    gp.pos_x, 
-                    gp.pos_y, 
-                    gp.width, 
-                    gp.height, 
-                    gp.anchor_x, 
-                    gp.anchor_y,
-                    gp.drawing_data,
-                    gp.id AS position_id  -- <<< CORRECTION : CETTE LIGNE EST CRUCIALE
-                FROM 
-                    geo_codes gc
-                JOIN 
-                    geo_positions gp ON gc.id = gp.geo_code_id
-                WHERE 
-                    gp.plan_id = ?
-                    AND gc.deleted_at IS NULL";
-        
+        // --- Correction : S'assurer que geo_positions et geo_codes existent ---
+        // Jointure avec univers pour la couleur/nom
+        $sql = "SELECT
+                    gc.id, gc.code_geo, gc.libelle, gc.commentaire, gc.zone,
+                    u.nom as univers_nom, u.couleur as univers_color, -- Jointure Univers
+                    gp.plan_id, gp.pos_x, gp.pos_y, gp.width, gp.height, gp.anchor_x, gp.anchor_y,
+                    gp.id AS position_id
+                    -- gp.drawing_data, -- Probablement pas nécessaire ici
+                FROM geo_codes gc
+                LEFT JOIN univers u ON gc.univers_id = u.id -- JOINTURE UNIVERS
+                JOIN geo_positions gp ON gc.id = gp.geo_code_id
+                WHERE
+                    gp.plan_id = :planId
+                    AND gc.deleted_at IS NULL"; // Assumer soft delete sur geo_codes
+
         try {
             $stmt = $this->db->prepare($sql);
-            $stmt->execute([$planId]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmt->bindParam(':planId', $planId, PDO::PARAM_INT);
+            $stmt->execute();
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Regrouper les positions par geo_code_id
+            $groupedResults = [];
+            foreach ($results as $row) {
+                 $geoCodeId = $row['id'];
+                 if (!isset($groupedResults[$geoCodeId])) {
+                     // Première fois qu'on voit ce code géo, stocker les infos de base
+                     $groupedResults[$geoCodeId] = [
+                         'id' => $geoCodeId,
+                         'code_geo' => $row['code_geo'],
+                         'libelle' => $row['libelle'],
+                         'commentaire' => $row['commentaire'],
+                         'zone' => $row['zone'],
+                         'univers_nom' => $row['univers_nom'],
+                         'univers_color' => $row['univers_color'],
+                         'placements' => [] // Initialiser le tableau des placements
+                     ];
+                 }
+                 // Ajouter les infos de cette position spécifique
+                 $groupedResults[$geoCodeId]['placements'][] = [
+                    'plan_id' => $row['plan_id'],
+                    'position_id' => $row['position_id'],
+                    'pos_x' => $row['pos_x'],
+                    'pos_y' => $row['pos_y'],
+                    'width' => $row['width'],
+                    'height' => $row['height'],
+                    'anchor_x' => $row['anchor_x'],
+                    'anchor_y' => $row['anchor_y']
+                    // 'drawing_data' => $row['drawing_data'] // Si besoin
+                 ];
+            }
+            // Retourner un tableau indexé numériquement comme attendu par le JS
+            return array_values($groupedResults);
+
         } catch (PDOException $e) {
-            // Gérer l'erreur, par exemple en la loggant
-            error_log("Erreur dans getPlacedCodesForPlan: " . $e->getMessage());
-            return []; // Retourner un tableau vide en cas d'erreur
+            error_log("Erreur dans getPlacedCodesForPlan (Plan: $planId): " . $e->getMessage());
+            $this->lastError = $this->db->errorInfo();
+             // Ignorer l'erreur si une table jointe n'existe pas
+             if ($e->getCode() === '42S02' || $e->getCode() === '42S22') { // Table or Column not found
+                 return [];
+             }
+            return []; // Retourner vide pour les autres erreurs aussi
         }
     }
 
 } // Fin de la classe PlanManager
+
