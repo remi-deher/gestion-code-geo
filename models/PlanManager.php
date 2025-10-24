@@ -109,7 +109,7 @@ class PlanManager {
     public function addPlan(string $nom, string $nomFichier) {
         $this->lastError = null; // Reset error
         try {
-            $sql = "INSERT INTO plans (nom, nom_fichier, created_at, updated_at) VALUES (:nom, :nom_fichier, NOW(), NOW())";
+            $sql = "INSERT INTO plans (nom, nom_fichier, created_at) VALUES (:nom, :nom_fichier, NOW())";
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':nom', $nom);
             $stmt->bindParam(':nom_fichier', $nomFichier);
@@ -137,7 +137,7 @@ class PlanManager {
         $this->db->beginTransaction();
         try {
             // 1. Mettre à jour la table 'plans'
-            $sql = "UPDATE plans SET nom = :nom, zone = :zone, updated_at = NOW()";
+            $sql = "UPDATE plans SET nom = :nom, zone = :zone";
             if ($newFilename !== null) {
                 $sql .= ", nom_fichier = :nom_fichier, drawing_data = NULL";
             }
