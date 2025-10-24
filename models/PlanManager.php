@@ -506,7 +506,7 @@ class PlanManager {
                 return false;
             }
 
-            $stmt = $this->db->prepare("UPDATE plans SET updated_at = NOW() WHERE id = :id");
+            $stmt = $this->db->prepare("UPDATE plans WHERE id = :id");
             $stmt->bindParam(':id', $planId, PDO::PARAM_INT);
             $stmt->execute();
 
