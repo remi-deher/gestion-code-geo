@@ -2,6 +2,9 @@
  * Module pour la gestion du canvas Fabric.js, incluant initialisation,
  * chargement des plans (SVG/Image), redimensionnement, zoom, grille, verrouillage,
  * et guides de page.
+ *
+ * MODIFIÉ pour utiliser un CANVAS FIXE (ex: A4/A3) comme référentiel
+ * et pour charger le SVG/Image comme un groupe/objet mis à l'échelle.
  */
 import { GRID_SIZE } from '../modules/config.js'; // Importe la taille de la grille
 import { showToast } from '../modules/utils.js'; // Importe la fonction pour afficher les notifications
@@ -10,31 +13,28 @@ let fabricCanvas = null;
 let canvasContainer = null;
 let canvasElement = null;
 let isLocked = false; // État du verrouillage du plan SVG
-// L'état de la grille est lu depuis la checkbox
 let snapToGrid = false; // État du magnétisme
 
-// --- Dimensions des Pages ---
+// --- Dimensions des Pages (Référentiel) ---
 const PAGE_SIZES = {
     'A4-P': { width: 595, height: 842, viewBox: { x: 0, y: 0, width: 595, height: 842 } },
     'A4-L': { width: 842, height: 595, viewBox: { x: 0, y: 0, width: 842, height: 595 } },
     'A3-P': { width: 842, height: 1191, viewBox: { x: 0, y: 0, width: 842, height: 1191 } },
     'A3-L': { width: 1191, height: 842, viewBox: { x: 0, y: 0, width: 1191, height: 842 } },
-    'Original': { width: null, height: null, viewBox: null }
+    'Original': { width: null, height: null, viewBox: null } // Ne sera plus utilisé pour le canvas
 };
 
-// Variables globales pour stocker les dimensions du SVG chargé
-let originalSvgWidth = null;
-let originalSvgHeight = null;
-let originalSvgViewBox = null; // Format attendu: { x: number, y: number, width: number, height: number }
-let svgBoundingBox = null; // Bounding box calculée des objets (fallback)
+// --- Format fixe par défaut ---
+const DEFAULT_FORMAT = PAGE_SIZES['A4-L'];
 
-// Références
+// Variables
 let svgObjects = [];
 let gridLines = [];
 let pageGuideRect = null; // Référence au rectangle de guide de page
 
+
 /**
- * Initialise le canvas Fabric.js.
+ * Initialise le canvas Fabric.js avec une TAILLE FIXE.
  * @param {string} canvasId - L'ID de l'élément <canvas> HTML.
  * @returns {fabric.Canvas|null} L'instance du canvas ou null en cas d'erreur.
  */
@@ -49,13 +49,22 @@ export function initializeCanvas(canvasId) {
 
     try {
         fabricCanvas = new fabric.Canvas(canvasId, {
-            width: canvasContainer.clientWidth,
-            height: canvasContainer.clientHeight,
-            backgroundColor: '#f8f9fa', // Couleur de fond légère
-            fireRightClick: true, // Permet de détecter le clic droit
-            stopContextMenu: true, // Empêche le menu contextuel natif sur le canvas
-            preserveObjectStacking: true // Important pour garder l'ordre des calques
+            // --- MODIFIÉ : Utilisation de dimensions fixes par défaut ---
+            width: DEFAULT_FORMAT.width,
+            height: DEFAULT_FORMAT.height,
+            // --- FIN MODIF ---
+            backgroundColor: '#f8f9fa',
+            fireRightClick: true,
+            stopContextMenu: true,
+            preserveObjectStacking: true
         });
+        
+        // --- AJOUT : Définir le référentiel stable global ---
+        // Ces variables sont utilisées par utils.js pour les calculs en %
+        window.originalSvgWidth = DEFAULT_FORMAT.width;
+        window.originalSvgHeight = DEFAULT_FORMAT.height;
+        window.originalSvgViewBox = DEFAULT_FORMAT.viewBox;
+        // --- FIN AJOUT ---
 
         // Optimisations
         fabricCanvas.renderAndReset = function() {
@@ -63,11 +72,11 @@ export function initializeCanvas(canvasId) {
             return this;
         };
 
-        // Redimensionne le canvas lorsque la fenêtre change de taille
+        // Redimensionne le *viewport* (zoom) lorsque la fenêtre change
         window.addEventListener('resize', resizeCanvas);
-        resizeCanvas(); // Appel initial
+        resizeCanvas(); // Appel initial pour centrer/zoomer
 
-        console.log("Canvas Fabric initialisé.");
+        console.log(`Canvas Fabric initialisé. Taille FIXE: ${DEFAULT_FORMAT.width}x${DEFAULT_FORMAT.height}`);
         return fabricCanvas;
 
     } catch (error) {
@@ -82,27 +91,37 @@ export function getCanvasInstance() {
 }
 
 /**
- * Redimensionne le canvas pour remplir son conteneur.
+ * MODIFIÉ : Ne redimensionne PLUS le canvas, ajuste seulement le viewport (zoom/pan).
  */
 export function resizeCanvas() {
     if (fabricCanvas && canvasContainer) {
-        fabricCanvas.setWidth(canvasContainer.clientWidth);
-        fabricCanvas.setHeight(canvasContainer.clientHeight);
+        // --- SUPPRIMÉ ---
+        // fabricCanvas.setWidth(canvasContainer.clientWidth);
+        // fabricCanvas.setHeight(canvasContainer.clientHeight);
+        // --- FIN SUPPRIMÉ ---
+        
         fabricCanvas.calcOffset(); // Recalcule la position du canvas sur la page
-        fabricCanvas.renderAll(); // Redessine le canvas
-        updateGrid(fabricCanvas.getZoom()); // Redessine la grille à la nouvelle taille
+        
+        // --- AJOUT ---
+        // Ajuste le zoom pour 'fitter' le canvas fixe dans le conteneur
+        resetZoom(); 
+        // --- FIN AJOUT ---
+        
+        updateGrid(fabricCanvas.getZoom()); // Redessine la grille
+        // fabricCanvas.renderAll(); // resetZoom() s'en charge
     }
 }
 
 /**
- * Charge un plan SVG depuis une URL et l'affiche sur le canvas.
- * Les objets SVG sont ajoutés individuellement.
+ * Charge un plan SVG.
+ * MODIFIÉ : Charge le SVG comme un groupe, le centre et le redimensionne
+ * pour s'adapter au canvas fixe (A4/A3...).
  * @param {string} svgUrl - L'URL du fichier SVG.
  * @returns {Promise<void>}
  */
 export async function loadSvgPlan(svgUrl) {
     if (!fabricCanvas) return Promise.reject(new Error("Canvas non initialisé"));
-    console.log(`Chargement du plan SVG (objets individuels) depuis ${svgUrl}`);
+    console.log(`Chargement du plan SVG (en tant que groupe) depuis ${svgUrl}`);
 
     try {
         const response = await fetch(svgUrl);
@@ -114,46 +133,74 @@ export async function loadSvgPlan(svgUrl) {
         return new Promise((resolve, reject) => {
             fabric.loadSVGFromString(svgString, (objects, options) => {
                 if (!fabricCanvas) return reject(new Error("Canvas non prêt après chargement SVG"));
-                fabricCanvas.clear(); // Nettoie avant d'ajouter
-                svgObjects = []; // Réinitialise la liste des objets SVG
+                fabricCanvas.clear();
+                svgObjects = [];
 
-                // --- Stockage des dimensions lues ---
-                originalSvgWidth = options.width;
-                originalSvgHeight = options.height;
-                // Fabric.js parse le viewBox en { x, y, width, height }
-                originalSvgViewBox = options.viewBox || null;
-                // Stocke sur window pour accès facile depuis main.js
-                window.originalSvgWidth = originalSvgWidth;
-                window.originalSvgHeight = originalSvgHeight;
-                window.originalSvgViewBox = originalSvgViewBox;
-                console.log("SVG chargé. Dimensions lues:", { width: originalSvgWidth, height: originalSvgHeight, viewBox: originalSvgViewBox });
-                // --- Fin Stockage ---
-
-                // Calcule la bounding box une fois si besoin (fallback pour zoom)
+                // --- Dimensions du SVG chargé ---
+                const originalSvgWidth = options.width;
+                const originalSvgHeight = options.height;
+                const originalSvgViewBox = options.viewBox || null;
                 const tempGroup = fabric.util.groupSVGElements(objects, options);
-                svgBoundingBox = tempGroup.getBoundingRect();
-                console.log("Bounding Box SVG calculée:", svgBoundingBox);
+                const svgBoundingBox = tempGroup.getBoundingRect();
 
-                // Ajoute les objets SVG au canvas individuellement
+                const svgWidth = originalSvgViewBox?.width || originalSvgWidth || svgBoundingBox.width;
+                const svgHeight = originalSvgViewBox?.height || originalSvgHeight || svgBoundingBox.height;
+
+                if (!svgWidth || !svgHeight) {
+                     console.error("Impossible de déterminer les dimensions du SVG chargé.", options);
+                     return reject(new Error("Dimensions du SVG non reconnues."));
+                }
+                
+                // --- Dimensions du Canvas FIXE (notre "feuille") ---
+                const canvasWidth = fabricCanvas.getWidth(); // (ex: 842)
+                const canvasHeight = fabricCanvas.getHeight(); // (ex: 595)
+
+                // --- Calcul pour centrer/fitter le SVG dans le Canvas ---
+                const padding = 20; // Marge visuelle
+                const scaleX = (canvasWidth - padding * 2) / svgWidth;
+                const scaleY = (canvasHeight - padding * 2) / svgHeight;
+                const scale = Math.min(scaleX, scaleY); // "Fit"
+                const left = (canvasWidth - (svgWidth * scale)) / 2;
+                const top = (canvasHeight - (svgHeight * scale)) / 2;
+
+                // Applique les propriétés (non sélectionnable, etc.) aux objets
                 objects.forEach(obj => {
                     obj.isSvgShape = true;
                     obj.customData = { ...obj.customData, svgId: obj.id || null };
                     obj.set({
-                        selectable: false,
+                        selectable: !isLocked, // Modifiable si non verrouillé
                         evented: true,
-                        hasControls: false,
-                        hasBorders: false,
-                        lockMovementX: true,
-                        lockMovementY: true
+                        hasControls: !isLocked,
+                        hasBorders: !isLocked,
+                        lockMovementX: isLocked,
+                        lockMovementY: isLocked
                     });
-                    fabricCanvas.add(obj);
-                    svgObjects.push(obj);
+                    svgObjects.push(obj); // Garde la référence
                 });
+
+                // Créer un groupe pour le plan
+                const planGroup = new fabric.Group(objects, {
+                    left: left,
+                    top: top,
+                    scaleX: scale,
+                    scaleY: scale,
+                    originX: 'left',
+                    originY: 'top',
+                    // Le groupe lui-même n'est pas sélectionnable
+                    selectable: false,
+                    // Mais il laisse passer les clics vers ses enfants (les formes SVG)
+                    evented: true, 
+                    isPlanBackground: true // Marqueur personnalisé
+                });
+                
+                fabricCanvas.add(planGroup);
+                planGroup.sendToBack(); // Mettre le plan en arrière-plan
+                // --- FIN MODIF ---
 
                 updateGrid(fabricCanvas.getZoom());
                 fabricCanvas.requestRenderAll();
-                resetZoom();
-                console.log(`${svgObjects.length} objets SVG ajoutés individuellement au canvas.`);
+                resetZoom(); // Centre la vue sur le canvas fixe
+                console.log(`${svgObjects.length} objets SVG ajoutés (groupés) au canvas.`);
                 resolve();
             });
         });
@@ -168,13 +215,15 @@ export async function loadSvgPlan(svgUrl) {
 
 
 /**
- * Charge une image de fond sur le canvas.
+ * Charge une image de fond.
+ * MODIFIÉ : Charge l'image comme un objet (pas un fond) et la centre/redimensionne
+ * pour s'adapter au canvas fixe.
  * @param {string} imageUrl - L'URL de l'image.
  * @returns {Promise<void>}
  */
 export async function loadPlanImage(imageUrl) {
     if (!fabricCanvas) return Promise.reject(new Error("Canvas non initialisé"));
-    console.log(`Chargement de l'image de fond depuis ${imageUrl}`);
+    console.log(`Chargement de l'image (objet) depuis ${imageUrl}`);
 
     return new Promise((resolve, reject) => {
         fabric.Image.fromURL(imageUrl, (img) => {
@@ -182,29 +231,49 @@ export async function loadPlanImage(imageUrl) {
             fabricCanvas.clear();
             svgObjects = [];
 
-            // Stockage des dimensions lues
-            originalSvgWidth = img.width;
-            originalSvgHeight = img.height;
-            originalSvgViewBox = { x: 0, y: 0, width: img.width, height: img.height }; // Simule un viewBox
-            window.originalSvgWidth = originalSvgWidth;
-            window.originalSvgHeight = originalSvgHeight;
-            window.originalSvgViewBox = originalSvgViewBox;
-            svgBoundingBox = { left: 0, top: 0, width: img.width, height: img.height };
-            console.log("Image chargée. Dimensions:", { width: originalSvgWidth, height: originalSvgHeight });
+            // --- Dimensions de l'image chargée ---
+            const imgWidth = img.width;
+            const imgHeight = img.height;
 
+            // --- Dimensions du Canvas FIXE (notre "feuille") ---
+            const canvasWidth = fabricCanvas.getWidth();
+            const canvasHeight = fabricCanvas.getHeight();
+
+            // --- Calcul pour centrer/fitter l'Image dans le Canvas ---
+            const padding = 20; // Marge visuelle
+            const scaleX = (canvasWidth - padding * 2) / imgWidth;
+            const scaleY = (canvasHeight - padding * 2) / imgHeight;
+            const scale = Math.min(scaleX, scaleY);
+            const left = (canvasWidth - (imgWidth * scale)) / 2;
+            const top = (canvasHeight - (imgHeight * scale)) / 2;
+            
             img.set({
+                left: left,
+                top: top,
+                scaleX: scale,
+                scaleY: scale,
                 originX: 'left',
                 originY: 'top',
                 selectable: false,
                 evented: false,
                 hasControls: false,
-                hasBorders: false
+                hasBorders: false,
+                isPlanBackground: true // Marqueur
             });
 
-            fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {});
+            // --- SUPPRIMÉ ---
+            // fabricCanvas.setBackgroundImage(img, ...);
+            // --- FIN SUPPRIMÉ ---
+            
+            // --- AJOUT ---
+            fabricCanvas.add(img);
+            img.sendToBack();
+            // --- FIN AJOUT ---
 
             updateGrid(fabricCanvas.getZoom());
+            fabricCanvas.requestRenderAll();
             resetZoom();
+            console.log(`Image chargée (objet). Dimensions: ${imgWidth}x${imgHeight}`);
             resolve();
         }, { crossOrigin: 'anonymous' });
     });
@@ -212,69 +281,38 @@ export async function loadPlanImage(imageUrl) {
 
 
 /**
- * Ajuste le zoom et le pan pour afficher le plan entier.
- * MODIFIÉ pour aligner en haut à gauche avec padding, au lieu de centrer.
+ * MODIFIÉ : Ajuste le zoom et le pan pour afficher le CANVAS FIXE entier
+ * (et non plus le SVG).
  */
 export function resetZoom() {
     if (!fabricCanvas || !canvasContainer) return;
 
     const containerWidth = canvasContainer.clientWidth;
     const containerHeight = canvasContainer.clientHeight;
+    const padding = 20; // Espace (en pixels) entre le bord du conteneur et le canvas
 
-    // --- CORRECTION : Ajout d'un padding pour l'alignement ---
-    const padding = 20; // Espace (en pixels) entre le bord du canvas et le plan
+    // --- MODIFIÉ : Utiliser les dimensions du canvas fixe ---
+    let planWidth = fabricCanvas.getWidth(); // ex: 842
+    let planHeight = fabricCanvas.getHeight(); // ex: 595
+    let planOffsetX = 0; // Le canvas fixe commence à 0
+    let planOffsetY = 0; // Le canvas fixe commence à 0
+    
+    console.log(`ResetZoom: Utilisation des dimensions du canvas fixe: ${planWidth}x${planHeight}`);
+    // --- FIN MODIF ---
 
-    let planWidth = containerWidth;  // Fallback
-    let planHeight = containerHeight; // Fallback
-    let planOffsetX = 0; // Décalage X du viewBox/BBox
-    let planOffsetY = 0; // Décalage Y du viewBox/BBox
-
-    // Priorité au viewBox si disponible et valide
-    if (originalSvgViewBox && originalSvgViewBox.width > 0 && originalSvgViewBox.height > 0) {
-        planWidth = originalSvgViewBox.width;
-        planHeight = originalSvgViewBox.height;
-        planOffsetX = originalSvgViewBox.x || 0;
-        planOffsetY = originalSvgViewBox.y || 0;
-        console.log(`ResetZoom: Utilisation des dimensions du viewBox: ${planWidth}x${planHeight} (offset: ${planOffsetX},${planOffsetY})`);
-    }
-    // Sinon, utiliser width/height si disponibles
-    else if (originalSvgWidth > 0 && originalSvgHeight > 0) {
-        planWidth = originalSvgWidth;
-        planHeight = originalSvgHeight;
-        console.log(`ResetZoom: Utilisation des dimensions width/height: ${planWidth}x${planHeight}`);
-    }
-    // En dernier recours, utiliser la bounding box calculée
-    else if (svgBoundingBox && svgBoundingBox.width > 0 && svgBoundingBox.height > 0) {
-        planWidth = svgBoundingBox.width;
-        planHeight = svgBoundingBox.height;
-        planOffsetX = svgBoundingBox.left; // Utilise le coin haut/gauche de la BBox comme offset
-        planOffsetY = svgBoundingBox.top;
-        console.warn(`ResetZoom: Utilisation de la bounding box calculée: ${planWidth}x${planHeight} (offset: ${planOffsetX},${planOffsetY})`);
-    } else {
-        console.warn("ResetZoom: Aucune dimension de plan valide trouvée, utilisation des dimensions du conteneur.");
-    }
-
-    // Calcul du scale pour faire rentrer le plan dans le conteneur (en comptant le padding)
+    // Calcul du scale pour faire rentrer le canvas fixe dans le conteneur
     const scaleX = (containerWidth - padding * 2) / planWidth;
     const scaleY = (containerHeight - padding * 2) / planHeight;
     const scale = Math.min(scaleX, scaleY);
 
-    // --- CORRECTION : Calcul du Pan (vpt[4] et vpt[5]) ---
-    // On veut que le point (planOffsetX, planOffsetY) du plan
-    // se retrouve au point (padding, padding) de l'écran.
-    // L'équation est : (point_plan_X * scale) + panX = point_ecran_X
-    // Donc : (planOffsetX * scale) + vpt[4] = padding
-    // vpt[4] = padding - (planOffsetX * scale)
-
-    const panX = padding - (planOffsetX * scale);
-    const panY = padding - (planOffsetY * scale);
+    // Calcul du Pan pour centrer le canvas fixe
+    const panX = (containerWidth - (planWidth * scale)) / 2;
+    const panY = (containerHeight - (planHeight * scale)) / 2;
 
     fabricCanvas.setViewportTransform([scale, 0, 0, scale, panX, panY]);
-    // --- FIN CORRECTION ---
 
     console.log(`ResetZoom: Viewport ajusté. Scale: ${scale.toFixed(3)}, Pan: (${panX.toFixed(1)}, ${panY.toFixed(1)})`);
 
-    // Met à jour grille et traits
     updateGrid(scale);
     updateStrokesWidth(scale);
     fabricCanvas.requestRenderAll();
@@ -282,49 +320,57 @@ export function resetZoom() {
 
 /**
  * Zoom/Dézoom le canvas sur un point donné ou sur le centre.
- * @param {number} factor - Facteur de zoom (> 1 pour zoomer, < 1 pour dézoomer).
- * @param {fabric.Point} [point] - Point sur lequel zoomer (par défaut: centre de la vue).
+ * (Fonction inchangée)
  */
 export function zoomCanvas(factor, point = null) {
     if (!fabricCanvas) return;
     const currentZoom = fabricCanvas.getZoom();
     let newZoom = currentZoom * factor;
 
-    // Limites de zoom (optionnel)
     const minZoom = 0.05;
     const maxZoom = 20;
     if (newZoom < minZoom) newZoom = minZoom;
     if (newZoom > maxZoom) newZoom = maxZoom;
 
-    if (newZoom === currentZoom) return; // Pas de changement
+    if (newZoom === currentZoom) return;
 
-    // Si aucun point n'est spécifié, zoome sur le centre de la vue actuelle
     if (!point) {
         point = fabricCanvas.getVpCenter();
     }
 
     fabricCanvas.zoomToPoint(point, newZoom);
-    // Les événements viewport:transformed gèrent la mise à jour de la grille/traits
 }
 
 
 /**
  * Verrouille ou déverrouille les éléments SVG du plan.
- * @param {boolean} lock - True pour verrouiller, false pour déverrouiller.
+ * (Fonction inchangée)
  */
 export function setCanvasLock(lock) {
     isLocked = lock;
     console.log("Verrouillage SVG:", isLocked);
-    svgObjects.forEach(obj => {
-        obj.set({
-            selectable: !isLocked,
-            lockMovementX: isLocked,
-            lockMovementY: isLocked,
-            hasControls: !isLocked,
-            hasBorders: !isLocked,
-            evented: true,
+    
+    // Cible les objets dans le groupe 'isPlanBackground'
+    const planGroup = fabricCanvas.getObjects().find(o => o.isPlanBackground);
+    
+    if (planGroup && planGroup.type === 'group') {
+        planGroup.getObjects().forEach(obj => {
+             obj.set({
+                selectable: !isLocked,
+                lockMovementX: isLocked,
+                lockMovementY: isLocked,
+                hasControls: !isLocked,
+                hasBorders: !isLocked,
+                evented: true,
+            });
         });
-    });
+    } else if (planGroup) {
+        // Gère le cas d'une image (qui n'est pas un groupe)
+         planGroup.set({
+            selectable: false, // Une image de fond ne doit jamais être sélectionnable
+            evented: false,
+        });
+    }
 
     if (isLocked) {
         const activeObj = fabricCanvas.getActiveObject();
@@ -335,37 +381,34 @@ export function setCanvasLock(lock) {
     fabricCanvas.requestRenderAll();
 }
 
-/** Retourne l'état actuel du verrouillage SVG. */
+/** Retourne l'état actuel du verrouillage SVG. (Fonction inchangée) */
 export function getCanvasLock() {
     return isLocked;
 }
 
-/** Active/Désactive l'affichage de la grille (via updateGrid). */
+/** Active/Désactive l'affichage de la grille. (Fonction inchangée) */
 export function toggleGridDisplay(show) {
     const gridToggleCheckbox = document.getElementById('grid-toggle');
     if(gridToggleCheckbox) gridToggleCheckbox.checked = show;
-    updateGrid(fabricCanvas.getZoom()); // Appelle la mise à jour
+    updateGrid(fabricCanvas.getZoom());
 }
 
-/** Active/Désactive le magnétisme à la grille. */
+/** Active/Désactive le magnétisme à la grille. (Fonction inchangée) */
 export function toggleSnapToGrid(snap) {
-    // Si l'argument 'snap' est un événement, lire la valeur de la checkbox
     if (snap instanceof Event && snap.target) {
         snapToGrid = snap.target.checked;
-    } else if (typeof snap === 'boolean') { // Sinon, utiliser la valeur booléenne passée
+    } else if (typeof snap === 'boolean') {
         snapToGrid = snap;
     }
     console.log("Magnétisme grille:", snapToGrid);
-    // Mettre à jour l'état de la checkbox si elle existe
     const snapToggleCheckbox = document.getElementById('snap-toggle');
     if (snapToggleCheckbox) {
         snapToggleCheckbox.checked = snapToGrid;
     }
 }
 
-/** Retourne l'état actuel du magnétisme. */
+/** Retourne l'état actuel du magnétisme. (Fonction inchangée) */
 export function getSnapToGrid() {
-    // Lit l'état actuel de la checkbox si elle existe, sinon utilise la variable
     const snapToggleCheckbox = document.getElementById('snap-toggle');
     if (snapToggleCheckbox) {
         snapToGrid = snapToggleCheckbox.checked;
@@ -375,62 +418,47 @@ export function getSnapToGrid() {
 
 /**
  * Met à jour (recrée) la grille visuelle en fonction du zoom.
- * @param {number} zoom - Le niveau de zoom actuel.
+ * (Fonction inchangée)
  */
 export function updateGrid(zoom) {
     if (!fabricCanvas || !canvasContainer) return;
 
-    // Supprime les anciennes lignes
     gridLines.forEach(line => fabricCanvas.remove(line));
     gridLines = [];
 
-    // --- CORRECTION : Lire l'état de la checkbox ---
     const gridToggleCheckbox = document.getElementById('grid-toggle');
-    // Lit l'état actuel de la case. Si elle n'existe pas, 'false' par défaut.
     const showGrid = gridToggleCheckbox ? gridToggleCheckbox.checked : false;
-    // --- FIN CORRECTION ---
 
-    // Ne rien dessiner si la case est décochée
     if (!showGrid) {
         fabricCanvas.requestRenderAll();
         return;
     }
 
     const gridSize = GRID_SIZE || 10;
-    const width = fabricCanvas.getWidth();
-    const height = fabricCanvas.getHeight();
-
-    let apparentGridSize = gridSize * zoom;
+    
+    // --- MODIFIÉ : La grille doit couvrir le canvas fixe, pas le viewport ---
+    const width = fabricCanvas.getWidth(); // Largeur fixe (ex: 842)
+    const height = fabricCanvas.getHeight(); // Hauteur fixe (ex: 595)
+    
+    let apparentGridSizeOnScreen = gridSize * zoom;
     let gridSpacing = gridSize;
 
     // Ajuste l'espacement pour garder la grille lisible
-    while (apparentGridSize < 15 && gridSpacing < 10000) {
+    while (apparentGridSizeOnScreen < 15 && gridSpacing < 10000) {
         gridSpacing *= 5;
-        apparentGridSize *= 5;
+        apparentGridSizeOnScreen *= 5;
     }
-     while (apparentGridSize > 75 && gridSpacing > 1) {
+     while (apparentGridSizeOnScreen > 75 && gridSpacing > 1) {
         gridSpacing /= 5;
-        apparentGridSize /= 5;
+        apparentGridSizeOnScreen /= 5;
     }
 
     const strokeColor = '#ced4da';
-    const strokeWidth = 1 / zoom;
+    const strokeWidth = 1 / zoom; // Reste dépendant du zoom pour la visibilité
 
-    const vpt = fabricCanvas.viewportTransform;
-    const panX = vpt[4];
-    const panY = vpt[5];
-
-    // Limites visibles du canvas
-    const startX = -panX / zoom;
-    const startY = -panY / zoom;
-    const endX = startX + width / zoom;
-    const endY = startY + height / zoom;
-
-    const firstGridX = Math.ceil(startX / gridSpacing) * gridSpacing;
-    const firstGridY = Math.ceil(startY / gridSpacing) * gridSpacing;
-
-    for (let x = firstGridX; x <= endX; x += gridSpacing) {
-        const line = new fabric.Line([x, startY, x, endY], {
+    // Dessine la grille sur toute la taille du canvas fixe (0,0 à width,height)
+    for (let x = 0; x <= width; x += gridSpacing) {
+        const line = new fabric.Line([x, 0, x, height], {
             stroke: strokeColor, strokeWidth: strokeWidth,
             selectable: false, evented: false,
             isGridLine: true, visible: true
@@ -438,8 +466,8 @@ export function updateGrid(zoom) {
         fabricCanvas.add(line);
         gridLines.push(line);
     }
-    for (let y = firstGridY; y <= endY; y += gridSpacing) {
-        const line = new fabric.Line([startX, y, endX, y], {
+    for (let y = 0; y <= height; y += gridSpacing) {
+        const line = new fabric.Line([0, y, width, y], {
             stroke: strokeColor, strokeWidth: strokeWidth,
             selectable: false, evented: false,
             isGridLine: true, visible: true
@@ -447,6 +475,7 @@ export function updateGrid(zoom) {
         fabricCanvas.add(line);
         gridLines.push(line);
     }
+    // --- FIN MODIF ---
 
     gridLines.forEach(line => line.sendToBack());
     fabricCanvas.requestRenderAll();
@@ -455,7 +484,7 @@ export function updateGrid(zoom) {
 
 /**
  * Met à jour l'épaisseur des traits des objets en fonction du zoom.
- * @param {number} zoom - Le niveau de zoom actuel.
+ * (Fonction inchangée)
  */
 export function updateStrokesWidth(zoom) {
     if (!fabricCanvas) return;
@@ -468,78 +497,75 @@ export function updateStrokesWidth(zoom) {
 
 /**
  * Trouve une forme SVG spécifique par son ID SVG.
- * @param {string} svgId - L'ID de l'élément SVG recherché.
- * @returns {fabric.Object|null} L'objet Fabric correspondant ou null.
+ * (Fonction inchangée)
  */
 export function findSvgShapeByCodeGeo(svgId) {
     if (!svgId) return null;
-    return svgObjects.find(obj => obj.customData?.svgId === svgId) || null;
+    
+    // Cible les objets dans le groupe 'isPlanBackground'
+    const planGroup = fabricCanvas.getObjects().find(o => o.isPlanBackground);
+    
+    if (planGroup && planGroup.type === 'group') {
+        return planGroup.getObjects().find(obj => obj.customData?.svgId === svgId) || null;
+    }
+    
+    return null; // Ne cherche pas en dehors du groupe
 }
 
 /**
- * Exporte les dimensions originales du plan (viewBox ou width/height).
+ * Exporte les dimensions de la "feuille" (le canvas fixe).
  * Utilisé par main.js pour la sauvegarde SVG.
  * @returns {object} { width, height, viewBox }
  */
 export function getOriginalPlanDimensions() {
+    // MODIFIÉ : Retourne les dimensions du canvas fixe
+    const width = fabricCanvas.getWidth();
+    const height = fabricCanvas.getHeight();
      return {
-         width: originalSvgWidth,
-         height: originalSvgHeight,
-         viewBox: originalSvgViewBox
+         width: width,
+         height: height,
+         viewBox: { x: 0, y: 0, width: width, height: height }
      };
 }
 
 /**
  * Dessine un rectangle en pointillés représentant le format de page sélectionné.
- * @param {string} format - La clé du format (ex: 'A4_Portrait') depuis PAGE_SIZES.
+ * (Fonction inchangée, elle dessine juste un guide visuel)
  */
 export function drawPageGuides(format) {
     if (!fabricCanvas) return;
-    
-    // --- Logs de débogage ---
-    // console.log(`--- Début drawPageGuides ---`);
-    // console.log(`Format reçu: "${format}" (Type: ${typeof format})`);
-    // console.log(`PAGE_SIZES est défini:`, typeof PAGE_SIZES !== 'undefined');
-    // console.log(`Clés de PAGE_SIZES:`, Object.keys(PAGE_SIZES));
-    // console.log(`Tentative d'accès PAGE_SIZES["${format}"]:`, PAGE_SIZES[format]);
-    // --- Fin Logs ---
 
-    // Supprime l'ancien guide s'il existe
     if (pageGuideRect) {
         fabricCanvas.remove(pageGuideRect);
         pageGuideRect = null;
     }
 
     const isOriginal = (format === 'Original');
-    const formatData = PAGE_SIZES[format]; 
+    const formatData = PAGE_SIZES[format];
     const hasValidFormatData = !!formatData;
     const hasViewBox = hasValidFormatData && !!formatData.viewBox;
 
-    // Condition décomposée
     if (isOriginal || !hasValidFormatData || !hasViewBox) {
         fabricCanvas.requestRenderAll();
-        // console.log("Guides de page désactivés (Original ou format invalide).");
-        return; // <= C'est ici que ça sortait si les clés ne correspondaient pas
+        return;
     }
 
-    // --- LE CODE DE DESSIN EST ATTEINT ---
     const sizeInfo = PAGE_SIZES[format];
     const viewBox = sizeInfo.viewBox;
     const zoom = fabricCanvas.getZoom();
 
-    console.log(`Dessin du guide pour ${format}:`, sizeInfo); // <= Ce log devrait maintenant apparaître
+    console.log(`Dessin du guide pour ${format}:`, sizeInfo);
 
-    // Style de production (discret)
     pageGuideRect = new fabric.Rect({
         left: viewBox.x,
         top: viewBox.y,
         width: viewBox.width,
         height: viewBox.height,
         fill: 'transparent',
-        stroke: '#adb5bd', // Gris
+        stroke: '#adb5bd',
         strokeWidth: 1 / zoom,
         baseStrokeWidth: 1,
-        strokeDashArray: [5 / zoom, 5 / zoom], // Pointillés
+        strokeDashArray: [5 / zoom, 5 / zoom],
         selectable: false,
         evented: false,
         isPageGuide: true
@@ -548,26 +574,27 @@ export function drawPageGuides(format) {
     fabricCanvas.add(pageGuideRect);
     console.log("Guide ajouté au canvas:", pageGuideRect);
 
-    // Envoie le guide à l'arrière-plan (juste au-dessus du fond, mais derrière les objets)
     pageGuideRect.sendToBack();
-
     fabricCanvas.requestRenderAll();
     console.log("Rendu demandé après ajout/mise à jour du guide.");
 }
 
 /**
- * Retourne les dimensions originales (non-zoomées) du plan chargé.
+ * MODIFIÉ : Retourne les dimensions FIXES du canvas (la "feuille").
  * Ces dimensions sont utilisées comme référence pour les calculs en pourcentage.
  * @returns {Object} Un objet { width, height }
  */
 export function getCanvasDimensions() {
-    // Ces variables globales sont définies lors du chargement (loadSvgPlan ou loadImagePlan)
-    const width = window.originalSvgWidth || window.originalImageWidth || fabricCanvas.getWidth();
-    const height = window.originalSvgHeight || window.originalImageHeight || fabricCanvas.getHeight();
-
-    if (width === 0 || height === 0) {
-        console.warn("getCanvasDimensions: Dimensions originales non trouvées ou nulles.", { width, height });
+    if (fabricCanvas) {
+        return {
+            width: fabricCanvas.getWidth(),
+            height: fabricCanvas.getHeight()
+        };
     }
-
-    return { width, height };
+    // Fallback si le canvas n'est pas prêt
+    console.warn("getCanvasDimensions: Canvas non prêt, retour au format par défaut.");
+    return {
+        width: DEFAULT_FORMAT.width,
+        height: DEFAULT_FORMAT.height
+    };
 }
