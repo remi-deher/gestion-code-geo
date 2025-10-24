@@ -275,11 +275,3 @@
      .drawing-toolbar .form-check-label i { font-size: 0.9rem; } /* Icônes un peu plus petites */
      .drawing-toolbar { gap: 4px; } /* Moins d'espace */
 }
-
-/* Dans _plan.css ou temporairement dans le style de la page */
-#plan-container {
-    border: 2px solid red;
-}
-.plan-main-content {
-    border: 2px solid blue;
-}

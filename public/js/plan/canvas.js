@@ -107,7 +107,7 @@ export function initializeCanvas(canvasId, initialFormat = 'A4-L') {
         fabricCanvas = new fabric.Canvas(canvasId, {
             width: containerRect.width > 0 ? containerRect.width : 800,  // <-- DYNAMIQUE
             height: containerRect.height > 0 ? containerRect.height : 600, // <-- DYNAMIQUE
-            backgroundColor: '#f8f9fa',
+            backgroundColor: '#ffffff',
             fireRightClick: true,
             stopContextMenu: true,
             preserveObjectStacking: true
