@@ -771,7 +771,7 @@ async function handleAssetClick(event) {
         const asset = await getAssetData(assetId); // Appel API
         if (!asset || !asset.data) throw new Error("Données d'asset invalides.");
 
-        const assetDataObject = asset.data; // Données JSON de l'objet Fabric
+        const assetDataObject = JSON.parse(asset.data); // Données JSON de l'objet Fabric
 
         // Recrée l'objet Fabric depuis les données JSON
         fabric.util.enlivenObjects([assetDataObject], (objects) => {

@@ -240,7 +240,8 @@ export async function saveAsset(assetName, assetData) {
  */
 export async function listAssets() {
     const data = await apiFetch('index.php?action=apiListAssets');
-    return data.assets || [];
+    // Si data est directement le tableau, le retourner, sinon chercher data.assets
+    return Array.isArray(data) ? data : (data.assets || []);
 }
 
 /**
@@ -250,5 +251,5 @@ export async function listAssets() {
  */
 export async function getAssetData(assetId) {
      const data = await apiFetch(`index.php?action=apiGetAsset&id=${assetId}`);
-     return data.asset;
+     return data;
 }
