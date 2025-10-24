@@ -499,34 +499,24 @@ async function savePlanAsJson() {
         let apiSuccess = false;
         let apiJsonPath = null;
         let apiErrorMsg = null;
+        
+        // Accéder à la réponse réelle, qu'elle soit dans 'result' ou encapsulée dans 'result.success'
+        const actualResponse = (result && result.success && typeof result.success === 'object') ? result.success : result;
 
-        // Cas 1: Réponse imbriquée { success: { success: true, json_path: "..." } }
-        if (result && result.success && typeof result.success === 'object' && result.success.success === true) {
-            console.log("[savePlanAsJson] Réponse imbriquée détectée.");
+        // Cas 1: Succès
+        if (actualResponse && actualResponse.success === true) {
+            console.log("[savePlanAsJson] Réponse réussie (extraction).");
             apiSuccess = true;
-            apiJsonPath = result.success.json_path;
-            apiErrorMsg = result.success.error; // Au cas où
+            apiJsonPath = actualResponse.json_path;
+            apiErrorMsg = actualResponse.error; // Au cas où
         }
-        // Cas 2: Réponse normale { success: true, json_path: "..." }
-        else if (result && result.success === true) {
-            console.log("[savePlanAsJson] Réponse normale détectée.");
-            apiSuccess = true;
-            apiJsonPath = result.json_path;
-            apiErrorMsg = result.error;
-        }
-         // Cas 3: Échec ou autre format
+         // Cas 2: Échec
          else {
              console.log("[savePlanAsJson] Réponse d'échec ou format inattendu détecté.");
              apiSuccess = false;
-             apiJsonPath = null; // Assurer que c'est null
+             apiJsonPath = null;
              // Essayer de trouver un message d'erreur
-             if (result && result.error) {
-                 apiErrorMsg = result.error;
-             } else if (result && result.success && result.success.error) { // Cas imbriqué mais avec erreur
-                  apiErrorMsg = result.success.error;
-             } else {
-                  apiErrorMsg = 'Réponse API invalide ou format inconnu.';
-             }
+             apiErrorMsg = actualResponse?.error || 'Réponse API invalide ou format inconnu.';
          }
 
         console.log("[savePlanAsJson] Vérification après extraction:");
@@ -1215,4 +1205,3 @@ function getPositionDataFromObject(fabricObject, clickPoint = null) {
      }
     return data;
 }
-
