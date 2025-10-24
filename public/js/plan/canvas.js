@@ -5,6 +5,7 @@
  *
  * MODIFIÉ pour utiliser un CANVAS FIXE (ex: A4/A3) comme référentiel
  * et pour charger le SVG/Image comme un groupe/objet mis à l'échelle.
+ * CORRIGÉ : resetZoom n'est plus appelé automatiquement par resize.
  */
 import {
     GRID_SIZE
@@ -117,6 +118,7 @@ export function initializeCanvas(canvasId, initialFormat = 'A4-L') {
             return this;
         };
 
+        // Utilise la fonction handleResize pour écouter le redimensionnement
         window.addEventListener('resize', handleResize);
 
         // Appel initial du guide seulement
@@ -143,37 +145,48 @@ export function getCanvasInstance() {
 
 /**
  * Gère l'événement resize de la fenêtre avec un debounce.
+ * NE LANCE PLUS resetZoom automatiquement.
  */
 function handleResize() {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
-        console.log("Debounced resize triggered.");
-        // Appel de la fonction exportée resizeCanvas
-        resizeCanvas();
+        console.log("Debounced resize triggered (handleResize).");
+        // Appel de la logique de redimensionnement SANS resetZoom automatique
+        _performResizeActions(); // Appelons une fonction interne pour la clarté
     }, 250); // Délai debounce
 }
 
 
 /**
- * Logique réelle de redimensionnement/recentrage (appelée par handleResize ou depuis main.js).
- * Exportée sous le nom 'resizeCanvas'.
+ * Logique réelle de redimensionnement (appelée par handleResize).
+ * Met à jour l'offset, la grille, l'épaisseur des traits.
+ * N'appelle PAS resetZoom.
  */
-export function resizeCanvas() {
+function _performResizeActions() {
     if (fabricCanvas && canvasContainer) {
-        console.log("Executing resizeCanvas...");
-        const containerWidth = canvasContainer.clientWidth;
-        const containerHeight = canvasContainer.clientHeight;
-        if(containerWidth <= 0 || containerHeight <= 0) {
-            console.warn("resizeCanvas skipped: Container has zero dimensions.");
-            return;
-        }
-        fabricCanvas.calcOffset();
-        resetZoom(); // Recentre et ajuste le zoom
-        updateGrid(fabricCanvas.getZoom());
+        console.log("Executing _performResizeActions...");
+        fabricCanvas.calcOffset(); // Recalcule l'offset du canvas par rapport à la page
+
+        // Mettre à jour les éléments visuels dépendants du zoom/viewport
+        const currentZoom = fabricCanvas.getZoom();
+        updateGrid(currentZoom);
+        updateStrokesWidth(currentZoom);
+        // On pourrait aussi redessiner les guides ici si nécessaire
+        // const currentFormatKey = Object.keys(PAGE_SIZES).find(key => PAGE_SIZES[key] === currentCanvasFormat) || 'A4-L';
+        // drawPageGuides(currentFormatKey);
+
+        fabricCanvas.requestRenderAll(); // Appliquer les changements visuels
     } else {
-        console.log("resizeCanvas skipped: canvas or container not ready.");
+        console.log("_performResizeActions skipped: canvas or container not ready.");
     }
 }
+
+// La fonction exportée resizeCanvas appelle maintenant _performResizeActions
+// On la garde exportée car elle pourrait être appelée manuellement d'ailleurs.
+export function resizeCanvas() {
+    _performResizeActions();
+}
+
 
 /**
  * Charge un plan SVG.
@@ -224,7 +237,7 @@ export async function loadSvgPlan(svgUrl) {
                             let height = obj.height || 0;
                             let scaleX = obj.scaleX || 1;
                             let scaleY = obj.scaleY || 1;
-                            
+
                             // FabricJS centre les objets par défaut (originX/Y = 'center') si non spécifié
                             // Pour le calcul de la bbox, il faut considérer cela
                             let originX = obj.originX || 'left';
@@ -388,6 +401,8 @@ export async function loadPlanImage(imageUrl) {
 
 /**
  * Ajuste le zoom et le pan pour afficher le CANVAS FIXE entier.
+ * N'est plus appelée automatiquement par handleResize/resizeCanvas.
+ * La vérification des dimensions invalides est CONSERVÉE.
  */
 export function resetZoom() {
     if (!fabricCanvas || !canvasContainer) {
@@ -397,37 +412,44 @@ export function resetZoom() {
 
     const containerWidth = canvasContainer.clientWidth;
     const containerHeight = canvasContainer.clientHeight;
-    const padding = 20;
+    const padding = 20; // Garde la marge visuelle
 
-    let planWidth = fabricCanvas.getWidth();
-    let planHeight = fabricCanvas.getHeight();
+    // Dimensions fixes du canvas (la "feuille")
+    let canvasWidth = fabricCanvas.getWidth();
+    let canvasHeight = fabricCanvas.getHeight();
 
-    console.log(`ResetZoom - Container: ${containerWidth}x${containerHeight}, Canvas Fixe: ${planWidth}x${planHeight}`);
+console.log(`MANUAL ResetZoom - Container: ${containerWidth}x${containerHeight}, Canvas: ${canvasWidth}x${canvasHeight}`); // Log spécifique au clic
 
-    if (!containerWidth || containerWidth <= 0 || !containerHeight || containerHeight <= 0 || !planWidth || !planHeight || containerWidth <= padding * 2 || containerHeight <= padding * 2) {
-        console.warn("ResetZoom: Dimensions invalides ou conteneur trop petit, application viewport par défaut.", { containerWidth, containerHeight, planWidth, planHeight, padding });
-        fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-        updateGrid(1);
-        updateStrokesWidth(1);
-        fabricCanvas.requestRenderAll();
-        return;
+    // --- VÉRIFICATION CONSERVÉE ---
+    // Si le conteneur est très petit (probablement un état de rendu intermédiaire),
+    // ou trop petit pour contenir le canvas même sans padding, on ignore cet appel.
+    if (containerWidth <= padding * 2 || containerHeight <= padding * 2 || containerHeight < 100 || containerHeight < canvasHeight * 0.5 ) {
+        console.warn(`ResetZoom skipped: Container dimensions (${containerWidth}x${containerHeight}) seem invalid or too small compared to canvas (${canvasWidth}x${canvasHeight}). Assuming transient state.`);
+        return; // Ne pas modifier le viewport si les dimensions sont suspectes
     }
+    // --- FIN VÉRIFICATION ---
 
-    const scaleX = (containerWidth - padding * 2) / planWidth;
-    const scaleY = (containerHeight - padding * 2) / planHeight;
+    // Calcul du zoom et du centrage (logique inchangée)
+    const scaleX = (containerWidth - padding * 2) / canvasWidth;
+    const scaleY = (containerHeight - padding * 2) / canvasHeight;
     const scale = Math.min(scaleX, scaleY);
 
-    const panX = (containerWidth - (planWidth * scale)) / 2;
-    const panY = (containerHeight - (planHeight * scale)) / 2;
+    // Vérifier si scale est valide avant de l'appliquer
+    if (scale <= 0 || !isFinite(scale)) {
+        console.warn("ResetZoom: Calculated scale is invalid, applying default viewport.", { scale });
+        fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+        updateGrid(1); updateStrokesWidth(1);
+    } else {
+        const panX = (containerWidth - (canvasWidth * scale)) / 2;
+        const panY = (containerHeight - (canvasHeight * scale)) / 2;
+        fabricCanvas.setViewportTransform([scale, 0, 0, scale, panX, panY]);
+	console.log(`MANUAL ResetZoom - Calculated: scale=${scale.toFixed(3)}, panX=${panX.toFixed(1)}, panY=${panY.toFixed(1)}`); // Log les résultats
+        updateGrid(scale); updateStrokesWidth(scale);
+    }
 
-    fabricCanvas.setViewportTransform([scale, 0, 0, scale, panX, panY]);
-
-    console.log(`ResetZoom: Viewport ajusté. Scale: ${scale.toFixed(3)}, Pan: (${panX.toFixed(1)}, ${panY.toFixed(1)})`);
-
-    updateGrid(scale);
-    updateStrokesWidth(scale);
     fabricCanvas.requestRenderAll();
 }
+
 
 /**
  * Zoom/Dézoom le canvas sur un point donné ou sur le centre.
@@ -744,8 +766,7 @@ export function setCanvasFormat(newFormatKey) {
     }
 
     // Recentrer la vue
-    resizeCanvas(); // Appel direct de la logique renommée
+    resetZoom(); // Appel direct de la fonction qui contient la logique
 
     fabricCanvas.requestRenderAll();
 }
-

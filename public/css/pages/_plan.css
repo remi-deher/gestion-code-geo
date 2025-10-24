@@ -179,13 +179,12 @@
 
 /* --- Conteneur du Canvas --- */
 #plan-container {
-    flex-grow: 1; /* Prend l'espace restant */
+    flex-grow: 1;
+    overflow: hidden;
     background-color: var(--light-gray);
-    overflow: hidden; /* Très important pour le pan/zoom */
-    position: relative; /* Pour positionner les contrôles de zoom */
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: relative;
+    display: flex; 
+    border-top: 1px solid var(--border-color);
 }
 
 #plan-canvas {
@@ -275,4 +274,12 @@
      .drawing-toolbar .form-control-sm { height: 25px; padding: 0.1rem 0.3rem; }
      .drawing-toolbar .form-check-label i { font-size: 0.9rem; } /* Icônes un peu plus petites */
      .drawing-toolbar { gap: 4px; } /* Moins d'espace */
+}
+
+/* Dans _plan.css ou temporairement dans le style de la page */
+#plan-container {
+    border: 2px solid red;
+}
+.plan-main-content {
+    border: 2px solid blue;
 }
