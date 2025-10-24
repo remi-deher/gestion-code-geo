@@ -22,19 +22,19 @@ try {
 }
 
 // Chargement des contrôleurs
-require_once '../controllers/BaseController.php'; // Assurez-vous qu'il est bien inclus
+require_once '../controllers/BaseController.php';
 require_once '../controllers/DashboardController.php';
 require_once '../controllers/GeoCodeController.php';
 require_once '../controllers/PlanController.php';
 require_once '../controllers/UniversController.php';
-require_once '../controllers/AssetController.php'; // ** NOUVEAU: Ajouter l'inclusion du contrôleur d'assets **
+require_once '../controllers/AssetController.php';
 
 // Initialisation des contrôleurs
 $dashboardController = new DashboardController($db);
 $geoCodeController = new GeoCodeController($db);
 $planController = new PlanController($db);
 $universController = new UniversController($db);
-$assetController = new AssetController($db); // ** NOUVEAU: Instancier le contrôleur d'assets **
+$assetController = new AssetController($db);
 
 // Action par défaut
 $action = $_GET['action'] ?? 'dashboard';
@@ -112,10 +112,10 @@ switch ($action) {
     case 'deleteUnivers': $universController->deleteAction(); break;
 
     // ** NOUVEAU: Assets (AJAX) **
-    case 'listAssets': $assetController->listAssetsAction(); break;
-    case 'getAsset': $assetController->getAssetAction(); break;
-    case 'saveAsset': $assetController->saveAssetAction(); break;
-    // case 'deleteAsset': $assetController->deleteAssetAction(); break; // Optionnel
+    case 'apiListAssets': $assetController->listAssetsAction(); break;
+    case 'apiGetAsset': $assetController->getAssetAction(); break;
+    case 'apiSaveAsset': $assetController->saveAssetAction(); break;
+    case 'apiDeleteAsset': $assetController->deleteAssetAction(); break;
 
     // Action par défaut
     default:
