@@ -123,7 +123,7 @@ export function initializeCanvas(canvasId, initialFormat = 'A4-L') {
         setTimeout(() => {
             if (fabricCanvas) {
                 drawPageGuides(initialFormat);
-                fabricCanvas.requestRenderAll(); 
+                fabricCanvas.requestRenderAll();
             }
         }, 100);
 
@@ -148,9 +148,8 @@ function handleResize() {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
         console.log("Debounced resize triggered.");
-        // --- MODIFIÉ: Appel de resizeCanvas (anciennement resizeCanvasLogic) ---
+        // Appel de la fonction exportée resizeCanvas
         resizeCanvas();
-        // --- FIN MODIF ---
     }, 250); // Délai debounce
 }
 
@@ -159,16 +158,14 @@ function handleResize() {
  * Logique réelle de redimensionnement/recentrage (appelée par handleResize ou depuis main.js).
  * Exportée sous le nom 'resizeCanvas'.
  */
-// --- MODIFIÉ: Renommage de la fonction exportée ---
 export function resizeCanvas() {
-// --- FIN MODIF ---
     if (fabricCanvas && canvasContainer) {
-        console.log("Executing resizeCanvas..."); // Log mis à jour
+        console.log("Executing resizeCanvas...");
         const containerWidth = canvasContainer.clientWidth;
         const containerHeight = canvasContainer.clientHeight;
         if(containerWidth <= 0 || containerHeight <= 0) {
             console.warn("resizeCanvas skipped: Container has zero dimensions.");
-            return; 
+            return;
         }
         fabricCanvas.calcOffset();
         resetZoom(); // Recentre et ajuste le zoom
@@ -220,20 +217,39 @@ export async function loadSvgPlan(svgUrl) {
                     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                     objects.forEach(obj => {
                         if (obj && obj.left !== undefined && obj.top !== undefined && obj.width !== undefined && obj.height !== undefined) {
-                            minX = Math.min(minX, obj.left);
-                            minY = Math.min(minY, obj.top);
-                            maxX = Math.max(maxX, obj.left + (obj.width * (obj.scaleX || 1)));
-                            maxY = Math.max(maxY, obj.top + (obj.height * (obj.scaleY || 1)));
+                            // Coordonnées de base de l'objet
+                            let left = obj.left || 0;
+                            let top = obj.top || 0;
+                            let width = obj.width || 0;
+                            let height = obj.height || 0;
+                            let scaleX = obj.scaleX || 1;
+                            let scaleY = obj.scaleY || 1;
+                            
+                            // FabricJS centre les objets par défaut (originX/Y = 'center') si non spécifié
+                            // Pour le calcul de la bbox, il faut considérer cela
+                            let originX = obj.originX || 'left';
+                            let originY = obj.originY || 'top';
+
+                            let objLeft = left - (originX === 'center' ? (width * scaleX / 2) : (originX === 'right' ? width * scaleX : 0));
+                            let objTop = top - (originY === 'center' ? (height * scaleY / 2) : (originY === 'bottom' ? height * scaleY : 0));
+                            let objRight = objLeft + width * scaleX;
+                            let objBottom = objTop + height * scaleY;
+
+                            minX = Math.min(minX, objLeft);
+                            minY = Math.min(minY, objTop);
+                            maxX = Math.max(maxX, objRight);
+                            maxY = Math.max(maxY, objBottom);
                         }
                     });
-                    const calculatedWidth = (maxX > minX) ? maxX - minX : options.width; 
-                    const calculatedHeight = (maxY > minY) ? maxY - minY : options.height; 
+
+                    const calculatedWidth = (maxX > minX && isFinite(minX) && isFinite(maxX)) ? maxX - minX : options.width;
+                    const calculatedHeight = (maxY > minY && isFinite(minY) && isFinite(maxY)) ? maxY - minY : options.height;
 
                     const svgWidth = originalSvgViewBox?.width || originalSvgWidth || calculatedWidth;
                     const svgHeight = originalSvgViewBox?.height || originalSvgHeight || calculatedHeight;
 
 
-                    if (!svgWidth || !svgHeight || svgWidth <= 0 || svgHeight <= 0) {
+                    if (!svgWidth || !svgHeight || svgWidth <= 0 || svgHeight <= 0 || !isFinite(svgWidth) || !isFinite(svgHeight)) {
                         console.error("Impossible de déterminer des dimensions valides pour le SVG chargé.", { svgWidth, svgHeight, options });
                         updateGrid(fabricCanvas.getZoom());
                         drawPageGuides(currentFormatKey);
@@ -446,14 +462,14 @@ export function setCanvasLock(lock) {
                      lockMovementY: isLocked,
                      hasControls: !isLocked,
                      hasBorders: !isLocked,
-                     evented: true 
+                     evented: true
                  });
                  obj.setCoords();
              } else {
                  console.warn("Objet non valide trouvé dans planGroup._objects:", obj);
              }
         });
-        planGroup.setCoords(); 
+        planGroup.setCoords();
     } else if (planGroup && planGroup.type === 'image') {
          planGroup.set({ selectable: false, evented: false });
     } else {
@@ -462,7 +478,7 @@ export function setCanvasLock(lock) {
 
     if (isLocked) {
         const activeObj = fabricCanvas.getActiveObject();
-        if (activeObj && planGroup && planGroup.type === 'group' && planGroup.contains(activeObj, true)) { 
+        if (activeObj && planGroup && planGroup.type === 'group' && planGroup.contains(activeObj, true)) {
             console.log("Désélection de l'objet actif car verrouillage.");
             fabricCanvas.discardActiveObject();
         }
@@ -513,12 +529,12 @@ export function updateGrid(zoom) {
     const width = fabricCanvas.getWidth(); const height = fabricCanvas.getHeight();
     const currentZoom = zoom > 0 ? zoom : 1;
     let apparentGridSizeOnScreen = gridSize * currentZoom; let gridSpacing = gridSize;
-    
+
     while (apparentGridSizeOnScreen < 15 && gridSpacing < width && gridSpacing < height) { gridSpacing *= 5; apparentGridSizeOnScreen *= 5; }
     while (apparentGridSizeOnScreen > 75 && gridSpacing > 1) { gridSpacing /= 5; apparentGridSizeOnScreen /= 5; if (gridSpacing < 1) gridSpacing = 1; }
     if (gridSpacing <= 0) gridSpacing = gridSize;
     const strokeColor = '#ced4da'; const strokeWidth = Math.max(0.5, 1 / currentZoom);
-    
+
     for (let x = 0; x <= width; x += gridSpacing) {
         const line = new fabric.Line([x, 0, x, height], { stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false, excludeFromExport: true, isGridLine: true });
         fabricCanvas.add(line); gridLines.push(line);
@@ -527,13 +543,13 @@ export function updateGrid(zoom) {
         const line = new fabric.Line([0, y, width, y], { stroke: strokeColor, strokeWidth: strokeWidth, selectable: false, evented: false, excludeFromExport: true, isGridLine: true });
         fabricCanvas.add(line); gridLines.push(line);
     }
-    
-    // Ordre Z
-    gridLines.forEach(line => line.sendToBack());
+
+    // Ordre Z: Plan -> Guide -> Grille -> Objets
     const planBg = fabricCanvas.getObjects().find(o => o.isPlanBackground);
-    if(planBg) planBg.sendToBack(); // Plan derrière grille/guide
-    if(pageGuideRect) pageGuideRect.bringToFront(); // Guide devant plan
-    gridLines.forEach(line => line.bringToFront()); // Grille devant guide
+    if (planBg) planBg.sendToBack();
+    if(pageGuideRect) pageGuideRect.bringToFront();
+    gridLines.forEach(line => line.bringToFront());
+
 
     fabricCanvas.requestRenderAll();
 }
@@ -559,9 +575,9 @@ export function updateStrokesWidth(zoom) {
         }
 
         if (obj && obj.type === 'group' && obj.isPlanBackground) {
-            obj.forEachObject(applyStroke); 
+            obj.forEachObject(applyStroke);
         } else {
-            applyStroke(obj); 
+            applyStroke(obj);
         }
     });
 }
@@ -639,9 +655,9 @@ export function drawPageGuides(format) {
 
     // Ordre Z: Plan -> Guide -> Grille -> Objets
     const planBg = fabricCanvas.getObjects().find(o => o.isPlanBackground);
-    if (planBg) planBg.sendToBack(); 
-    pageGuideRect.bringToFront(); 
-    gridLines.forEach(line => line.bringToFront()); 
+    if (planBg) planBg.sendToBack();
+    pageGuideRect.bringToFront();
+    gridLines.forEach(line => line.bringToFront());
 
 
     fabricCanvas.requestRenderAll();
@@ -695,6 +711,7 @@ export function setCanvasFormat(newFormatKey) {
     if (planBg) {
         let elementWidth, elementHeight;
         if (planBg.type === 'group' && typeof planBg.getBoundingRect === 'function' && planBg.scaleX !== 0 && planBg.scaleY !== 0) {
+             // Utilise getCoords pour une meilleure prise en compte des transformations internes ? Non, BBox est mieux.
              const currentBounds = planBg.getBoundingRect();
              elementWidth = currentBounds.width / planBg.scaleX;
              elementHeight = currentBounds.height / planBg.scaleY;
