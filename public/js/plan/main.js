@@ -462,7 +462,7 @@ function triggerAutoSaveDrawing(forceSave = false) {
 /**
  * Sauvegarde l'état complet du canvas (y compris les groupes) en JSON.
  * Applicable aux plans 'image' et 'svg'.
- * CORRECTION : Vérification API Response + Logs
+ * CORRECTION : Vérification API Response + Logs + Gestion Réponse Imbriquée
  */
 async function savePlanAsJson() {
     console.log("[savePlanAsJson] Début sauvegarde...");
@@ -495,34 +495,64 @@ async function savePlanAsJson() {
         const result = await updateSvgPlan(currentPlanId, planDataString);
         console.log("[savePlanAsJson] Réponse BRUTE de l'API (avant vérif):", result); // Log Brut
 
-        // *** CORRECTION & LOGS DÉTAILLÉS ***
-        console.log("[savePlanAsJson] Vérification de la réponse...");
-        console.log("[savePlanAsJson] result:", result); // Log l'objet complet
-        console.log("[savePlanAsJson] result.success:", result?.success); // Log success (avec optional chaining)
-        console.log("[savePlanAsJson] result.json_path:", result?.json_path); // Log json_path
-        console.log("[savePlanAsJson] typeof result.json_path:", typeof result?.json_path); // Log type
+        // *** CORRECTION pour gérer la réponse imbriquée potentielle ***
+        let apiSuccess = false;
+        let apiJsonPath = null;
+        let apiErrorMsg = null;
 
-        // Condition de vérification robuste
-        if (result && result.success === true && result.json_path && typeof result.json_path === 'string' && result.json_path.trim() !== '') {
+        // Cas 1: Réponse imbriquée { success: { success: true, json_path: "..." } }
+        if (result && result.success && typeof result.success === 'object' && result.success.success === true) {
+            console.log("[savePlanAsJson] Réponse imbriquée détectée.");
+            apiSuccess = true;
+            apiJsonPath = result.success.json_path;
+            apiErrorMsg = result.success.error; // Au cas où
+        }
+        // Cas 2: Réponse normale { success: true, json_path: "..." }
+        else if (result && result.success === true) {
+            console.log("[savePlanAsJson] Réponse normale détectée.");
+            apiSuccess = true;
+            apiJsonPath = result.json_path;
+            apiErrorMsg = result.error;
+        }
+         // Cas 3: Échec ou autre format
+         else {
+             console.log("[savePlanAsJson] Réponse d'échec ou format inattendu détecté.");
+             apiSuccess = false;
+             apiJsonPath = null; // Assurer que c'est null
+             // Essayer de trouver un message d'erreur
+             if (result && result.error) {
+                 apiErrorMsg = result.error;
+             } else if (result && result.success && result.success.error) { // Cas imbriqué mais avec erreur
+                  apiErrorMsg = result.success.error;
+             } else {
+                  apiErrorMsg = 'Réponse API invalide ou format inconnu.';
+             }
+         }
+
+        console.log("[savePlanAsJson] Vérification après extraction:");
+        console.log("[savePlanAsJson] apiSuccess:", apiSuccess);
+        console.log("[savePlanAsJson] apiJsonPath:", apiJsonPath);
+        console.log("[savePlanAsJson] typeof apiJsonPath:", typeof apiJsonPath);
+        console.log("[savePlanAsJson] apiErrorMsg:", apiErrorMsg);
+
+        // Condition de vérification robuste basée sur les variables extraites
+        if (apiSuccess === true && apiJsonPath && typeof apiJsonPath === 'string' && apiJsonPath.trim() !== '') {
             // Succès ! Mettre à jour l'URL locale
-            planJsonUrl = result.json_path;
-            console.log("[savePlanAsJson] URL JSON mise à jour avec succès:", planJsonUrl); // Log de succès
+            planJsonUrl = apiJsonPath; // Utiliser la valeur extraite
+            console.log("[savePlanAsJson] URL JSON mise à jour avec succès:", planJsonUrl);
             showToast("Plan sauvegardé (JSON).", "success");
         } else {
              // Échec ou réponse invalide
-             const errorMsg = result?.error || `Réponse API invalide ou json_path manquant/vide.`;
-             console.warn("[savePlanAsJson] L'API n'a pas retourné de json_path valide ou success n'est pas true. L'URL locale n'est pas mise à jour.", result); // Log d'échec
-             // On lance une erreur seulement si success n'est pas explicitement true
-             // (permet de gérer le cas où success est manquant mais json_path est là ?)
-              if (!result || result.success !== true) {
-                    throw new Error(`Échec sauvegarde: ${errorMsg}`);
-              } else {
-                    // Cas étrange: success est true mais json_path manque/invalide
-                    showToast("Plan sauvegardé, mais réponse serveur incomplète (json_path manquant).", "warning");
-              }
+             const finalErrorMsg = apiErrorMsg || `Réponse API invalide ou json_path manquant/vide.`;
+             console.warn("[savePlanAsJson] Échec de la validation de la réponse API. L'URL locale n'est pas mise à jour.", { apiSuccess, apiJsonPath, apiErrorMsg });
+             if (apiSuccess !== true) { // Lancer une erreur seulement si success n'était pas true
+                 throw new Error(`Échec sauvegarde: ${finalErrorMsg}`);
+             } else { // Cas: success=true mais json_path invalide
+                  showToast("Plan sauvegardé, mais réponse serveur incomplète (json_path manquant/invalide).", "warning");
+             }
         }
-        // *** FIN CORRECTION & LOGS ***
-        return result; // Retourne la réponse de l'API
+        // *** FIN CORRECTION ***
+        return result; // Retourne toujours la réponse BRUTE originale de l'API
 
     } catch(error) {
          console.error("Erreur dans CATCH savePlanAsJson:", error); // Log erreur catch
