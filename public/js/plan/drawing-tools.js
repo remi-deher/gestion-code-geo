@@ -417,14 +417,39 @@ export function groupSelectedObjects() {
 /** Dégroupe l'objet sélectionné (si c'est un groupe créé par l'utilisateur) */
 export function ungroupSelectedObject() {
     const activeObj = fabricCanvas.getActiveObject();
-    // Dégrouper seulement si c'est un groupe et PAS un tag géo
-    if (!activeObj || activeObj.type !== 'group' || activeObj.customData?.isGeoTag || activeObj.customData?.isPlacedText) {
+    
+    // Dégrouper seulement si c'est un groupe valide
+    // Doit être un groupe
+    if (!activeObj || activeObj.type !== 'group' || 
+        // Ne doit pas être un tag géo
+        (activeObj.customData?.isGeoTag || activeObj.customData?.isPlacedText)) 
+    {
         showToast("Sélectionnez un groupe valide à dégrouper.", "info");
         return;
     }
 
+    // Doit être un groupe utilisateur OU le groupe SVG principal
+    const isUserGroup = activeObj.customData?.isUserGroup;
+    const isSvgPlanGroup = activeObj.isSvgPlanGroup || activeObj.customData?.isSvgPlanGroup;
+
+    if (!isUserGroup && !isSvgPlanGroup) {
+        showToast("Ce type de groupe ne peut pas être dégroupé.", "info");
+        return;
+    }
+
     // Convertit le groupe en une sélection active des objets qu'il contenait
-    activeObj.toActiveSelection();
+    const activeSelection = activeObj.toActiveSelection();
+
+    if (isSvgPlanGroup) {
+        // Si c'était le plan SVG principal, marquer à nouveau les enfants comme 'isSvgShape'
+        activeSelection.getObjects().forEach(obj => {
+            obj.isSvgShape = true; // Assurer que le marqueur est sur les enfants
+        });
+    } 
+    // Pour un groupe utilisateur (isUserGroup), on n'a rien de spécial à faire
+    // aux enfants, 'toActiveSelection' suffit.
+
+    fabricCanvas.setActiveObject(activeSelection); // Remplacer le groupe par la new selection
     fabricCanvas.requestRenderAll();
     updateGroupButtonStates(); // Mettre à jour les boutons
 }
@@ -447,8 +472,15 @@ export function updateGroupButtonStates() { // Rendre exportable si appelée dep
             canGroup = objects.length > 1 && !objects.some(obj => obj.customData?.isGeoTag || obj.customData?.isPlacedText || obj.isGridLine);
             // --- FIN MODIFICATION ---
         } else if (activeObject.type === 'group' && !(activeObject.customData?.isGeoTag || activeObject.customData?.isPlacedText)) {
-            // Peut dégrouper si c'est un groupe qui n'est pas un tag/texte géo
-            canUngroup = true;
+            
+            // MODIFIÉ: Autoriser dégroupement si groupe utilisateur OU groupe SVG principal
+            const isUserGroup = activeObject.customData?.isUserGroup;
+            // Note: 'activeObj' (le groupe) peut ne pas avoir 'customData' si c'est le svgPlanGroup
+            const isSvgPlanGroup = activeObject.isSvgPlanGroup || activeObject.customData?.isSvgPlanGroup;
+            
+            if (isUserGroup || isSvgPlanGroup) {
+                 canUngroup = true;
+            }
         }
     }
 
