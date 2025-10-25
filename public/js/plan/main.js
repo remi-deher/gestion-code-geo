@@ -1141,89 +1141,95 @@ document.addEventListener('DOMContentLoaded', async () => {
         initializeGeoTags(fabricCanvas, universColors);
         initializeUI(fabricCanvas);
 
-        // --- Chargement du plan (MODIFIÉ pour JSON) ---
+// --- Chargement du plan (MODIFIÉ pour JSON) ---
         let loadedSuccessfully = false; // Flag pour savoir si on a chargé qqchose
 
         // PRIORITÉ 1: Charger le JSON s'il existe
         if (planJsonUrl) {
-            console.log("Chargement depuis l'état JSON:", planJsonUrl);
+            console.log("Tentative de chargement depuis l'état JSON:", planJsonUrl);
             showLoading("Chargement de l'état sauvegardé...");
             try {
-                // Utiliser directement planJsonUrl car il devrait être relatif à 'public'
-                const fullJsonUrl = planJsonUrl; // Ex: 'uploads/plans_json/plan_14_1761330487.json'
-                const response = await fetch(fullJsonUrl + '?t=' + new Date().getTime()); // Ajouter timestamp anti-cache
-                if (!response.ok) {
-                    throw new Error(`Fetch JSON échoué (${response.status}) pour ${fullJsonUrl}`);
-                }
+                const fullJsonUrl = planJsonUrl + '?t=' + new Date().getTime(); 
+                const response = await fetch(fullJsonUrl); 
+                if (!response.ok) { throw new Error(`Fetch JSON échoué (${response.status}) pour ${fullJsonUrl}`); }
                 const jsonData = await response.json();
 
-
                 await new Promise((resolve, reject) => {
+                    // **** MODIFICATION IMPORTANTE : Vider le canvas AVANT loadFromJSON ****
+                    fabricCanvas.clear(); 
+                    // **** FIN MODIFICATION ****
+                    
                     fabricCanvas.loadFromJSON(jsonData, () => {
                         fabricCanvas.requestRenderAll();
                         console.log("Canvas chargé depuis JSON.");
-                        if (planType === 'svg') {
-                            setCanvasLock(true);
-                        } // Verrouiller si SVG
-                        fabricCanvas.getObjects().forEach(obj => { // Ré-attacher flèches
-                            if (obj.customData?.isGeoTag && obj.customData.anchorXPercent !== null) {
-                                addArrowToTag(obj);
+                        
+                        // Création des éléments géo APRÈS chargement du FOND JSON
+                        createInitialGeoElements(initialPlacedGeoCodes, planType); 
+
+                        // Ré-attacher flèches (nécessaire après loadFromJSON)
+                        fabricCanvas.getObjects().forEach(obj => {
+                            if (obj.customData?.isGeoTag && obj.customData.anchorXPercent !== null) { 
+                                addArrowToTag(obj); 
                             }
-                            // Défense Fabric.js: S'assurer que tous les objets ont des coordonnées valides
-                            if (obj.setCoords) obj.setCoords();
                         });
-                        // Défense Fabric.js: Nettoyer les éventuels objets null/undefined (cause de l'erreur 'reading x')
-                        fabricCanvas._objects = fabricCanvas._objects.filter(o => o);
+                        
+                        // Verrouiller si SVG
+                        if (planType === 'svg') { setCanvasLock(true); } 
+                        
                         resolve();
-                    }, (o, object) => { // Reviver
-                        // Potentiellement nécessaire de réappliquer baseStrokeWidth ici si non sérialisé par toObject
-                        if (object && o && o.baseStrokeWidth !== undefined) {
-                            object.baseStrokeWidth = o.baseStrokeWidth;
-                        }
-                    });
+                    }, (o, object) => { /* ... reviver ... */ });
                 });
-                loadedSuccessfully = true; // Chargement JSON réussi
+                 loadedSuccessfully = true; // Chargement JSON réussi
+                 console.log("Chargement depuis JSON RÉUSSI.");
             } catch (jsonError) {
-                console.warn("Erreur chargement JSON:", jsonError, "Retour au chargement du fichier de base.");
-                // Ne pas arrêter, continuer pour charger le fichier de base
+                 console.warn("Erreur chargement JSON:", jsonError, "Retour au chargement du fichier de base.");
+                 // Laisser loadedSuccessfully à false
             } finally {
-                hideLoading(); // Cache loading après tentative JSON
+                 // Ne pas cacher le loading ici, le faire après le chargement de base si nécessaire
+                 // hideLoading(); // <- Supprimé ici
             }
+        } else {
+             console.log("Aucune URL JSON fournie, chargement du fichier de base.");
         }
 
-        // PRIORITÉ 2: Charger le plan de base (si pas de JSON ou si échec JSON)
-        if (!loadedSuccessfully) {
-            showLoading("Chargement du plan..."); // Afficher loading si JSON a échoué
-            try {
-                if (planType === 'svg' && planSvgUrl) {
-                    console.log("Chargement du SVG de base.");
-                    await loadSvgPlan(planSvgUrl);
-                    setCanvasLock(true);
-                    createInitialGeoElements(initialPlacedGeoCodes, planType);
-                    loadedSuccessfully = true;
-                } else if (planType === 'image' && planImageUrl) {
-                    console.log("Chargement de l'Image de base.");
-                    await loadPlanImage(planImageUrl);
-                    createInitialGeoElements(initialPlacedGeoCodes, planType);
-                    loadedSuccessfully = true;
-                } else if (planType === 'svg_creation') {
-                    console.log("Mode création SVG.");
-                    resizeCanvas();
-                    loadedSuccessfully = true; // C'est un succès (canvas vide)
-                }
-            } catch (loadError) {
-                console.error("Erreur chargement fichier de base:", loadError);
-                showToast(`Erreur chargement: ${loadError.message}`, 'error');
-                // Laisser le canvas vide
-            } finally {
-                hideLoading(); // Cache loading après tentative fichier de base
-            }
-        }
-
-        // Si RIEN n'a été chargé (ni JSON, ni base), afficher message
+        // PRIORITÉ 2: Charger le plan de base UNIQUEMENT si le JSON a échoué ou n'existait pas
+        // ET si ce n'est pas le mode création
         if (!loadedSuccessfully && planType !== 'svg_creation') {
-            resizeCanvas(); // Assure que le canvas a une taille
-            showToast("Aucun plan n'a pu être chargé.", 'warning');
+             console.log("Chargement du fichier de base (SVG/Image)...");
+             showLoading("Chargement du plan de base..."); // Afficher loading si JSON a échoué
+             try {
+                if (planType === 'svg' && planSvgUrl) {
+                    await loadSvgPlan(planSvgUrl); // loadSvgPlan fait déjà clear()
+                    setCanvasLock(true);
+                    createInitialGeoElements(initialPlacedGeoCodes, planType); // Ajouter les Géo par-dessus
+                    loadedSuccessfully = true;
+                }
+                else if (planType === 'image' && planImageUrl) {
+                    await loadPlanImage(planImageUrl); // loadPlanImage fait déjà clear()
+                    createInitialGeoElements(initialPlacedGeoCodes, planType); // Ajouter les Géo par-dessus
+                    loadedSuccessfully = true;
+                }
+             } catch (loadError) {
+                  console.error("Erreur chargement fichier de base:", loadError);
+                  showToast(`Erreur chargement plan: ${loadError.message}`, 'error');
+             } finally {
+                  hideLoading(); // Cacher loading APRÈS la tentative de chargement de base
+             }
+        } else if (planType === 'svg_creation') {
+             console.log("Mode création SVG, canvas initialisé vide.");
+             loadedSuccessfully = true; // Canvas vide est un état chargé "réussi"
+             hideLoading(); // Cacher le loading initial
+        } else if (loadedSuccessfully) {
+             console.log("Chargement depuis JSON réussi, skip chargement fichier de base.");
+             hideLoading(); // Cacher le loading si le JSON a suffi
+        }
+
+
+        // Si RIEN n'a été chargé
+        if (!loadedSuccessfully) {
+             resizeCanvas(); 
+             showToast("Aucun plan (JSON ou base) n'a pu être chargé.", 'warning');
+             hideLoading(); // Assurer que le loading est caché
         }
 
         // --- FIN CHARGEMENT PLAN ---
@@ -1260,7 +1266,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error("Erreur init:", error);
         showToast(`Erreur: ${error.message}`, 'error');
     } finally {
-        if (!fabricCanvas) hideLoading(); /* Ne cache pas si déjà caché */
+	// Assurer que le loading est caché en toutes circonstances à la fin de l'init
+        hideLoading();
         resizeCanvas();
         resetZoom();
         console.log("Fin init.");
