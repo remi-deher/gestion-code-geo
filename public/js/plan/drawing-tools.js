@@ -42,7 +42,18 @@ export function setActiveTool(tool) {
     if (tool === 'select') {
         fabricCanvas.defaultCursor = 'default';
         fabricCanvas.hoverCursor = 'move';
-        // Réactiver la sélection pour tous les objets (sauf grille et tags/textes géo)
+
+	// Forcer le calcul des offsets et coordonnées avant de modifier les objets
+	fabricCanvas.calcOffset(); // Recalcule la position du canvas sur la page
+        fabricCanvas.getObjects().forEach(obj => {
+            // S'assurer que les objets ont leurs coordonnées calculées
+            // C'est setCoords() qui initialise oCoords si besoin
+            if (obj && !obj.isGridLine && !obj.isPageGuide) {
+                 obj.setCoords();
+            }
+        });
+
+	// Réactiver la sélection pour tous les objets (sauf grille et tags/textes géo)
         fabricCanvas.getObjects().forEach(obj => {
             // Respecter le verrouillage global pour les shapes SVG
             const isLocked = getCanvasLock ? getCanvasLock() : true; // Fallback sécuritaire
@@ -347,7 +358,9 @@ export function stopDrawing(opt, cancel = false) {
         // Sélectionner le nouvel objet
         fabricCanvas.setActiveObject(finalObject);
         fabricCanvas.renderAll();
-        // triggerAutoSaveDrawing(); // Sauvegarder après ajout (géré par main.js)
+
+	// Forcer le calcul des coordonnées
+	finalObject.setCoords();
         return finalObject; // Retourne l'objet forme créé
     }
 
