@@ -580,11 +580,16 @@ public function apiSavePositionAction() {
         $input = json_decode(file_get_contents('php://input'), true);
 
         if (isset($input['plan_id']) && isset($input['svg_content'])) {
-            $planId = (int)$input['plan_id'];
-            $svgContent = $input['svg_content'];
+	$planId = (int)$input['plan_id'];
+            // Renommer la variable pour plus de clarté, car c'est du JSON
+            $jsonContent = $input['svg_content']; 
 
-            $success = $this->planManager->updateSvgPlan($planId, $svgContent);
-            echo json_encode(['success' => $success]);
+            // Appeler le manager et stocker la réponse (qui est un tableau)
+            $responseArray = $this->planManager->updateSvgPlan($planId, $jsonContent);
+            
+            // Envoyer cette réponse (qui est déjà ['success' => true/false, ...])
+            // directement au format JSON, sans l'envelopper.
+            echo json_encode($responseArray);
         } else {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'ID de plan ou contenu SVG manquant']);
