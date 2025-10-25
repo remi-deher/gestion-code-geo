@@ -557,91 +557,130 @@ async function handleSaveAsset() {
     } catch (cloneError) { showToast("Erreur prépa asset.", "danger"); hideLoading(); }
 }
 
-// (Fonction loadAssetsList INCHANGÉE)
+/**
+ * Charge et affiche la liste des assets dans l'offcanvas.
+ * Ajoute également les écouteurs pour charger et supprimer les assets.
+ */
 async function loadAssetsList() {
     const listContainer = document.getElementById('assets-list');
-    if (!listContainer) return;
-    listContainer.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Chargement...';
+    if (!listContainer) {
+        console.error("Élément #assets-list non trouvé.");
+        return;
+    }
+    listContainer.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Chargement...</span></div> Chargement...';
+
     try {
-        const assets = await listAssets();
-        listContainer.innerHTML = '';
-        if (assets.length === 0) { listContainer.innerHTML = '<p class="text-muted small">Aucun asset.</p>'; return; }
+        const assets = await listAssets(); // Appel API
+        listContainer.innerHTML = ''; // Vide la liste
+
+        if (!assets || assets.length === 0) {
+            listContainer.innerHTML = '<p class="text-muted small">Aucun asset sauvegardé.</p>';
+            return;
+        }
+
         assets.forEach(asset => {
-            const item = document.createElement('a');
-            item.href = '#';
-            item.className = 'list-group-item list-group-item-action asset-item';
-            item.dataset.assetId = asset.id;
-            item.textContent = asset.name;
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+            const assetLink = document.createElement('a');
+            assetLink.href = '#';
+            assetLink.className = 'asset-item flex-grow-1 text-decoration-none text-dark me-2';
+            assetLink.dataset.assetId = asset.id;
+            assetLink.textContent = asset.name;
+            assetLink.title = `Charger "${asset.name}"`; // Tooltip
+
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'btn btn-sm btn-outline-danger delete-asset-btn flex-shrink-0'; // flex-shrink-0 évite que le bouton rétrécisse
+            deleteButton.dataset.assetId = asset.id;
+            deleteButton.dataset.assetName = asset.name;
+            deleteButton.title = `Supprimer "${asset.name}"`;
+            deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+            // Ajouter les attributs ARIA pour l'accessibilité
+            deleteButton.setAttribute('aria-label', `Supprimer l'asset ${asset.name}`);
+
+
+            item.appendChild(assetLink);
+            item.appendChild(deleteButton);
             listContainer.appendChild(item);
         });
-    } catch (error) { listContainer.innerHTML = '<p class="text-danger small">Erreur chargement.</p>'; }
+
+        // Attacher les écouteurs d'événements (délégués) une seule fois
+        if (!listContainer.dataset.eventListenersAttached) {
+            listContainer.addEventListener('click', handleAssetListClick);
+            listContainer.dataset.eventListenersAttached = 'true';
+        }
+
+    } catch (error) {
+        console.error("Erreur lors du chargement de la liste des assets:", error);
+        listContainer.innerHTML = `<p class="text-danger small">Erreur lors du chargement: ${error.message}</p>`;
+    }
 }
 
+/**
+ * Gestionnaire d'événements délégué pour la liste des assets.
+ * Gère le clic sur un lien d'asset (pour le charger) ou sur un bouton de suppression.
+ * @param {Event} event
+ */
+async function handleAssetListClick(event) {
+    const assetLink = event.target.closest('.asset-item');
+    const deleteButton = event.target.closest('.delete-asset-btn');
 
-// --- MODIFIÉ : handleAssetClick avec Double Enliven ---
-async function handleAssetClick(event) {
-    event.preventDefault();
-    const assetItem = event.target.closest('.asset-item');
-    if (!assetItem) return;
+    if (deleteButton) {
+        // Clic sur le bouton Supprimer
+        event.preventDefault();
+        event.stopPropagation();
+        handleDeleteAssetClick(deleteButton); // Appelle la fonction de suppression
+    } else if (assetLink) {
+        // Clic sur le lien pour charger l'asset
+        event.preventDefault();
+        handleAssetClick(assetLink); // Appelle la fonction de chargement (existante)
+    }
+}
 
-    const assetId = assetItem.dataset.assetId;
-    showLoading("Chargement asset...");
-    console.clear(); // Nettoyer la console pour les nouveaux logs
-    console.log(`%c[ASSET ${assetId}] Chargement...`, 'color: blue; font-weight: bold;');
+/**
+ * Gère le chargement d'un asset (fonction existante, potentiellement à déplacer si besoin).
+ * @param {HTMLElement} assetLinkElement - L'élément <a> cliqué.
+ */
+async function handleAssetClick(assetLinkElement) {
+    // Votre code existant pour handleAssetClick (avec la logique double enliven) va ici...
+    // Assurez-vous qu'il utilise assetLinkElement.dataset.assetId
+    const assetId = assetLinkElement.dataset.assetId;
+    if (!assetId) return;
+
+    console.log(`Chargement de l'asset ID: ${assetId}`);
+    showLoading("Chargement de l'asset...");
 
     try {
-        const asset = await getAssetData(assetId);
-        if (!asset || !asset.data) throw new Error("Données invalides.");
+        const asset = await getAssetData(assetId); // API call
+        if (!asset || !asset.data) throw new Error("Données d'asset invalides reçues.");
 
         let assetDataObjectInitial;
         try {
             assetDataObjectInitial = JSON.parse(asset.data);
             console.log(`[ASSET ${assetId}] Données JSON brutes:`, JSON.parse(JSON.stringify(assetDataObjectInitial)));
         } catch (e) {
-            throw new Error("Format de données corrompu.");
+            throw new Error("Format de données d'asset corrompu.");
         }
 
-        // --- Double Enliven Logic ---
+        const fabricCanvas = getCanvasInstance(); // Obtenir l'instance du canvas
+        if (!fabricCanvas) throw new Error("Instance du canvas non disponible.");
+
+        // --- Logique Double Enliven ---
         await new Promise((resolveOuter, rejectOuter) => {
-            // 1. Première passe Enliven pour obtenir l'objet Fabric temporaire
             fabric.util.enlivenObjects([assetDataObjectInitial], (tempObjects) => {
-                if (!tempObjects || tempObjects.length === 0) {
-                    return rejectOuter(new Error("Impossible de recréer l'objet (passe 1)."));
-                }
+                if (!tempObjects || tempObjects.length === 0) return rejectOuter(new Error("Impossible de recréer l'objet (passe 1)."));
                 const tempObject = tempObjects[0];
-                console.log(`%c[ASSET ${assetId}] Objet TEMPORAIRE recréé (passe 1):`, 'color: green;', {
-                    left: tempObject.left, top: tempObject.top,
-                    originX: tempObject.originX, originY: tempObject.originY
-                });
-
-                // 2. Convertir en objet littéral
                 const objectDataClean = tempObject.toObject(['customData', 'baseStrokeWidth']);
+                objectDataClean.left = 0; objectDataClean.top = 0; objectDataClean.originX = 'left'; objectDataClean.originY = 'top';
 
-                // 3. Forcer la position et l'origine sur l'objet littéral
-                objectDataClean.left = 0;
-                objectDataClean.top = 0;
-                objectDataClean.originX = 'left';
-                objectDataClean.originY = 'top';
-                console.log(`%c[ASSET ${assetId}] Objet littéral MODIFIÉ pour passe 2:`, 'color: purple;', JSON.parse(JSON.stringify(objectDataClean)));
-
-
-                // 4. Deuxième passe Enliven sur l'objet littéral modifié
                 fabric.util.enlivenObjects([objectDataClean], (finalObjects) => {
-                    if (!finalObjects || finalObjects.length === 0) {
-                        return rejectOuter(new Error("Impossible de recréer l'objet final (passe 2)."));
-                    }
+                    if (!finalObjects || finalObjects.length === 0) return rejectOuter(new Error("Impossible de recréer l'objet final (passe 2)."));
                     const objectToAdd = finalObjects[0];
-                    objectToAdd.name = asset.name; // Restaurer le nom
-                    console.log(`%c[ASSET ${assetId}] Objet FINAL recréé (passe 2):`, 'color: darkcyan;', {
-                        left: objectToAdd.left, top: objectToAdd.top,
-                        originX: objectToAdd.originX, originY: objectToAdd.originY
-                    });
-
-                    // Pré-config (styles, customData - déjà fait par toObject/enliven)
-                    objectToAdd.customData = { ...(objectDataClean.customData || {}), isDrawing: true }; // Assurer isDrawing flag
+                    objectToAdd.name = asset.name;
+                    objectToAdd.customData = { ...(objectDataClean.customData || {}), isDrawing: true };
                     objectToAdd.baseStrokeWidth = objectDataClean.baseStrokeWidth || 1;
                     const zoom = fabricCanvas.getZoom();
-                    const applyStrokeWidth = (obj) => { /* ... (comme avant) ... */
+                    const applyStrokeWidth = (obj) => {
                          const baseStroke = obj.baseStrokeWidth || 1;
                          if (obj.strokeWidth !== undefined && obj.strokeWidth !== null && baseStroke > 0 && obj.stroke) {
                              obj.set('strokeWidth', Math.max(0.5 / zoom, baseStroke / zoom));
@@ -649,50 +688,64 @@ async function handleAssetClick(event) {
                     };
                     if (objectToAdd.type === 'group') { objectToAdd.forEachObject(applyStrokeWidth); if (objectToAdd.stroke) applyStrokeWidth(objectToAdd); }
                     else { applyStrokeWidth(objectToAdd); }
+                    objectToAdd.set({ selectable: true, evented: true });
 
-                    // Mettre selectable/evented (important après re-enliven)
-                     objectToAdd.set({
-                        selectable: true,
-                        evented: true
-                    });
-
-
-                    // --- Ajout final ---
-                    console.log(`[ASSET ${assetId}] Ajout au canvas...`);
                     fabricCanvas.add(objectToAdd);
-
-                    console.log(`[ASSET ${assetId}] Sélection de l'objet...`);
                     fabricCanvas.setActiveObject(objectToAdd);
-
                     objectToAdd.setCoords();
-                    console.log(`%c[ASSET ${assetId}] Coords recalculées APRÈS ajout et sélection (FINALES):`, 'color: red; font-weight: bold;', {
-                        left: objectToAdd.left, top: objectToAdd.top,
-                        originX: objectToAdd.originX, originY: objectToAdd.originY,
-                        aCoords: objectToAdd.aCoords ? JSON.parse(JSON.stringify(objectToAdd.aCoords)) : 'Non défini'
-                    });
-
                     fabricCanvas.requestRenderAll();
-                    triggerAutoSaveDrawing();
-                    showToast(`Asset "${objectToAdd.name}" ajouté à (0,0).`, "success");
-                    const offcanvasInstance = bootstrap.Offcanvas.getInstance(document.getElementById('assetsOffcanvas'));
+                    // triggerAutoSaveDrawing(); // Déclencher la sauvegarde si nécessaire
+                    showToast(`Asset "${objectToAdd.name || 'Sans nom'}" ajouté à (0,0).`, "success");
+
+                    // Fermer l'offcanvas
+                    const offcanvasEl = document.getElementById('assetsOffcanvas');
+                    const offcanvasInstance = bootstrap.Offcanvas.getInstance(offcanvasEl);
                     if (offcanvasInstance) offcanvasInstance.hide();
 
-                    resolveOuter(); // Résoudre la Promise externe principale
-
+                    resolveOuter();
                 }, ''); // Namespace vide pour enlivenObjects (passe 2)
-
             }, ''); // Namespace vide pour enlivenObjects (passe 1)
         }); // Fin Promise externe
 
     } catch (error) {
-        console.error(`[ASSET ${assetId}] Erreur CATCH:`, error);
-        showToast(`Erreur chargement: ${error.message}`, "danger");
+        console.error(`Erreur lors du chargement de l'asset ${assetId}:`, error);
+        showToast(`Erreur chargement asset: ${error.message}`, 'danger');
     } finally {
         hideLoading();
     }
 }
-// --- FIN MODIFICATION ---
 
+/**
+ * Gestionnaire pour le clic sur le bouton de suppression d'un asset (déjà défini ci-dessus).
+ * @param {HTMLElement} deleteButton - Le bouton cliqué.
+ */
+async function handleDeleteAssetClick(deleteButton) {
+    // La logique est maintenant dans handleAssetListClick pour utiliser la délégation,
+    // mais on garde cette fonction séparée pour la clarté si appelée directement ailleurs.
+    const assetId = deleteButton.dataset.assetId;
+    const assetName = deleteButton.dataset.assetName || 'cet asset';
+
+    if (!assetId) {
+        console.warn("handleDeleteAssetClick: ID d'asset manquant sur le bouton.");
+        return;
+    }
+
+    if (!confirm(`Voulez-vous vraiment supprimer l'asset "${assetName}" ? Cette action est irréversible.`)) {
+        return;
+    }
+
+    showLoading('Suppression de l\'asset...');
+    try {
+        await deleteAsset(assetId); // Appel API
+        showToast(`Asset "${assetName}" supprimé avec succès.`, 'success');
+        loadAssetsList(); // Recharge la liste pour refléter la suppression
+    } catch (error) {
+        console.error(`Erreur lors de la suppression de l'asset ${assetId}:`, error);
+        showToast(`Erreur lors de la suppression: ${error.message}`, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
 
 // ===================================
 // === UTILITAIRES UI (Boutons) ===
