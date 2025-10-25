@@ -1108,7 +1108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentPlanId = phpData.currentPlanId;
         planType = phpData.planType;
         planUnivers = phpData.planUnivers || [];
-        planJsonUrl = phpData.planJsonUrl || null; // <<< URL JSON initial
+	planJsonUrl = (phpData.currentPlan && phpData.currentPlan.json_path) ? phpData.currentPlan.json_path : (phpData.planJsonUrl || null);
 
         if (phpData.currentPlan && phpData.currentPlan.nom_fichier) {
             const baseUrl = 'uploads/plans/';
