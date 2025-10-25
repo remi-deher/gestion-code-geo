@@ -414,4 +414,35 @@ public function getAvailableCodesForPlan(int $planId): array
          return $stmt->fetch(PDO::FETCH_ASSOC);
      }
 
-} // Fin de la classe GeoCodeManager
+/**
+     * Récupère les codes géo pour une liste d'IDs d'univers.
+     * @param array $universIds Tableau d'IDs d'univers.
+     * @return array La liste des codes géo correspondants.
+     */
+    public function getGeoCodesByUniversIds(array $universIds): array {
+        if (empty($universIds)) {
+            return [];
+        }
+        // Crée une chaîne de placeholders (?, ?, ?) pour la requête SQL
+        $inPlaceholders = str_repeat('?,', count($universIds) - 1) . '?';
+
+        // Modifiez la requête pour inclure les jointures nécessaires
+        // et sélectionner les champs requis par pdf-label-generator.js
+        $sql = "SELECT gc.id, gc.code_geo, gc.libelle, gc.commentaire, u.nom AS univers
+                FROM geo_codes gc
+                LEFT JOIN univers u ON gc.univers_id = u.id
+                WHERE gc.univers_id IN ($inPlaceholders)
+                AND gc.deleted_at IS NULL
+                ORDER BY u.nom, gc.code_geo ASC"; // Tri optionnel
+
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($universIds); // Passe le tableau d'IDs
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur getGeoCodesByUniversIds: " . $e->getMessage());
+            $this->lastError = $this->db->errorInfo(); // Assurez-vous d'avoir $lastError et getLastError()
+            return []; // Retourne un tableau vide en cas d'erreur
+        }
+    }
+}
