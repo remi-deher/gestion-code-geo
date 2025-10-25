@@ -531,6 +531,14 @@ async function savePlanAsJson() {
             planJsonUrl = apiJsonPath; // Utiliser la valeur extraite
             console.log("[savePlanAsJson] URL JSON mise à jour avec succès:", planJsonUrl);
             showToast("Plan sauvegardé (JSON).", "success");
+	
+	// Garantit que toutes les coordonnées de l'objet sont mises à jour
+            fabricCanvas.getObjects().forEach(obj => {
+                if (obj.setCoords) {
+                    obj.setCoords();
+                }
+            });
+            fabricCanvas.renderAll();
         } else {
              // Échec ou réponse invalide
              const finalErrorMsg = apiErrorMsg || `Réponse API invalide ou json_path manquant/vide.`;
@@ -940,14 +948,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!response.ok) { throw new Error(`Fetch JSON échoué (${response.status}) pour ${fullJsonUrl}`); }
                 const jsonData = await response.json();
 
-                await new Promise((resolve, reject) => {
+
+		await new Promise((resolve, reject) => {
                     fabricCanvas.loadFromJSON(jsonData, () => {
                         fabricCanvas.requestRenderAll();
                         console.log("Canvas chargé depuis JSON.");
                         if (planType === 'svg') { setCanvasLock(true); } // Verrouiller si SVG
                         fabricCanvas.getObjects().forEach(obj => { // Ré-attacher flèches
                             if (obj.customData?.isGeoTag && obj.customData.anchorXPercent !== null) { addArrowToTag(obj); }
+                             // Défense Fabric.js: S'assurer que tous les objets ont des coordonnées valides
+                             if (obj.setCoords) obj.setCoords(); 
                         });
+                        // Défense Fabric.js: Nettoyer les éventuels objets null/undefined (cause de l'erreur 'reading x')
+                        fabricCanvas._objects = fabricCanvas._objects.filter(o => o);
                         resolve();
                     }, (o, object) => { // Reviver
                          // Potentiellement nécessaire de réappliquer baseStrokeWidth ici si non sérialisé par toObject
