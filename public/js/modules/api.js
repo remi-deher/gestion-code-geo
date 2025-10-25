@@ -253,3 +253,24 @@ export async function getAssetData(assetId) {
      const data = await apiFetch(`index.php?action=apiGetAsset&id=${assetId}`);
      return data;
 }
+
+// --- API Assets ---
+
+// ... (fonctions saveAsset, listAssets, getAssetData inchangées) ...
+
+/**
+ * Supprime un asset.
+ * @param {number} assetId - ID de l'asset à supprimer.
+ * @returns {Promise<object>} Réponse de l'API ({ success: true } ou lance une erreur).
+ */
+export async function deleteAsset(assetId) {
+    // On utilise POST avec un corps JSON, mais GET avec ?id= fonctionnerait aussi
+    // car le contrôleur PHP vérifie les deux. POST est souvent préféré pour les actions de suppression.
+    const data = await apiFetch('index.php?action=apiDeleteAsset', {
+        method: 'POST',
+        body: { id: assetId } // Envoyer l'ID dans le corps JSON
+    });
+    // apiFetch gère déjà les erreurs HTTP et les { success: false }
+    // Si on arrive ici, c'est que la suppression a réussi côté serveur.
+    return data; // Devrait être { success: true }
+}
