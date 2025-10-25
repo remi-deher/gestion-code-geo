@@ -85,6 +85,7 @@ import {
     saveAsset,
     getAssetData,
     listAssets,
+    deleteAsset,
     saveDrawingData,
     createSvgPlan,
     updateSvgPlan, // <<<< Utilisé pour la sauvegarde JSON
