@@ -36,7 +36,7 @@
                         </div>
                     </div>
 
-                    <div class="card mb-4"> {/* Ajout de mb-4 pour l'espacement */}
+                    <div class="card mb-4">
                         <div class="card-header"><span class="step-number">2</span> Choisir les informations à inclure</div>
                         <div class="card-body field-selection">
                             <div class="form-check form-switch"><input class="form-check-input print-field" type="checkbox" name="fields[]" value="qrcode" id="field_qrcode" checked><label class="form-check-label" for="field_qrcode">QR Code</label></div>

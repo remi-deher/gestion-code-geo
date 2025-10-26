@@ -12,7 +12,7 @@ ob_start();
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h2 class="mb-0">📚 Classeur des emplacements</h2>
 
-            <div class="d-flex gap-2 flex-wrap"> {/* Ajout de flex-wrap */}
+            <div class="d-flex gap-2 flex-wrap">
                 <a href="index.php?action=printLabels" class="btn btn-outline-secondary">
                     <i class="bi bi-printer-fill"></i> Imprimer des étiquettes
                 </a>
@@ -79,8 +79,8 @@ ob_start();
             </div>
         </div>
 
-        <div id="fiches-list-js"> {/* Conteneur pour List.js */}
-            <div class="list d-flex flex-column gap-3"> {/* La classe 'list' est essentielle pour List.js */}
+        <div id="fiches-list-js">
+            <div class="list d-flex flex-column gap-3">
                 <?php if (empty($geoCodes)): ?>
                     <div class="alert alert-info">Aucun code géo n'a été trouvé. <a href="index.php?action=create">Ajoutez-en un !</a></div>
                 <?php else: ?>
@@ -94,15 +94,12 @@ ob_start();
                     ?>
                         <div class="geo-card card card-body"
                              data-zone="<?= htmlspecialchars($code['zone'] ?? '') ?>"
-                             data-univers="<?= htmlspecialchars($code['univers_nom'] ?? '') ?>"> {/* Données pour filtres JS */}
-
-                            {/* Champs cachés pour List.js */}
+                             data-univers="<?= htmlspecialchars($code['univers_nom'] ?? '') ?>"> 
                             <span class="univers" style="display:none;"><?= htmlspecialchars($code['univers_nom'] ?? '') ?></span>
                             <span class="zone" style="display:none;"><?= htmlspecialchars($code['zone'] ?? '') ?></span>
 
                             <div class="row g-3 align-items-center">
                                 <div class="col-auto geo-card-qr" data-code="<?= htmlspecialchars($code['code_geo'] ?? '') ?>">
-                                    {/* Le QR code sera généré ici par JS */}
                                 </div>
 
                                  <div class="col geo-card-info">
@@ -137,7 +134,7 @@ ob_start();
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
-             <ul class="pagination justify-content-center mt-4"></ul> {/* Pagination pour List.js si besoin */}
+             <ul class="pagination justify-content-center mt-4"></ul>
         </div>
 
     </section>
