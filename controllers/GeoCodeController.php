@@ -399,7 +399,7 @@ class GeoCodeController extends BaseController {
         $output = fopen('php://output', 'w'); // Ouvre le flux de sortie standard
 
         // Écrit l'en-tête (nom des colonnes)
-        fputcsv($output, $columns, ';');
+        fputcsv($output, $columns, ';', '"', '\\');
 
         // Écrit chaque ligne de données
         foreach ($data as $row) {
@@ -408,7 +408,7 @@ class GeoCodeController extends BaseController {
                 // S'assure que même si une colonne demandée n'existe pas, on met une chaîne vide
                 $line[] = $row[$col] ?? '';
             }
-            fputcsv($output, $line, ';');
+            fputcsv($output, $line, ';', '"', '\\');
         }
 
         fclose($output); // Ferme le flux
