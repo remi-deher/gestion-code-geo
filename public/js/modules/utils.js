@@ -1,6 +1,7 @@
 /**
  * Module utilitaire pour les conversions de coordonnées et les notifications.
  * VERSION CORRIGÉE : Utilise les variables globales (window.original...) pour les calculs.
+ * VERSION TOAST CORRIGÉE : Cible le conteneur global '.toast-container'.
  */
 
 /**
@@ -27,11 +28,8 @@ export function convertPercentToPixels(percentX, percentY, fabricCanvas) {
         return { left: NaN, top: NaN };
     }
 
-    // Calcule la position en pixels par rapport à l'origine du plan (0,0 dans le viewBox)
     const relativeLeft = (percentX / 100) * planWidth;
     const relativeTop = (percentY / 100) * planHeight;
-
-    // Ajoute l'offset du viewBox pour obtenir les coordonnées absolues sur le canvas
     const left = relativeLeft + planOffsetX;
     const top = relativeTop + planOffsetY;
 
@@ -52,7 +50,6 @@ export function convertPixelsToPercent(worldX, worldY, fabricCanvas) {
          return {posX: 0, posY: 0 };
      }
 
-    // Utilise les dimensions originales stockées dans window par canvas.js
     const planWidth = window.originalSvgWidth || fabricCanvas.getWidth();
     const planHeight = window.originalSvgHeight || fabricCanvas.getHeight();
     const planOffsetX = window.originalSvgViewBox?.x || 0;
@@ -63,11 +60,8 @@ export function convertPixelsToPercent(worldX, worldY, fabricCanvas) {
         return { posX: 0, posY: 0 };
     }
 
-    // Calcul des coordonnées relatives (en pixels) par rapport à l'origine de la référence
     const relativeX = worldX - planOffsetX;
     const relativeY = worldY - planOffsetY;
-
-    // Calcul du pourcentage par rapport aux dimensions de la référence
     const posX = Math.max(0, Math.min(100, (relativeX / planWidth) * 100));
     const posY = Math.max(0, Math.min(100, (relativeY / planHeight) * 100));
 
@@ -75,70 +69,69 @@ export function convertPixelsToPercent(worldX, worldY, fabricCanvas) {
 }
 
 /**
- * Affiche une notification (toast) Bootstrap.
+ * Affiche une notification (toast) Bootstrap dynamique.
  * @param {string} message - Le message à afficher.
  * @param {string} type - 'success', 'danger', 'warning', 'info' (default: 'info').
  */
 export function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-notification-container');
+    // 1. Cible le conteneur GLOBAL (défini dans layout.php)
+    const container = document.querySelector('.toast-container');
     if (!container) {
-        console.error("Conteneur de toast #toast-notification-container non trouvé.");
-        alert(message); // Fallback
+        console.error("Conteneur de toast '.toast-container' non trouvé.");
+        alert(message); // Fallback si le conteneur n'existe pas
         return;
     }
 
-    const toastId = 'toast-' + Date.now();
-    let iconHtml = '';
-    let headerText = 'Information';
-    let headerClass = 'text-muted';
-
+    // Définir la classe et l'icône en fonction du type
+    let toastClass = '';
+    let icon = '';
     switch (type) {
         case 'success':
-            iconHtml = '<i class="bi bi-check-circle-fill text-success me-2"></i>';
-            headerText = 'Succès';
-            headerClass = 'text-success';
+            toastClass = 'text-bg-success'; // Fond vert
+            icon = '<i class="bi bi-check-circle-fill me-2"></i>';
             break;
         case 'danger':
-            iconHtml = '<i class="bi bi-x-octagon-fill text-danger me-2"></i>';
-            headerText = 'Erreur';
-            headerClass = 'text-danger';
+            toastClass = 'text-bg-danger'; // Fond rouge
+            icon = '<i class="bi bi-exclamation-triangle-fill me-2"></i>';
             break;
         case 'warning':
-            iconHtml = '<i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>';
-            headerText = 'Avertissement';
-            headerClass = 'text-warning';
+            toastClass = 'text-bg-warning'; // Fond jaune
+            icon = '<i class="bi bi-exclamation-triangle-fill me-2"></i>';
             break;
-        case 'info':
         default:
-            iconHtml = '<i class="bi bi-info-circle-fill text-info me-2"></i>';
-            headerText = 'Info';
-            headerClass = 'text-info';
+            toastClass = 'text-bg-info'; // Fond bleu
+            icon = '<i class="bi bi-info-circle-fill me-2"></i>';
             break;
     }
 
-    const toastHtml = `
-        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
-            <div class="toast-header">
-                ${iconHtml}
-                <strong class="me-auto ${headerClass}">${headerText}</strong>
-                <small class="text-muted">À l'instant</small>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
+    // 3. Créer l'élément toast
+    const toastElement = document.createElement('div');
+    const toastId = 'toast-' + Date.now();
+    toastElement.id = toastId;
+    toastElement.className = `toast align-items-center ${toastClass} border-0`;
+    toastElement.setAttribute('role', 'alert');
+    toastElement.setAttribute('aria-live', 'assertive');
+    toastElement.setAttribute('aria-atomic', 'true');
+    toastElement.setAttribute('data-bs-delay', '5000'); // 5 secondes
+    
+    toastElement.innerHTML = `
+        <div class="d-flex">
             <div class="toast-body">
-                ${message}
+                ${icon} ${message}
             </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     `;
 
-    container.insertAdjacentHTML('beforeend', toastHtml);
+    // 4. Ajouter le toast au conteneur
+    container.appendChild(toastElement);
 
-    const toastElement = document.getElementById(toastId);
-    if (toastElement) {
-        const toast = new bootstrap.Toast(toastElement);
-        toast.show();
-        // Nettoyer le DOM après disparition
-        toastElement.addEventListener('hidden.bs.toast', () => {
-            toastElement.remove();
-        });
-    }
+    // 5. Initialiser et afficher le toast
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+
+    // 6. Supprimer l'élément du DOM après sa disparition
+    toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
+    });
 }
