@@ -1,7 +1,5 @@
 // Fichier: public/js/plan-editor.js
-// Fichier principal pour l'éditeur de plan, utilisant des imports dynamiques.
 
-// Importer les fonctions utilitaires nécessaires statiquement car elles sont utilisées tôt
 import { showToast, convertPixelsToPercent } from './modules/utils.js';
 
 // Fonction d'initialisation asynchrone pour gérer les imports dynamiques
@@ -12,8 +10,6 @@ async function initializeEditor() {
     const saveDrawingBtn = document.getElementById('save-drawing-btn');
     const printBtn = document.getElementById('print-plan-btn');
     const exportBtn = document.getElementById('export-plan-btn');
-    // Ajoutez ici les sélecteurs pour les autres boutons (sidebar toggle) si nécessaire
-    // const sidebarToggleBtn = document.querySelector('[data-bs-target="#sidebarOffcanvas"]');
 
     if (!canvasWrapper || !planCanvasElement || !loadingIndicator || !saveDrawingBtn || !printBtn || !exportBtn) {
         console.error("Éléments DOM essentiels manquants pour l'éditeur.");
@@ -21,76 +17,60 @@ async function initializeEditor() {
         return;
     }
 
-    loadingIndicator.style.display = 'block'; // Afficher le chargement
+    loadingIndicator.style.display = 'block';
 
     try {
-        // --- 1. Importer dynamiquement le gestionnaire de Canvas ---
+        // --- 1. Importer et initialiser CanvasManager ---
         console.log("Chargement du CanvasManager...");
+        // !!! LIGNE CAUSANT L'ERREUR !!!
         const { default: CanvasManager } = await import('./modules/canvasManager.js');
-
-        // --- 2. Initialiser le Canvas ---
         console.log("Initialisation du Canvas...");
         const canvasManager = new CanvasManager(planCanvasElement, canvasWrapper);
-        const canvas = canvasManager.initializeCanvas(); // Récupérer l'instance du canvas
+        const canvas = canvasManager.initializeCanvas();
 
-        // --- 3. Importer dynamiquement le chargeur de plan ---
-        console.log("Chargement du PlanLoader...");
+        // --- 2. Importer les modules nécessaires ---
+        console.log("Chargement PlanLoader, GeoCodeRenderer, Sidebar Utils...");
         const { loadPlanBackgroundAndObjects } = await import('./modules/planLoader.js');
-
-        // --- 4. Importer GeoCode Renderer & Sidebar functions ---
-        console.log("Chargement GeoCodeRenderer & Sidebar Utils...");
         const { createGeoCodeObject, renderPlacedGeoCodes } = await import('./modules/geoCodeRenderer.js');
         const { getCurrentPlacementData, cancelPlacementMode } = await import('./ui/sidebar.js');
 
-        // --- 5. Charger le plan (fond + objets existants) ---
+        // --- 3. Charger le plan ---
         console.log("Chargement des données du plan...");
         if (window.planData && window.planData.currentPlan) {
             await loadPlanBackgroundAndObjects(canvas, window.planData.currentPlan);
-
-            // Charger les codes Géo déjà placés
-             if (window.planData.placedGeoCodes && window.planData.placedGeoCodes.length > 0) {
-                 console.log(`Chargement de ${window.planData.placedGeoCodes.length} codes géo placés...`);
-                 // Appel de la fonction importée
-                 renderPlacedGeoCodes(canvas, window.planData.placedGeoCodes, window.planData.universColors || {}); // Passer les couleurs
-             }
-
+            if (window.planData.placedGeoCodes && window.planData.placedGeoCodes.length > 0) {
+                console.log(`Chargement de ${window.planData.placedGeoCodes.length} codes géo placés...`);
+                renderPlacedGeoCodes(canvas, window.planData.placedGeoCodes, window.planData.universColors || {});
+            }
         } else {
             console.error("Données du plan (window.planData.currentPlan) non trouvées.");
             throw new Error("Impossible de charger les informations du plan.");
         }
 
-        // --- 6. Importer dynamiquement et configurer la Sidebar ---
-        console.log("Chargement de la Sidebar...");
+        // --- 4. Configurer les modules UI et Actions ---
+        console.log("Chargement Sidebar, Toolbar, Actions...");
         const { setupSidebar } = await import('./ui/sidebar.js');
-        setupSidebar(canvas); // Passe le canvas
-
-        // --- 7. Importer dynamiquement et configurer la Toolbar ---
-        console.log("Chargement de la Toolbar...");
         const { setupToolbar } = await import('./ui/toolbar.js');
-        setupToolbar(canvas); // Passe le canvas
-
-        // --- 8. Importer dynamiquement et configurer les actions (Sauvegarde, Export, etc.) ---
-        console.log("Chargement des Actions...");
         const { setupEditorActions } = await import('./modules/editorActions.js');
+
+        setupSidebar(canvas);
+        setupToolbar(canvas); // Initialise tous les contrôles de la toolbar y compris Nav et Snap
         setupEditorActions(canvas, saveDrawingBtn, printBtn, exportBtn);
 
-        // --- 9. Gérer le placement des codes Géo (Clic & Drop) ---
+        // --- 5. Gérer le placement des codes Géo ---
         setupGeoCodePlacement(canvas, createGeoCodeObject, getCurrentPlacementData, cancelPlacementMode);
 
-        // --- 10. Gérer la sauvegarde/suppression des positions des codes Géo ---
+        // --- 6. Gérer la sauvegarde/suppression des positions des codes Géo ---
         setupPositionSaving(canvas);
 
-
-        // --- Fin de l'initialisation ---
         console.log("Éditeur initialisé avec succès.");
 
     } catch (error) {
         console.error("Erreur lors de l'initialisation de l'éditeur:", error);
         alert(`Une erreur critique est survenue lors du chargement de l'éditeur : ${error.message}. Veuillez rafraîchir la page.`);
-        // Optionnel : afficher un message d'erreur plus visible dans l'interface
         canvasWrapper.innerHTML = `<div class="alert alert-danger m-3">Erreur critique au chargement: ${error.message}</div>`;
     } finally {
-        loadingIndicator.style.display = 'none'; // Masquer le chargement
+        loadingIndicator.style.display = 'none';
     }
 }
 
@@ -109,69 +89,47 @@ function setupGeoCodePlacement(canvas, rendererFn, getterFn, cancelFn) {
             const pointer = canvas.getPointer(options.e);
             console.log("Placement (Clic):", placementData, "à", pointer);
 
-            // Créer l'objet Fabric
             const geoCodeObject = rendererFn(placementData, pointer.x, pointer.y, window.planData.universColors || {});
             canvas.add(geoCodeObject);
-            canvas.setActiveObject(geoCodeObject); // Sélectionner le nouvel objet
+            canvas.setActiveObject(geoCodeObject);
             canvas.requestRenderAll();
-
-            // Sauvegarder la position initiale
             saveGeoCodePosition(geoCodeObject);
-
-            // Quitter le mode placement
             cancelFn(canvas);
         }
-        // L'annulation du placement si clic sur objet existant est gérée dans sidebar.js
     });
 
     // --- Gestion du Drag and Drop ---
-    const canvasWrapper = canvas.wrapperEl; // Utiliser le conteneur du canvas
-
-    // Empêcher le comportement par défaut pour permettre le drop
+    const canvasWrapper = canvas.wrapperEl;
     canvasWrapper.addEventListener('dragover', (e) => {
         e.preventDefault();
-        // Vérifier si des données du type attendu sont glissées
         if (e.dataTransfer.types.includes('text/plain')) {
             e.dataTransfer.dropEffect = 'copy';
-            canvasWrapper.classList.add('drop-target-active'); // Feedback visuel
+            canvasWrapper.classList.add('drop-target-active');
         } else {
             e.dataTransfer.dropEffect = 'none';
         }
     });
-
     canvasWrapper.addEventListener('dragleave', (e) => {
-         // Vérifier si on quitte vraiment la zone (pas juste sur un enfant)
          if (e.relatedTarget === null || !canvasWrapper.contains(e.relatedTarget)) {
              canvasWrapper.classList.remove('drop-target-active');
          }
     });
-
     canvasWrapper.addEventListener('drop', (e) => {
         e.preventDefault();
         canvasWrapper.classList.remove('drop-target-active');
-        document.body.classList.remove('dragging-geocode'); // Nettoyer style global
-
+        document.body.classList.remove('dragging-geocode');
         try {
             const dataString = e.dataTransfer.getData('text/plain');
             const placementData = JSON.parse(dataString);
-
             if (placementData && placementData.id && placementData.code) {
-                 // Obtenir les coordonnées relatives au canvas
-                const pointer = canvas.getPointer(e); // Utilise l'événement 'drop'
+                const pointer = canvas.getPointer(e);
                 console.log("Placement (Drop):", placementData, "à", pointer);
-
-                // Créer l'objet Fabric
                 const geoCodeObject = rendererFn(placementData, pointer.x, pointer.y, window.planData.universColors || {});
                 canvas.add(geoCodeObject);
                 canvas.setActiveObject(geoCodeObject);
                 canvas.requestRenderAll();
-
-                // Sauvegarder la position initiale
                 saveGeoCodePosition(geoCodeObject);
-
-                // Optionnel: quitter le mode placement s'il était actif par clic
-                cancelFn(canvas);
-
+                cancelFn(canvas); // Annuler mode clic si actif
             } else {
                  console.warn("Drop: Données invalides reçues.", dataString);
                  showToast("Impossible de placer cet élément (données invalides).", "warning");
@@ -181,8 +139,7 @@ function setupGeoCodePlacement(canvas, rendererFn, getterFn, cancelFn) {
             showToast("Erreur lors du placement par glisser-déposer.", "danger");
         }
     });
-
-     console.log("Placement GeoCode: Écouteurs Clic et Drop configurés.");
+    console.log("Placement GeoCode: Écouteurs Clic et Drop configurés.");
 }
 
 /**
@@ -190,28 +147,22 @@ function setupGeoCodePlacement(canvas, rendererFn, getterFn, cancelFn) {
  * @param {fabric.Canvas} canvas
  */
 function setupPositionSaving(canvas) {
-    // Sauvegarder après déplacement/redimensionnement
     canvas.on('object:modified', (e) => {
-        if (e.target && e.target.customData && e.target.customData.type === 'geoCode') {
+        if (e.target?.customData?.type === 'geoCode') {
             console.log("Position Saving: Objet GeoCode modifié:", e.target.customData.code);
             saveGeoCodePosition(e.target);
         }
-        // TODO: Déclencher ici la sauvegarde générale du dessin (pour les objets non-geocode)
-        // en appelant la fonction liée au bouton save-drawing-btn ?
-        // Ou marquer le plan comme "modifié" pour que l'utilisateur clique sur Enregistrer.
+        // TODO: Gérer la sauvegarde des autres objets (marquer comme "modifié")
+        // document.getElementById('save-drawing-btn')?.classList.add('needs-saving');
     });
-
-    // Supprimer la position lors de la suppression de l'objet via la touche Suppr ou le bouton
-    // Note: L'événement 'object:removed' est déclenché APRES la suppression effective.
     canvas.on('object:removed', (e) => {
-         if (e.target && e.target.customData && e.target.customData.type === 'geoCode') {
-            console.log("Position Saving: Objet GeoCode supprimé du canvas:", e.target.customData.code);
-            removeGeoCodePosition(e.target); // Appel API pour supprimer en BDD
+         if (e.target?.customData?.type === 'geoCode') {
+            console.log("Position Saving: Objet GeoCode supprimé:", e.target.customData.code);
+            removeGeoCodePosition(e.target);
         }
-        // TODO: Déclencher la sauvegarde générale du dessin ici aussi ?
+        // TODO: Gérer la sauvegarde après suppression d'autres objets
     });
-
-     console.log("Position Saving: Écouteurs Modifié/Supprimé configurés.");
+    console.log("Position Saving: Écouteurs Modifié/Supprimé configurés.");
 }
 
 /**
@@ -219,9 +170,7 @@ function setupPositionSaving(canvas) {
  * @param {fabric.Object} geoCodeObject - L'objet Fabric représentant le code géo.
  */
 async function saveGeoCodePosition(geoCodeObject) {
-    if (!geoCodeObject || !geoCodeObject.customData || geoCodeObject.customData.type !== 'geoCode') {
-        return;
-    }
+    if (!geoCodeObject?.customData?.type === 'geoCode') return;
 
     const canvas = geoCodeObject.canvas;
     const planId = window.planData?.currentPlan?.id;
@@ -234,9 +183,7 @@ async function saveGeoCodePosition(geoCodeObject) {
         return;
     }
 
-    // Obtenir les coordonnées du CENTRE de l'objet
     const centerPoint = geoCodeObject.getCenterPoint();
-    // Convertir en pourcentage
     const { posX, posY } = convertPixelsToPercent(centerPoint.x, centerPoint.y, canvas);
 
      if (isNaN(posX) || isNaN(posY)) {
@@ -246,53 +193,28 @@ async function saveGeoCodePosition(geoCodeObject) {
     }
 
     const payload = {
-        plan_id: planId,
-        geo_code_id: geoCodeId,
-        pos_x: posX.toFixed(4), // Envoyer avec une précision raisonnable
-        pos_y: posY.toFixed(4),
-        // TODO: Ajouter width/height si géré (convertis en % de la taille du plan ?)
-        // width: (geoCodeObject.getScaledWidth() / (window.originalPlanWidth || canvas.width)) * 100,
-        // height: (geoCodeObject.getScaledHeight() / (window.originalPlanHeight || canvas.height)) * 100,
-        // properties: {} // Ajouter ici des propriétés de style si nécessaire
+        plan_id: planId, geo_code_id: geoCodeId,
+        pos_x: posX.toFixed(4), pos_y: posY.toFixed(4),
+        // width: ..., height: ..., properties: ... // TODO: Ajouter si besoin
     };
 
     console.log(`Sauvegarde Position: Envoi pour ${geoCodeObject.customData.code}`, payload);
-    // Optionnel : Afficher un indicateur de sauvegarde en cours
-
     try {
         const response = await fetch(apiUrl, {
              method: 'POST',
-             headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                // 'X-CSRF-Token': window.planData?.csrfToken || ''
-             },
+             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
              body: JSON.stringify(payload)
          });
-
-        if (!response.ok) {
-            let errorMsg = `Erreur HTTP ${response.status}`;
-            try { const errorData = await response.json(); errorMsg = errorData.error || errorMsg; } catch (e) {}
-            throw new Error(errorMsg);
-        }
+        if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
         const result = await response.json();
-        if (!result.success) {
-            throw new Error(result.error || "Erreur retournée par l'API.");
-        }
+        if (!result.success) throw new Error(result.error || "Erreur API.");
 
         console.log(`Sauvegarde Position: Succès pour ${geoCodeObject.customData.code}. ID Position BDD: ${result.position_id}`);
-        // Mettre à jour l'ID de la position dans l'objet Fabric
-        if (result.position_id) {
-             geoCodeObject.customData.positionId = result.position_id;
-        }
-        // showToast(`Position de ${geoCodeObject.customData.code} enregistrée.`, 'success'); // Peut-être trop verbeux
+        if (result.position_id) geoCodeObject.customData.positionId = result.position_id;
 
     } catch (error) {
-        console.error(`Erreur API lors de la sauvegarde de position pour ${geoCodeObject.customData.code}:`, error);
+        console.error(`Erreur API sauvegarde position ${geoCodeObject.customData.code}:`, error);
         showToast(`Erreur sauvegarde position (${geoCodeObject.customData.code}): ${error.message}`, 'danger');
-    } finally {
-        // Masquer l'indicateur de sauvegarde
     }
 }
 
@@ -301,47 +223,32 @@ async function saveGeoCodePosition(geoCodeObject) {
  * @param {fabric.Object} geoCodeObject - L'objet Fabric qui vient d'être supprimé du canvas.
  */
 async function removeGeoCodePosition(geoCodeObject) {
-     if (!geoCodeObject || !geoCodeObject.customData || geoCodeObject.customData.type !== 'geoCode') {
-        return;
-    }
+     if (!geoCodeObject?.customData?.type === 'geoCode') return;
     const planId = window.planData?.currentPlan?.id;
     const apiUrl = window.planData?.removeGeoCodeUrl;
     const geoCodeId = geoCodeObject.customData.geoCodeId;
 
      if (!planId || !apiUrl || !geoCodeId) {
-        console.error("Suppression Position: Données manquantes (planId, apiUrl, geoCodeId).");
-        return;
+        console.error("Suppression Position: Données manquantes."); return;
     }
     console.log(`Suppression Position: Envoi pour geoCodeId=${geoCodeId}, planId=${planId}`);
     try {
          const response = await fetch(apiUrl, {
-             method: 'POST', // ou 'DELETE'
-             headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                // 'X-CSRF-Token': window.planData?.csrfToken || ''
-             },
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
              body: JSON.stringify({ plan_id: planId, geo_code_id: geoCodeId })
          });
-
-         if (!response.ok) {
-             let errorMsg = `Erreur HTTP ${response.status}`;
-             try { const errorData = await response.json(); errorMsg = errorData.error || errorMsg; } catch(e) {}
-             throw new Error(errorMsg);
-         }
+         if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
          const result = await response.json();
-         if (!result.success) {
-             throw new Error(result.error || "Erreur API.");
-         }
+         if (!result.success) throw new Error(result.error || "Erreur API.");
+
          console.log(`Suppression Position: Succès pour ${geoCodeObject.customData.code}.`);
          showToast(`'${geoCodeObject.customData.code}' retiré du plan.`, 'info');
 
-         // --- Remettre le code dans la liste des codes disponibles ---
+         // Remettre le code dans la liste des codes disponibles
          const availableList = document.getElementById('available-geocodes-list');
          const existingItem = availableList.querySelector(`[data-id="${geoCodeId}"]`);
-         if (availableList && !existingItem) { // Vérifier s'il n'y est pas déjà
-            // Recréer l'élément de liste
+         if (availableList && !existingItem) {
             const listItem = document.createElement('li');
             listItem.className = "list-group-item list-group-item-action available-geocode-item";
             listItem.dataset.id = geoCodeId;
@@ -350,23 +257,17 @@ async function removeGeoCodePosition(geoCodeObject) {
             listItem.dataset.universId = geoCodeObject.customData.universId;
             listItem.style.cursor = 'grab';
             listItem.draggable = true;
-            listItem.title = `${geoCodeObject.customData.libelle} (${geoCodeObject.customData.universNom || '?'})`; // Ajouter le nom de l'univers si possible
+            listItem.title = `${geoCodeObject.customData.libelle}`;
             listItem.innerHTML = `<small>${geoCodeObject.customData.code}</small>`;
-            // Insérer en gardant l'ordre alphabétique ? (plus complexe) ou juste à la fin/début
-            availableList.appendChild(listItem); // Ajoute à la fin
-            // Trier la liste après ajout ?
+            availableList.appendChild(listItem);
          }
-
-
     } catch (error) {
-         console.error(`Erreur API lors de la suppression de position pour ${geoCodeObject.customData.code}:`, error);
-         showToast(`Erreur: La suppression de la position de ${geoCodeObject.customData.code} en base de données a échoué. ${error.message}`, 'danger');
-         // Remettre l'objet sur le canvas ? Peut être perturbant.
+         console.error(`Erreur API suppression position ${geoCodeObject.customData.code}:`, error);
+         showToast(`Erreur suppression BDD (${geoCodeObject.customData.code}): ${error.message}`, 'danger');
     }
 }
 
-
-// Lancer l'initialisation une fois le DOM prêt
+// Lancer l'initialisation
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeEditor);
 } else {

@@ -11,26 +11,27 @@
 export function activate(canvas) {
     console.log("SelectTool: Activation");
     canvas.isDrawingMode = false; // Désactiver tout mode de dessin libre
-    canvas.selection = true; // Activer la sélection d'objets (zone de sélection)
+    canvas.selection = true; // IMPORTANT: Activer la sélection d'objets (zone de sélection)
     canvas.defaultCursor = 'default'; // Curseur par défaut
-    canvas.setCursor('default');
+    canvas.setCursor('default'); // Appliquer immédiatement
 
-    // S'assurer que les objets sont sélectionnables (Fabric le fait par défaut, mais au cas où)
+    // IMPORTANT: Réactiver l'interactivité pour TOUS les objets (sauf les guides/fonds)
     canvas.forEachObject(obj => {
-        // Ne pas rendre le fond sélectionnable s'il a été ajouté comme objet
-        if (obj.isBackground) {
+        // Ne pas rendre sélectionnables les éléments marqués comme non interactifs (ex: guide de page, fond SVG/Image)
+        if (obj.excludeFromExport || obj.isGuide || obj.isBackground) {
              obj.selectable = false;
-             obj.evented = false;
+             obj.evented = false; // Ne réagit pas aux clics
         } else {
-             obj.selectable = true;
-             obj.evented = true; // Permet de cliquer sur l'objet
+             obj.selectable = true; // Rendre sélectionnable
+             obj.evented = true; // Rendre cliquable/interactif
         }
     });
 
-    // Optionnel : Désactiver le dessin de groupe lors de la sélection (drag pour déplacer)
-    // canvas.selectionKey = 'shiftKey'; // Activer la sélection multiple seulement avec Shift
+    // S'assurer que les contrôles d'objets sont visibles (si un style les avait cachés)
+    // fabric.Object.prototype.hasControls = true; // Peut être trop global, à gérer plus finement si besoin
+    // fabric.Object.prototype.hasBorders = true;
 
-    canvas.requestRenderAll(); // Redessiner si nécessaire
+    canvas.requestRenderAll(); // Redessiner pour appliquer les changements
 }
 
 /**
@@ -39,14 +40,9 @@ export function activate(canvas) {
  */
 export function deactivate(canvas) {
     console.log("SelectTool: Désactivation");
-    // Généralement, il n'y a rien de spécifique à désactiver pour l'outil
-    // de sélection de base, car les autres outils écraseront son comportement.
-    // On pourrait par exemple supprimer des écouteurs spécifiques ajoutés dans activate()
-    // si on en avait mis.
-    canvas.selection = false; // Désactiver la sélection par zone pour éviter conflits
+    // IMPORTANT: Désactiver la sélection par zone pour éviter les conflits avec les clics des outils de dessin
+    canvas.selection = false;
     canvas.discardActiveObject(); // Désélectionner tout objet actif
     canvas.requestRenderAll();
+    // Les autres outils définiront leur propre curseur.
 }
-
-// Optionnel: Exporter d'autres fonctions si cet outil avait des options spécifiques
-// export function setSelectOptions(options) { ... }
