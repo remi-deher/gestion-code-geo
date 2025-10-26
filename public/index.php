@@ -5,33 +5,45 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 session_start();
 
-// Inclut l'autoloader de Composer
-require_once __DIR__ . '/../vendor/autoload.php';
+// Inclut l'autoloader de Composer (si vous l'utilisez)
+// Assurez-vous que le chemin est correct
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+} else {
+    // Fallback si Composer n'est pas utilisé ou si le chemin est différent
+    // Inclure manuellement les fichiers nécessaires (moins idéal)
+}
+
 
 // Connexion à la base de données
-$dbConfig = require_once '../config/database.php';
+$dbConfigPath = __DIR__ . '/../config/database.php';
+if (!file_exists($dbConfigPath)) {
+    die("Erreur: Le fichier de configuration de la base de données 'config/database.php' est manquant.");
+}
+$dbConfig = require $dbConfigPath;
 $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset={$dbConfig['charset']}";
 try {
     $db = new PDO($dsn, $dbConfig['user'], $dbConfig['password']);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC); // Optionnel mais pratique
+    $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     error_log('Erreur de connexion BDD: ' . $e->getMessage());
-    die('Erreur de connexion à la base de données. Veuillez réessayer plus tard.');
+    // En production, afficher un message plus générique
+    die('Erreur de connexion à la base de données. Veuillez vérifier la configuration et réessayer.');
 }
 
 // Chargement des contrôleurs nécessaires
-require_once '../controllers/BaseController.php';
-require_once '../controllers/DashboardController.php';
-require_once '../controllers/GeoCodeController.php';
-require_once '../controllers/UniversController.php';
-// Retrait des contrôleurs PlanController et AssetController
+require_once __DIR__ . '/../controllers/BaseController.php';
+require_once __DIR__ . '/../controllers/DashboardController.php';
+require_once __DIR__ . '/../controllers/GeoCodeController.php';
+require_once __DIR__ . '/../controllers/UniversController.php';
+// Retrait des contrôleurs PlanController et AssetController (si non utilisés)
 
 // Initialisation des contrôleurs
 $dashboardController = new DashboardController($db);
 $geoCodeController = new GeoCodeController($db);
 $universController = new UniversController($db);
-// Retrait de l'initialisation de PlanController et AssetController
+// Retrait de l'initialisation de PlanController et AssetController (si non utilisés)
 
 // Action par défaut
 $action = $_GET['action'] ?? 'dashboard';
@@ -63,25 +75,24 @@ switch ($action) {
 
     // Import/Export et Impression Codes Géo
     case 'showExport': $geoCodeController->showExportAction(); break;
-    case 'handleExport': $geoCodeController->handleExportAction(); break;
+    case 'handleExport': $geoCodeController->handleExportAction(); break; // Renvoie JSON maintenant
     case 'showImport': $geoCodeController->showImportAction(); break;
     case 'handleImport': $geoCodeController->handleImportAction(); break;
-    case 'printLabels': $geoCodeController->showPrintOptionsAction(); break; // Options impression étiquettes PDF
-    case 'printSingle': $geoCodeController->printSingleLabelAction(); break; // Imprime une seule étiquette (ancienne méthode HTML)
-    case 'getCodesForPrint': $geoCodeController->getCodesForPrintAction(); break; // AJAX pour PDF Generator
+    case 'printLabels': $geoCodeController->showPrintOptionsAction(); break; // Page options PDF (JS)
+    // case 'printSingle': $geoCodeController->printSingleLabelAction(); break; // Ancienne méthode HTML (commentée/supprimée)
+    case 'getCodesForPrint': $geoCodeController->getCodesForPrintAction(); break; // AJAX pour Générateur PDF Lot
+    case 'getSingleGeoCodeJson': $geoCodeController->getSingleGeoCodeJsonAction(); break; // NOUVELLE ROUTE AJAX pour impression unique
 
     // Univers
     case 'listUnivers': $universController->listAction(); break;
     case 'addUnivers': $universController->addAction(); break;
     case 'updateUnivers': $universController->updateAction(); break;
     case 'deleteUnivers': $universController->deleteAction(); break;
-    // Retrait de updateZoneAction (intégrée dans updateUnivers)
 
-    // ** Retrait de toutes les routes Plans et Assets **
-
-    // Action par défaut
+    // Action non trouvée ou par défaut
     default:
-        $dashboardController->indexAction(); // Redirige vers le tableau de bord
+        // Rediriger vers le tableau de bord
+        $dashboardController->indexAction();
         break;
 }
 
