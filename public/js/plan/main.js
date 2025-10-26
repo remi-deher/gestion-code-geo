@@ -1076,7 +1076,6 @@ function setupEventListeners() {
     if (uB.length) uB.on('click', ungroupSelectedObject);
     if (sAB.length) sAB.on('click', handleSaveAsset);
     if (aOE.length) aOE.on('show.bs.offcanvas', loadAssetsList);
-    if (aLC.length) aLC.on('click', '.asset-item', handleAssetClick); // Délégué
     if (dB.length) dB.on('click', () => handleDeleteObject(fabricCanvas.getActiveObject()));
     if (pFS.length) pFS.on('change', () => { currentPageSizeFormat = pFS.val(); drawPageGuides(currentPageSizeFormat); });
     console.log("jQuery listeners attachés.");
