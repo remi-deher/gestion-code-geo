@@ -45,18 +45,37 @@ class GeoCodeController extends BaseController {
         $this->render('geo_codes_create_view', ['universList' => $universList]);
     }
 
-    /**
+     /**
      * Traite la soumission du formulaire de création d'un code géo.
      */
     public function addAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Appelle le manager pour créer le code
-            $result = $this->geoCodeManager->createGeoCode(
+
+            // 1. Récupérer l'univers_id
+            $univers_id = (int)$_POST['univers_id'];
+            if ($univers_id <= 0) {
+                 $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur : Univers non valide sélectionné.'];
+                 header('Location: index.php?action=create'); // Retour au formulaire
+                 exit();
+            }
+
+            // 2. Récupérer l'univers pour déterminer la zone
+            $univers = $this->universManager->getUniversById($univers_id);
+            if (!$univers) {
+                $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur : Univers non trouvé.'];
+                header('Location: index.php?action=create');
+                exit();
+            }
+            // 3. Utiliser la zone assignée à l'univers
+            $zone = $univers['zone_assignee'];
+
+            // Appelle le manager (avec le bon ordre d'arguments et la bonne zone)
+            $result = $this->geoCodeManager->addGeoCode(
                 $_POST['code_geo'],
                 $_POST['libelle'],
-                (int)$_POST['univers_id'],
-                $_POST['zone'], // La zone est maintenant directement sélectionnée dans le formulaire
-                $_POST['commentaire']
+                $univers_id,
+                $_POST['commentaire'], // Commentaire
+                $zone                  // Zone (dérivée de l'univers)
             );
 
             // Ajoute un message flash en fonction du succès ou de l'échec
@@ -99,8 +118,8 @@ class GeoCodeController extends BaseController {
             $input['code_geo'],
             $input['libelle'],
             (int)$input['univers_id'],
-            $zone, // Utilise la zone de l'univers
-            $input['commentaire'] ?? null // Commentaire optionnel
+            $input['commentaire'] ?? null, // Commentaire optionnel
+	    $zone			   // Zone
         );
 
         // Renvoie le nouveau code créé (ou une erreur) en JSON

@@ -2,9 +2,9 @@
 // On détermine l'action en cours pour la classe "active"
 $current_action = $_GET['action'] ?? 'dashboard';
 
-// On définit les groupes d'actions pour les menus déroulants
-$management_actions = ['listUnivers']; // "listPlans" a été retiré de ce tableau
-$data_actions = ['showImport', 'export'];
+// On définit les groupes d'actions pour les menus déroulants (simplifié)
+$management_actions = ['listUnivers', 'fullHistory']; // Actions de gestion restantes
+$data_actions = ['showImport', 'showExport']; // Actions de données restantes
 ?>
 
 <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top navbar-custom">
@@ -23,10 +23,6 @@ $data_actions = ['showImport', 'export'];
                 <li class="nav-item">
                     <a class="nav-link <?= ($current_action == 'list') ? 'active' : '' ?>" href="index.php?action=list">Liste des codes</a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link <?= ($current_action == 'listPlans') ? 'active' : '' ?>" href="index.php?action=listPlans">Plan du magasin</a>
-                </li>
-
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle <?= in_array($current_action, ['create', 'showBatchCreate']) ? 'active' : '' ?>" href="#" id="addDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Ajouter
@@ -52,11 +48,15 @@ $data_actions = ['showImport', 'export'];
                     <a class="nav-link dropdown-toggle <?= in_array($current_action, $data_actions) ? 'active' : '' ?>" href="#" id="dataDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Données
                     </a>
-		 <ul class="dropdown-menu" aria-labelledby="dataDropdown">
-    			<li><a class="dropdown-item" href="index.php?action=showImport">Importer</a></li>
-    			<li><a class="dropdown-item" href="index.php?action=showExport">Exporter</a></li>
-		 </ul>
+                     <ul class="dropdown-menu" aria-labelledby="dataDropdown">
+                        <li><a class="dropdown-item" href="index.php?action=showImport">Importer</a></li>
+                        <li><a class="dropdown-item" href="index.php?action=showExport">Exporter</a></li>
+                        </ul>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link <?= ($current_action == 'printLabels') ? 'active' : '' ?>" href="index.php?action=printLabels">Imprimer Étiquettes</a>
+                </li>
+
             </ul>
 
             <div class="d-flex align-items-center">
