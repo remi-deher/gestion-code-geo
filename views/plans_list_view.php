@@ -31,7 +31,7 @@
                             </a>
                             <div class="card-body d-flex flex-column">
                                 <h5 class="card-title">
-                                     <a href="index.php?action=viewPlan&id=<?= $plan['id'] ?>" class="text-decoration-none stretched-link">
+                                     <a href="index.php?action=viewPlan&id=<?= $plan['id'] ?>" class="text-decoration-none">
                                         <?= htmlspecialchars($plan['nom']) ?>
                                      </a>
                                 </h5>
