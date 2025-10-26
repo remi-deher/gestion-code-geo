@@ -50,64 +50,103 @@ class PlanController extends BaseController {
      * Traite l'ajout d'un nouveau plan (upload et enregistrement BDD).
      */
     public function handleAddPlanAction() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['nom']) || !isset($_FILES['planFile']) || $_FILES['planFile']['error'] !== UPLOAD_ERR_OK) {
-            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur: Données manquantes ou erreur lors de l\'upload du fichier.'];
+        // Validation minimale commune
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['nom'])) {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur: Le nom du plan est obligatoire.'];
             header('Location: index.php?action=addPlanForm');
             exit();
         }
 
+        $creationMode = $_POST['creation_mode'] ?? 'import';
         $nom = trim($_POST['nom']);
         $description = trim($_POST['description'] ?? '');
-        $zone = empty($_POST['zone']) ? null : $_POST['zone']; // Mettre null si vide
-        $universIds = isset($_POST['univers_ids']) ? array_map('intval', $_POST['univers_ids']) : [];
-        $file = $_FILES['planFile'];
-        $uploadDir = __DIR__ . '/../public/uploads/plans/';
+        $zone = empty($_POST['zone']) ? null : $_POST['zone'];
 
-        // Vérifier à nouveau l'existence et les permissions du dossier d'upload
-        if (!is_dir($uploadDir) || !is_writable($uploadDir)) {
-             error_log("Dossier d'upload non accessible ou non inscriptible : " . $uploadDir);
-             $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur serveur: Impossible d\'écrire dans le dossier d\'upload.'];
+        $planId = false;
+
+        if ($creationMode === 'import') {
+            // --- MODE IMPORT (Logique existante) ---
+            
+            // Vérification de l'upload du fichier
+            if (!isset($_FILES['planFile']) || $_FILES['planFile']['error'] !== UPLOAD_ERR_OK) {
+                $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur: Fichier manquant ou erreur lors de l\'upload.'];
+                header('Location: index.php?action=addPlanForm');
+                exit();
+            }
+
+            $file = $_FILES['planFile'];
+            $uploadDir = __DIR__ . '/../public/uploads/plans/';
+            // Vérifier à nouveau l'existence et les permissions du dossier d'upload
+            if (!is_dir($uploadDir) || !is_writable($uploadDir)) {
+                 $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur serveur: Impossible d\'écrire dans le dossier d\'upload.'];
+                 header('Location: index.php?action=addPlanForm');
+                 exit();
+            }
+
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'application/pdf'];
+            $fileType = mime_content_type($file['tmp_name']);
+
+            if (!in_array($fileType, $allowedTypes)) {
+                $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Type de fichier non autorisé.'];
+                header('Location: index.php?action=addPlanForm');
+                exit();
+            }
+
+            $planType = 'image'; // Défaut
+            if ($fileType === 'image/svg+xml') $planType = 'svg';
+            if ($fileType === 'application/pdf') $planType = 'pdf';
+
+            // Univers pour l'import: utilise univers_ids[]
+            $universIds = isset($_POST['univers_ids']) ? array_map('intval', $_POST['univers_ids']) : [];
+
+            // Générer un nom de fichier unique et déplacer
+            $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $safeFilename = substr(preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($file['name'], PATHINFO_FILENAME)), 0, 100);
+            $uniqueFilename = $safeFilename . '_' . uniqid() . '.' . $extension;
+            $destination = $uploadDir . $uniqueFilename;
+
+            if (move_uploaded_file($file['tmp_name'], $destination)) {
+                 $planId = $this->planManager->addPlan($nom, $uniqueFilename, $planType, $description, $zone, $universIds);
+                if (!$planId) {
+                    unlink($destination); // Supprimer le fichier uploadé si erreur BDD
+                }
+            } else {
+                 $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors du déplacement du fichier uploadé.'];
+                 header('Location: index.php?action=addPlanForm');
+                 exit();
+            }
+
+        } else if ($creationMode === 'draw') {
+            // --- MODE DESSIN "FROM SCRATCH" ---
+            
+            $nomFichier = 'scratch_' . uniqid() . '.svg'; // Nom du fichier SVG pour le plan dessiné
+	    $planType = 'drawing'; // Nouveau type concis pour les plans dessinés
+            $pageFormat = $_POST['page_format'] ?? 'Custom';
+            
+            // Univers pour le dessin: utilise univers_ids_draw[]
+            $universIds = isset($_POST['univers_ids_draw']) ? array_map('intval', $_POST['univers_ids_draw']) : [];
+            
+            // L'initialisation du contenu de drawing_data sera faite par l'éditeur la première fois
+            $drawingData = null; 
+
+            $planId = $this->planManager->addPlan($nom, $nomFichier, $planType, $description, $zone, $universIds, $drawingData, $pageFormat);
+        } else {
+             $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Mode de création invalide.'];
              header('Location: index.php?action=addPlanForm');
              exit();
         }
 
-        $allowedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'application/pdf'];
-        $fileType = mime_content_type($file['tmp_name']);
-
-        if (!in_array($fileType, $allowedTypes)) {
-            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Type de fichier non autorisé.'];
-            header('Location: index.php?action=addPlanForm');
-            exit();
-        }
-
-        // Déterminer le type pour la BDD
-        $planType = 'image'; // Défaut
-        if ($fileType === 'image/svg+xml') $planType = 'svg';
-        if ($fileType === 'application/pdf') $planType = 'pdf';
-
-        // Générer un nom de fichier unique
-        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $safeFilename = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($file['name'], PATHINFO_FILENAME));
-        // Limiter la longueur du nom de base pour éviter les problèmes de système de fichiers
-        $safeFilename = substr($safeFilename, 0, 100);
-        $uniqueFilename = $safeFilename . '_' . uniqid() . '.' . $extension;
-        $destination = $uploadDir . $uniqueFilename;
-
-        if (move_uploaded_file($file['tmp_name'], $destination)) {
-            // Définir les permissions après l'upload (si nécessaire, dépend de la config serveur)
-            // chmod($destination, 0644);
-
-            $planId = $this->planManager->addPlan($nom, $uniqueFilename, $planType, $description, $zone, $universIds);
-            if ($planId) {
-                $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Nouveau plan ajouté avec succès.'];
-                header('Location: index.php?action=listPlans');
+        // Redirection finale
+        if ($planId) {
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Nouveau plan créé avec succès.'];
+            // Rediriger directement vers l'éditeur pour commencer à dessiner si c'est un plan "from scratch"
+            if ($creationMode === 'draw') {
+                 header('Location: index.php?action=viewPlan&id=' . $planId);
             } else {
-                $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de l\'enregistrement du plan en base de données.'];
-                unlink($destination); // Supprimer le fichier uploadé si erreur BDD
-                header('Location: index.php?action=addPlanForm');
+                 header('Location: index.php?action=listPlans');
             }
         } else {
-            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors du déplacement du fichier uploadé. Vérifiez les permissions du dossier.'];
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de l\'enregistrement du plan en base de données.'];
             header('Location: index.php?action=addPlanForm');
         }
         exit();

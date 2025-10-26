@@ -20,12 +20,25 @@ export const sizePresets = {
 export const GEO_TAG_FONT_SIZE = 14; // Pour étiquettes 'image'
 export const GEO_TEXT_FONT_SIZE = 16; // Pour textes 'svg' (sera adapté au zoom)
 
+// Facteur de conversion: 1 mm ≈ 3.7795 pixels @ 96 DPI
+const MM_TO_PIXEL = 3.779527559;
 
-// Dimensions des formats de page en mm (pour les guides)
-// https://www.papersizes.org/
+/**
+ * Convertit une dimension en mm en pixels (arrondi à l'entier).
+ * @param {number} mm - Dimension en millimètres.
+ * @returns {number} Dimension en pixels.
+ */
+const mmToPx = (mm) => Math.round(mm * MM_TO_PIXEL);
+
+
+// Dimensions des formats de page en pixels @ 96 DPI (pour les guides)
 export const PAGE_FORMATS = {
-    'A4-P': { width: 210, height: 297 },
-    'A4-L': { width: 297, height: 210 },
-    'A3-P': { width: 297, height: 420 },
-    'A3-L': { width: 420, height: 297 },
+    // Ajout du format Personnalisé (Custom)
+    'Custom': { width: 0, height: 0, label: 'Personnalisé' }, 
+    
+    // Formats de page existants (conversion en pixels)
+    'A4-P': { width: mmToPx(210), height: mmToPx(297), label: 'A4 Portrait (210x297mm)' },
+    'A4-L': { width: mmToPx(297), height: mmToPx(210), label: 'A4 Paysage (297x210mm)' },
+    'A3-P': { width: mmToPx(297), height: mmToPx(420), label: 'A3 Portrait (297x420mm)' },
+    'A3-L': { width: mmToPx(420), height: mmToPx(297), label: 'A3 Paysage (420x297mm)' },
 };

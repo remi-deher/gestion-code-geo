@@ -100,3 +100,8 @@ CREATE TABLE `geo_positions_history` (
   KEY `geo_code_id_idx` (`geo_code_id`),
   KEY `plan_id_idx` (`plan_id`)
 );
+
+-- MAJ Table
+
+ALTER TABLE plans
+MODIFY COLUMN type ENUM('image', 'pdf', 'svg', 'drawing') NOT NULL DEFAULT 'image';

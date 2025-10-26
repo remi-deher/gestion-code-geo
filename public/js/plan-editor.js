@@ -1,4 +1,5 @@
 // Fichier: public/js/plan-editor.js
+// Fichier principal pour l'éditeur de plan, utilisant des imports dynamiques.
 
 import { showToast, convertPixelsToPercent } from './modules/utils.js';
 
@@ -22,7 +23,6 @@ async function initializeEditor() {
     try {
         // --- 1. Importer et initialiser CanvasManager ---
         console.log("Chargement du CanvasManager...");
-        // !!! LIGNE CAUSANT L'ERREUR !!!
         const { default: CanvasManager } = await import('./modules/canvasManager.js');
         console.log("Initialisation du Canvas...");
         const canvasManager = new CanvasManager(planCanvasElement, canvasWrapper);
@@ -33,6 +33,8 @@ async function initializeEditor() {
         const { loadPlanBackgroundAndObjects } = await import('./modules/planLoader.js');
         const { createGeoCodeObject, renderPlacedGeoCodes } = await import('./modules/geoCodeRenderer.js');
         const { getCurrentPlacementData, cancelPlacementMode } = await import('./ui/sidebar.js');
+        // AJOUT DE L'IMPORT MANQUANT
+        const { updatePageGuide } = await import('./modules/guideManager.js');
 
         // --- 3. Charger le plan ---
         console.log("Chargement des données du plan...");
@@ -42,6 +44,11 @@ async function initializeEditor() {
                 console.log(`Chargement de ${window.planData.placedGeoCodes.length} codes géo placés...`);
                 renderPlacedGeoCodes(canvas, window.planData.placedGeoCodes, window.planData.universColors || {});
             }
+            
+            // CRÉATION DU GUIDE INITIAL
+            const initialFormat = window.planData.currentPlan.page_format || 'Custom';
+            updatePageGuide(initialFormat, canvas);
+            
         } else {
             console.error("Données du plan (window.planData.currentPlan) non trouvées.");
             throw new Error("Impossible de charger les informations du plan.");
@@ -74,18 +81,17 @@ async function initializeEditor() {
     }
 }
 
+// ... (setupGeoCodePlacement, setupPositionSaving, saveGeoCodePosition, removeGeoCodePosition restent inchangés) ...
+
 /**
  * Configure les écouteurs pour placer un nouveau code géo (clic ou drop).
- * @param {fabric.Canvas} canvas
- * @param {function} rendererFn - Fonction pour créer l'objet Fabric (createGeoCodeObject).
- * @param {function} getterFn - Fonction pour obtenir les données du code à placer (getCurrentPlacementData).
- * @param {function} cancelFn - Fonction pour annuler le mode placement (cancelPlacementMode).
+ * ...
  */
 function setupGeoCodePlacement(canvas, rendererFn, getterFn, cancelFn) {
-    // Placement par Clic
+    // Code de la fonction (inchangé)
     canvas.on('mouse:down', (options) => {
-        const placementData = getterFn(); // Récupère les données depuis sidebar.js
-        if (placementData && !options.target) { // Si en mode placement et clic sur zone vide
+        const placementData = getterFn(); 
+        if (placementData && !options.target) { 
             const pointer = canvas.getPointer(options.e);
             console.log("Placement (Clic):", placementData, "à", pointer);
 
@@ -98,7 +104,6 @@ function setupGeoCodePlacement(canvas, rendererFn, getterFn, cancelFn) {
         }
     });
 
-    // --- Gestion du Drag and Drop ---
     const canvasWrapper = canvas.wrapperEl;
     canvasWrapper.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -129,7 +134,7 @@ function setupGeoCodePlacement(canvas, rendererFn, getterFn, cancelFn) {
                 canvas.setActiveObject(geoCodeObject);
                 canvas.requestRenderAll();
                 saveGeoCodePosition(geoCodeObject);
-                cancelFn(canvas); // Annuler mode clic si actif
+                cancelFn(canvas); 
             } else {
                  console.warn("Drop: Données invalides reçues.", dataString);
                  showToast("Impossible de placer cet élément (données invalides).", "warning");
@@ -144,30 +149,28 @@ function setupGeoCodePlacement(canvas, rendererFn, getterFn, cancelFn) {
 
 /**
  * Configure les écouteurs pour sauvegarder ou supprimer la position d'un code géo.
- * @param {fabric.Canvas} canvas
+ * ...
  */
 function setupPositionSaving(canvas) {
+    // Code de la fonction (inchangé)
     canvas.on('object:modified', (e) => {
         if (e.target?.customData?.type === 'geoCode') {
             console.log("Position Saving: Objet GeoCode modifié:", e.target.customData.code);
             saveGeoCodePosition(e.target);
         }
-        // TODO: Gérer la sauvegarde des autres objets (marquer comme "modifié")
-        // document.getElementById('save-drawing-btn')?.classList.add('needs-saving');
     });
     canvas.on('object:removed', (e) => {
          if (e.target?.customData?.type === 'geoCode') {
             console.log("Position Saving: Objet GeoCode supprimé:", e.target.customData.code);
             removeGeoCodePosition(e.target);
         }
-        // TODO: Gérer la sauvegarde après suppression d'autres objets
     });
     console.log("Position Saving: Écouteurs Modifié/Supprimé configurés.");
 }
 
 /**
  * Envoie la position d'un objet GeoCode à l'API pour sauvegarde (ajout ou mise à jour).
- * @param {fabric.Object} geoCodeObject - L'objet Fabric représentant le code géo.
+ * ...
  */
 async function saveGeoCodePosition(geoCodeObject) {
     if (!geoCodeObject?.customData?.type === 'geoCode') return;
@@ -195,7 +198,6 @@ async function saveGeoCodePosition(geoCodeObject) {
     const payload = {
         plan_id: planId, geo_code_id: geoCodeId,
         pos_x: posX.toFixed(4), pos_y: posY.toFixed(4),
-        // width: ..., height: ..., properties: ... // TODO: Ajouter si besoin
     };
 
     console.log(`Sauvegarde Position: Envoi pour ${geoCodeObject.customData.code}`, payload);
@@ -220,7 +222,7 @@ async function saveGeoCodePosition(geoCodeObject) {
 
 /**
  * Appelle l'API pour supprimer la position d'un code géo de ce plan.
- * @param {fabric.Object} geoCodeObject - L'objet Fabric qui vient d'être supprimé du canvas.
+ * ...
  */
 async function removeGeoCodePosition(geoCodeObject) {
      if (!geoCodeObject?.customData?.type === 'geoCode') return;

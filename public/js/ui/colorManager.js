@@ -1,27 +1,28 @@
 // Fichier: public/js/ui/colorManager.js
 /**
- * Gère les sélecteurs de couleur pour le remplissage (fill) et la bordure (stroke)
+ * Gère les sélecteurs de couleur pour le fond du canvas, le remplissage (fill) et la bordure (stroke)
  * et applique les couleurs à l'objet sélectionné ou aux futurs objets.
  */
 
 let currentFillColor = '#ffffff'; // Blanc par défaut
 let currentStrokeColor = '#000000'; // Noir par défaut
 let currentStrokeWidth = 1; // Épaisseur par défaut
+let canvasBackgroundColor = '#ffffff'; // NOUVEAU: Couleur de fond du canvas par défaut
 
 let fillColorPicker = null;
 let strokeColorPicker = null;
-let strokeWidthSlider = null; // Optionnel : slider pour épaisseur
+let strokeWidthSlider = null;
+let bgColorPicker = null; // Référence au picker de couleur de fond
 let canvasInstance = null;
 
-// *** DÉPLACER LA FONCTION ICI ***
 /**
  * Réinitialise les color pickers aux valeurs par défaut stockées.
  */
 function resetPickersToDefaults() {
-    console.log("ColorManager: Réinitialisation des pickers aux valeurs par défaut."); // Log pour vérifier l'appel
+    console.log("ColorManager: Réinitialisation des pickers aux valeurs par défaut.");
     if (fillColorPicker) fillColorPicker.value = currentFillColor;
     if (strokeColorPicker) strokeColorPicker.value = currentStrokeColor;
-    // TODO: Réinitialiser aussi strokeWidth si implémenté
+    if (bgColorPicker) bgColorPicker.value = canvasBackgroundColor;
 }
 
 /**
@@ -32,10 +33,37 @@ function resetPickersToDefaults() {
 export function setupColorControls(toolbarElement, canvas) {
     canvasInstance = canvas;
 
+    // Récupérer la couleur de fond actuelle du canvas
+    const currentBg = canvas.backgroundColor;
+    if (typeof currentBg === 'string' && currentBg && currentBg !== 'transparent') {
+        canvasBackgroundColor = currentBg;
+    } else {
+         // Définir le fond du canvas sur la valeur par défaut au chargement (si aucun fond n'est défini/transparent)
+         canvas.setBackgroundColor(canvasBackgroundColor, canvas.renderAll.bind(canvas));
+    }
+
+
     // --- Créer les éléments UI ---
-    // (Le code pour créer fillColorPicker, strokeColorPicker, etc. reste ici et est inchangé)
     const controlsContainer = document.createElement('div');
-    controlsContainer.className = 'd-inline-flex align-items-center gap-2 border-start ps-2 ms-1'; // Styles Bootstrap
+    controlsContainer.className = 'd-inline-flex align-items-center gap-2 border-start ps-2 ms-1';
+
+    // NOUVEAU: Couleur de Fond (Canvas Background)
+    const bgLabel = document.createElement('label');
+    bgLabel.htmlFor = 'bg-color-picker';
+    bgLabel.title = 'Couleur de fond du plan';
+    bgLabel.className = 'form-label mb-0 small';
+    bgLabel.innerHTML = '<i class="bi bi-box-fill"></i>';
+    bgColorPicker = document.createElement('input');
+    bgColorPicker.type = 'color';
+    bgColorPicker.id = 'bg-color-picker';
+    bgColorPicker.className = 'form-control form-control-color form-control-sm';
+    bgColorPicker.value = canvasBackgroundColor;
+    bgColorPicker.title = 'Couleur de fond du plan';
+    
+    controlsContainer.appendChild(bgLabel);
+    controlsContainer.appendChild(bgColorPicker);
+
+    // Remplissage (Fill)
     const fillLabel = document.createElement('label');
     fillLabel.htmlFor = 'fill-color-picker';
     fillLabel.title = 'Couleur de remplissage';
@@ -47,6 +75,8 @@ export function setupColorControls(toolbarElement, canvas) {
     fillColorPicker.className = 'form-control form-control-color form-control-sm';
     fillColorPicker.value = currentFillColor;
     fillColorPicker.title = 'Couleur de remplissage';
+
+    // Bordure (Stroke)
     const strokeLabel = document.createElement('label');
     strokeLabel.htmlFor = 'stroke-color-picker';
     strokeLabel.title = 'Couleur de bordure';
@@ -58,14 +88,22 @@ export function setupColorControls(toolbarElement, canvas) {
     strokeColorPicker.className = 'form-control form-control-color form-control-sm';
     strokeColorPicker.value = currentStrokeColor;
     strokeColorPicker.title = 'Couleur de bordure';
+
     controlsContainer.appendChild(fillLabel);
     controlsContainer.appendChild(fillColorPicker);
     controlsContainer.appendChild(strokeLabel);
     controlsContainer.appendChild(strokeColorPicker);
     toolbarElement.appendChild(controlsContainer);
 
-
     // --- Écouteurs d'événements ---
+
+    // Changement de couleur de fond du canvas
+    bgColorPicker.addEventListener('input', (e) => {
+        canvasBackgroundColor = e.target.value;
+        // Utilisez setBackgroundColor de Fabric
+        canvas.setBackgroundColor(canvasBackgroundColor, canvas.renderAll.bind(canvas));
+        // Idéalement, marquer le plan comme modifié
+    });
 
     // Changement de couleur de remplissage
     fillColorPicker.addEventListener('input', (e) => {
@@ -82,8 +120,7 @@ export function setupColorControls(toolbarElement, canvas) {
     // Mettre à jour les pickers quand la sélection change
     canvas.on('selection:created', updatePickersFromSelection);
     canvas.on('selection:updated', updatePickersFromSelection);
-    // L'écouteur ici fonctionnera car resetPickersToDefaults est maintenant dans la portée du module
-    canvas.on('selection:cleared', resetPickersToDefaults);
+    canvas.on('selection:cleared', resetPickersToDefaults); 
 
     console.log("ColorManager: Contrôles initialisés.");
 }
@@ -100,7 +137,7 @@ function applyColorToSelection(property, colorValue) {
     if (activeObject) {
         if (activeObject.type === 'activeSelection') {
             activeObject.forEachObject(obj => {
-                if (property === 'fill' && (obj.type === 'line' || (obj.type === 'path' && !obj.fill))) return; // Ne pas remplir lignes/chemins ouverts
+                if (property === 'fill' && (obj.type === 'line' || (obj.type === 'path' && !obj.fill))) return;
                 obj.set(property, colorValue);
             });
         } else {
@@ -130,12 +167,8 @@ function updatePickersFromSelection(event) {
     if (typeof fillValue === 'string' && fillValue) {
         try {
             const colorObj = new fabric.Color(fillValue);
-            fillColorForPicker = '#' + colorObj.toHex(); // Assurer le format #RRGGBB
-        } catch (e) {
-             // Ignorer les erreurs de conversion (ex: 'none'), garder la couleur par défaut
-        }
-    } else if (fillValue) {
-        // Remplissage non-string (Gradient/Pattern), utiliser la couleur par défaut
+            fillColorForPicker = '#' + colorObj.toHex();
+        } catch (e) { /* Ignorer les erreurs de conversion */ }
     }
     fillColorPicker.value = fillColorForPicker;
 
@@ -145,20 +178,10 @@ function updatePickersFromSelection(event) {
          try {
             const colorObj = new fabric.Color(strokeValue);
             strokeColorForPicker = '#' + colorObj.toHex();
-        } catch (e) {
-            // Ignorer
-        }
-    } else if (strokeValue) {
-        // Bordure non-string, utiliser la couleur par défaut
+        } catch (e) { /* Ignorer les erreurs de conversion */ }
     }
     strokeColorPicker.value = strokeColorForPicker;
-
-    // TODO: Mettre à jour strokeWidth
 }
-
-
-// La fonction resetPickersToDefaults est maintenant définie plus haut, en dehors de setupColorControls
-
 
 /**
  * Retourne les couleurs et épaisseurs actuelles (pour les outils de dessin).

@@ -23,18 +23,16 @@ $title = $title ?? 'Impression de Plan';
             width: 100vw; 
             height: 100vh; 
             position: relative; 
-            display: flex; /* Utiliser flexbox pour centrer le spinner si besoin */
+            display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
         }
         #print-canvas { 
             border: 1px solid #ccc;
-            /* Cacher l'élément canvas initialement si non chargé */
             display: none; 
         }
         
-        /* Cacher l'indicateur de chargement après que le JS ait masqué l'enveloppe */
         .loading-message {
              text-align: center;
              padding: 2rem;
@@ -42,6 +40,8 @@ $title = $title ?? 'Impression de Plan';
 
         /* Cacher tout ce qui n'est pas le canvas pour l'impression */
         @media print {
+            /* Le canvas Fabric est généralement rendu avec des dimensions fixes. 
+               C'est au JS de le dimensionner correctement, mais ce CSS s'assure qu'il est visible. */
             body * { visibility: hidden; }
             #print-area, #print-area * { visibility: visible; }
         }
@@ -62,24 +62,63 @@ $title = $title ?? 'Impression de Plan';
             currentPlan: <?= json_encode($plan ?? null) ?>,
             placedGeoCodes: <?= json_encode($positions ?? []) ?>,
             universColors: [],
-            // Ajoutez d'autres données ici si nécessaire
         };
     </script>
     
     <script type="module">
-        import { loadPlanBackgroundAndObjects } from './js/modules/planLoader.js'; // Assurez-vous que le chemin est correct
+        import { loadPlanBackgroundAndObjects } from './js/modules/planLoader.js';
         import { renderPlacedGeoCodes } from './js/modules/geoCodeRenderer.js';
+
+        /**
+         * Calcule et applique le zoom pour que le plan tienne sur une seule page A4.
+         * @param {fabric.Canvas} canvas
+         */
+        function scaleToFitPage(canvas) {
+            if (!canvas) return;
+
+            // Dimensions maximales du plan dans la zone imprimable (en pixels)
+            // Estimation prudente pour A4 Portrait (8.5in * 96 DPI = 816px) moins les marges.
+            const MAX_WIDTH_PIXELS = 750; 
+            const MAX_HEIGHT_PIXELS = 1050; 
+
+            const canvasWidth = canvas.getWidth();
+            const canvasHeight = canvas.getHeight();
+
+            // S'assurer que le plan est plus grand que l'aire d'impression avant de zoomer
+            if (canvasWidth <= MAX_WIDTH_PIXELS && canvasHeight <= MAX_HEIGHT_PIXELS) {
+                console.log("Print: Plan plus petit que l'aire d'impression, pas de mise à l'échelle.");
+                return;
+            }
+
+            // Calculer le ratio d'ajustement (Width / Max_W) et (Height / Max_H)
+            const ratioX = MAX_WIDTH_PIXELS / canvasWidth;
+            const ratioY = MAX_HEIGHT_PIXELS / canvasHeight;
+
+            // Utiliser le plus petit des deux ratios pour garantir que le plan entier rentre
+            const zoom = Math.min(ratioX, ratioY) * 0.98; // 98% pour une petite marge de sécurité
+            
+            // Appliquer le zoom au canvas
+            canvas.setZoom(zoom);
+
+            // Redimensionner le canvas HTML (l'élément DOM) pour qu'il ne cause pas de scrollbar
+            // Fabric gère la mise à l'échelle interne (le rendu) via setZoom, mais nous devons 
+            // ajuster les propriétés width/height de l'élément Canvas lui-même pour l'impression.
+            canvas.setWidth(canvasWidth * zoom);
+            canvas.setHeight(canvasHeight * zoom);
+            canvas.calcOffset(); 
+            
+            console.log(`Print: Canvas mis à l'échelle à ${canvas.getWidth().toFixed(0)}x${canvas.getHeight().toFixed(0)} (Zoom: ${zoom.toFixed(2)})`);
+        }
+
 
         // Fonction asynchrone auto-exécutable (IIFE)
         (async () => {
             const printCanvasElement = document.getElementById('print-canvas');
-            const printArea = document.getElementById('print-area');
-            const loadingMessage = document.getElementById('loading-message'); // Sélectionner le message
+            const loadingMessage = document.getElementById('loading-message');
 
             if (!window.planData.currentPlan || !printCanvasElement) {
-                 console.error("Impossible d'initialiser l'impression: Données manquantes.");
-                 if (printArea) {
-                      printArea.innerHTML = '<div class="alert alert-danger m-3">Erreur : Données de plan manquantes.</div>';
+                 if (loadingMessage) {
+                      loadingMessage.innerHTML = '<div class="alert alert-danger m-3">Erreur : Données de plan manquantes.</div>';
                  }
                  return;
             }
@@ -98,17 +137,19 @@ $title = $title ?? 'Impression de Plan';
                 if (window.planData.placedGeoCodes && window.planData.placedGeoCodes.length > 0) {
                      renderPlacedGeoCodes(canvas, window.planData.placedGeoCodes, window.planData.universColors || {});
                 }
+                
+                // 3. Mise à l'échelle du plan pour la page d'impression
+                scaleToFitPage(canvas); // Appel de la nouvelle fonction
 
-                // 3. Rendu final
+                // 4. Rendu final et préparation de l'interface
                 canvas.renderAll();
                 
-                // --- MASQUER LE MESSAGE DE CHARGEMENT ET AFFICHER LE CANVAS ---
                 if (loadingMessage) {
                      loadingMessage.style.display = 'none';
                 }
                 printCanvasElement.style.display = 'block'; // Afficher le canvas
                 
-                // 4. Lancement de l'impression
+                // 5. Lancement de l'impression
                 setTimeout(() => {
                     console.log("Préparation terminée. Impression lancée.");
                     window.print();

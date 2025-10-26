@@ -14,6 +14,8 @@ import { setupClipboard } from '../modules/clipboardManager.js'; // Note: Dépla
 import { setupTransformControls } from '../modules/transformManager.js'; // Note: Déplacé dans modules? À vérifier
 import { setupNavigation } from '../modules/navigationManager.js'; // Import pour le bouton Pan
 import { setupSnapping } from '../modules/snapManager.js'; // Import pour le bouton Snap
+import { updatePageGuide } from '../modules/guideManager.js'; // Import pour le guide
+import { PAGE_FORMATS } from '../modules/config.js'; // Import pour la taille du guide
 
 // État de l'outil actif
 let activeTool = null;
@@ -75,8 +77,37 @@ export function setupToolbar(canvas) {
     // --- Séparateur ---
     toolbar.appendChild(createSeparator());
 
-    // --- Bouton Supprimer (géré par clipboardManager maintenant) ---
-    // Note: Le bouton delete est ajouté par setupClipboard
+    // --- Contrôle du Guide de Page ---
+    const guideControlsContainer = document.createElement('div');
+    guideControlsContainer.className = 'd-inline-flex align-items-center gap-1 border-start ps-2 ms-1';
+
+    const guideLabel = document.createElement('label');
+    guideLabel.htmlFor = 'page-format-select';
+    guideLabel.className = 'form-label mb-0 small';
+    guideLabel.textContent = 'Guide:';
+
+    const select = document.createElement('select');
+    select.id = 'page-format-select';
+    select.className = 'form-select form-select-sm';
+    select.title = 'Sélectionner le format du guide de page';
+
+    // Remplir les options
+    for (const key in PAGE_FORMATS) {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = PAGE_FORMATS[key].label || key;
+        select.appendChild(option);
+    }
+
+    // Mettre à jour le guide au changement
+    select.addEventListener('change', (e) => {
+        updatePageGuide(e.target.value, canvas);
+        // TODO: Sauvegarder la valeur dans le plan si c'est un plan 'drawing'
+    });
+
+    guideControlsContainer.appendChild(guideLabel);
+    guideControlsContainer.appendChild(select);
+    toolbar.appendChild(guideControlsContainer);
 
     // --- Initialiser les modules UI qui ajoutent leurs propres contrôles ---
     setupColorControls(toolbar, canvas);
