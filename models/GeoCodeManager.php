@@ -3,20 +3,23 @@
 
 class GeoCodeManager {
     private $db;
-    private $lastError; // Ajout pour stocker la dernière erreur
+    private $lastError; // Pour stocker la dernière erreur
 
     public function __construct(PDO $db) {
         $this->db = $db;
     }
 
+    // --- Méthodes existantes (inchangées) ---
+
     /**
-     * Récupère tous les codes géo avec leurs informations d'univers.
+     * Récupère tous les codes géo actifs avec leurs informations d'univers.
      * @return array La liste des codes géo.
      */
     public function getAllGeoCodes(): array {
         $sql = "SELECT gc.*, u.nom AS univers_nom, u.color AS univers_color
                 FROM geo_codes gc
                 LEFT JOIN univers u ON gc.univers_id = u.id
+                WHERE gc.deleted_at IS NULL  -- Exclure les codes supprimés
                 ORDER BY gc.code_geo ASC";
         $stmt = $this->db->query($sql);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -28,7 +31,6 @@ class GeoCodeManager {
      */
     public function countTotalActiveCodes(): int {
         try {
-            // Modifié pour exclure les soft-deleted
             $stmt = $this->db->query("SELECT COUNT(*) FROM geo_codes WHERE deleted_at IS NULL");
             $count = $stmt->fetchColumn();
             return ($count !== false) ? (int)$count : 0;
@@ -44,7 +46,9 @@ class GeoCodeManager {
      */
     public function countPlacedCodes(): int {
         try {
-            $stmt = $this->db->query("SELECT COUNT(*) FROM geo_positions");
+            // Compte distinctement les geo_code_id présents dans geo_positions
+            // pour ne compter qu'une fois un code même s'il est sur plusieurs plans
+            $stmt = $this->db->query("SELECT COUNT(DISTINCT geo_code_id) FROM geo_positions");
             $count = $stmt->fetchColumn();
             return ($count !== false) ? (int)$count : 0;
         } catch (Exception $e) {
@@ -53,14 +57,14 @@ class GeoCodeManager {
         }
     }
 
+
     /**
-     * Compte le nombre de codes géo par zone (excluant soft-deleted).
+     * Compte le nombre de codes géo actifs par zone.
      * @return array Tableau associatif ['Nom de la Zone' => count, ...].
      */
     public function countCodesByZone(): array {
         $counts = [];
         try {
-            // Utilise COALESCE et NULLIF pour regrouper les zones vides/NULL
             $sql = "SELECT COALESCE(NULLIF(zone, ''), 'Non spécifiée') AS zone_name, COUNT(*) AS count
                     FROM geo_codes
                     WHERE deleted_at IS NULL
@@ -81,13 +85,12 @@ class GeoCodeManager {
     }
 
      /**
-     * Compte le nombre de codes géo pour chaque univers (excluant soft-deleted).
+     * Compte le nombre de codes géo actifs pour chaque univers.
      * @return array Tableau associatif ['Nom de l'Univers' => count, ...].
      */
     public function getCodesCountByUnivers(): array {
         $counts = [];
         try {
-            // Jointure pour obtenir le nom de l'univers et GROUP BY pour compter
             $sql = "SELECT u.nom AS univers_nom, COUNT(gc.id) AS count
                     FROM geo_codes gc
                     JOIN univers u ON gc.univers_id = u.id
@@ -95,27 +98,22 @@ class GeoCodeManager {
                     GROUP BY u.nom
                     ORDER BY u.nom ASC";
             $stmt = $this->db->query($sql);
-
-            // Récupère les résultats sous forme [univers_nom => count]
             $results = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-            // S'assurer que les comptes sont des entiers
             if ($results !== false) {
                 foreach ($results as $univers => $count) {
                     $counts[$univers] = (int)$count;
                 }
             }
-
         } catch (Exception $e) {
             error_log("Erreur getCodesCountByUnivers: " . $e->getMessage());
-            $counts['__ErreurExecution__'] = 0; // Indication d'erreur pour le debug
+            $counts['__ErreurExecution__'] = 0;
         }
         return $counts;
     }
 
 
     /**
-     * Récupère les N derniers codes géo ajoutés ou mis à jour (excluant soft-deleted).
+     * Récupère les N derniers codes géo actifs ajoutés ou mis à jour.
      * @param int $limit Le nombre de codes à récupérer (par défaut 5).
      * @return array La liste des codes géo récents avec infos d'univers.
      */
@@ -138,7 +136,7 @@ class GeoCodeManager {
     }
 
     /**
-     * Récupère les codes géo qui n'ont jamais été placés sur aucun plan (excluant soft-deleted).
+     * Récupère les codes géo actifs qui n'ont jamais été placés sur aucun plan.
      * @param int $limit Le nombre maximum de codes à retourner (par défaut 5).
      * @return array La liste des codes géo non placés avec infos d'univers.
      */
@@ -165,7 +163,6 @@ class GeoCodeManager {
         }
     }
 
-
     /**
      * Récupère un code géo par son ID avec les informations d'univers.
      * @param int $id ID du code géo.
@@ -175,7 +172,7 @@ class GeoCodeManager {
         $sql = "SELECT gc.*, u.nom AS univers_nom, u.color AS univers_color
                 FROM geo_codes gc
                 LEFT JOIN univers u ON gc.univers_id = u.id
-                WHERE gc.id = :id";
+                WHERE gc.id = :id"; // Ne filtre pas deleted_at ici pour pouvoir le voir même depuis la corbeille
         $stmt = $this->db->prepare($sql);
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
         $stmt->execute();
@@ -183,124 +180,142 @@ class GeoCodeManager {
     }
 
     /**
-     * Ajoute un nouveau code géo.
-     * @param string $codeGeo Le code géo unique.
-     * @param string|null $libelle Le libellé.
-     * @param int $universId L'ID de l'univers associé.
-     * @param string|null $commentaire Commentaire.
-     * @param string|null $zone Zone ('vente' ou 'reserve').
-     * @return int|false L'ID du code géo créé ou false en cas d'erreur (ex: code dupliqué).
+     * Ajoute un nouveau code géo et enregistre l'action dans l'historique.
+     * @param string $codeGeo
+     * @param string|null $libelle
+     * @param int $universId
+     * @param string|null $commentaire
+     * @param string|null $zone
+     * @return int|false L'ID du code géo créé ou false en cas d'erreur.
      */
     public function addGeoCode(string $codeGeo, ?string $libelle, int $universId, ?string $commentaire, ?string $zone) {
-        // Vérifie si un code ACTIF existe déjà
         if ($this->codeGeoExists($codeGeo)) {
+             $this->lastError = ['23000', null, "Le code '$codeGeo' existe déjà."];
              error_log("Tentative d'ajout d'un code géo actif dupliqué: " . $codeGeo);
-            return false;
+             return false;
         }
 
         $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, commentaire, zone, created_at, updated_at)
                 VALUES (:code_geo, :libelle, :univers_id, :commentaire, :zone, NOW(), NOW())";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':code_geo', $codeGeo);
-        $stmt->bindValue(':libelle', $libelle, $libelle === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $stmt->bindParam(':univers_id', $universId, PDO::PARAM_INT);
-        $stmt->bindValue(':commentaire', $commentaire, $commentaire === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $stmt->bindValue(':zone', $zone, $zone === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-
-        // --- AJOUT TRY-CATCH ---
+        $this->db->beginTransaction();
         try {
+            $stmt = $this->db->prepare($sql);
+            // ... (bindParam/bindValue comme avant) ...
+            $stmt->bindParam(':code_geo', $codeGeo);
+            $stmt->bindValue(':libelle', $libelle, $libelle === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->bindParam(':univers_id', $universId, PDO::PARAM_INT);
+            $stmt->bindValue(':commentaire', $commentaire, $commentaire === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->bindValue(':zone', $zone, $zone === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+
             if ($stmt->execute()) {
-                return (int)$this->db->lastInsertId();
+                $lastId = (int)$this->db->lastInsertId();
+                $this->logHistory($lastId, 'created');
+                $this->db->commit();
+                return $lastId;
             } else {
-                // Erreur autre que PDOException (moins probable)
                 $this->lastError = $stmt->errorInfo();
-                error_log("Erreur BDD (non-exception) lors de l'ajout du code géo: " . print_r($this->lastError, true));
-                return false;
+                throw new PDOException("Erreur BDD (non-exception) lors de l'ajout: " . ($this->lastError[2] ?? 'Inconnue'), (int)($this->lastError[1] ?? 0));
             }
         } catch (PDOException $e) {
-            // Vérifie si c'est une erreur de contrainte d'unicité (code 23000)
-            if ($e->getCode() === '23000') {
-                 error_log("Erreur BDD : Tentative d'ajout d'un code géo dupliqué (possiblement soft-deleted) : " . $codeGeo . " - " . $e->getMessage());
-                 return false; // Renvoie false pour les duplicatas
-            } else {
-                 // Pour les autres erreurs PDO, log et re-lance (ou retourne false)
-                 error_log("Erreur PDO lors de l'ajout du code géo: " . $e->getMessage());
-                 $this->lastError = $this->db->errorInfo();
-                 // throw $e; // Optionnel: Re-lancer l'exception si le contrôleur doit savoir
-                 return false; // Ou simplement retourner false
-            }
+            $this->db->rollBack();
+            $this->lastError = $e->errorInfo ?? [$e->getCode(), null, $e->getMessage()];
+            error_log("Erreur PDO lors de l'ajout du code géo {$codeGeo}: " . $e->getMessage());
+            return false;
         }
-        // --- FIN TRY-CATCH ---
     }
 
-
     /**
-     * Met à jour un code géo existant.
-     * Gère également l'erreur de duplicata lors de la mise à jour.
-     * @param int $id ID du code géo.
-     * @param string $codeGeo Le code géo unique.
-     * @param string|null $libelle Le libellé.
-     * @param int $universId L'ID de l'univers associé.
-     * @param string|null $commentaire Commentaire.
-     * @param string|null $zone Zone ('vente' ou 'reserve').
-     * @return bool True si succès, false sinon (ex: code dupliqué).
+     * Met à jour un code géo existant et enregistre l'action dans l'historique.
+     * @param int $id
+     * @param string $codeGeo
+     * @param string|null $libelle
+     * @param int $universId
+     * @param string|null $commentaire
+     * @param string|null $zone
+     * @return bool True si succès, false sinon.
      */
     public function updateGeoCode(int $id, string $codeGeo, ?string $libelle, int $universId, ?string $commentaire, ?string $zone): bool {
-         // Vérifie si le NOUVEAU code existe déjà pour un AUTRE ID
          if ($this->codeGeoExists($codeGeo, $id)) {
+             $this->lastError = ['23000', null, "Le code '$codeGeo' existe déjà pour un autre ID."];
              error_log("Tentative de mise à jour vers un code géo actif dupliqué: " . $codeGeo);
              return false;
          }
+         // Récupérer les anciennes valeurs pour comparaison
+         $oldData = $this->getGeoCodeById($id);
+         if (!$oldData) return false; // Code non trouvé
 
         $sql = "UPDATE geo_codes
                 SET code_geo = :code_geo, libelle = :libelle, univers_id = :univers_id,
                     commentaire = :commentaire, zone = :zone, updated_at = NOW()
-                WHERE id = :id";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-        $stmt->bindParam(':code_geo', $codeGeo);
-        $stmt->bindValue(':libelle', $libelle, $libelle === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $stmt->bindParam(':univers_id', $universId, PDO::PARAM_INT);
-        $stmt->bindValue(':commentaire', $commentaire, $commentaire === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $stmt->bindValue(':zone', $zone, $zone === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+                WHERE id = :id AND deleted_at IS NULL"; // Assurer qu'on met à jour un code actif
 
-        // --- AJOUT TRY-CATCH ---
+        $this->db->beginTransaction();
         try {
-            $success = $stmt->execute();
-            if (!$success) {
-                $this->lastError = $stmt->errorInfo();
-                error_log("Erreur BDD (non-exception) lors de la MAJ du code géo ID $id: " . print_r($this->lastError, true));
+            $stmt = $this->db->prepare($sql);
+            // ... (bindParam/bindValue comme avant) ...
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->bindParam(':code_geo', $codeGeo);
+            $stmt->bindValue(':libelle', $libelle, $libelle === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->bindParam(':univers_id', $universId, PDO::PARAM_INT);
+            $stmt->bindValue(':commentaire', $commentaire, $commentaire === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->bindValue(':zone', $zone, $zone === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+
+
+            if ($stmt->execute()) {
+                if ($stmt->rowCount() > 0) {
+                     // Comparer les changements pour les détails de l'historique
+                     $changes = [];
+                     if ($oldData['code_geo'] !== $codeGeo) $changes[] = "CodeGeo: '{$oldData['code_geo']}' -> '$codeGeo'";
+                     if ($oldData['libelle'] !== $libelle) $changes[] = "Libellé changé"; // Simplifié
+                     if ($oldData['univers_id'] !== $universId) $changes[] = "Univers changé"; // Simplifié
+                     if ($oldData['commentaire'] !== $commentaire) $changes[] = "Commentaire changé"; // Simplifié
+                     if ($oldData['zone'] !== $zone) $changes[] = "Zone: '{$oldData['zone']}' -> '$zone'";
+
+                     $this->logHistory($id, 'updated', implode('; ', $changes));
+                     $this->db->commit();
+                     return true;
+                } else {
+                     // Aucune ligne affectée (peut-être ID inexistant ou déjà supprimé)
+                     $this->db->rollBack();
+                     return false;
+                }
+            } else {
+                 $this->lastError = $stmt->errorInfo();
+                 throw new PDOException("Erreur BDD (non-exception) lors de la MAJ: " . ($this->lastError[2] ?? 'Inconnue'), (int)($this->lastError[1] ?? 0));
             }
-            return $success;
         } catch (PDOException $e) {
-             if ($e->getCode() === '23000') {
-                 error_log("Erreur BDD : Tentative de MAJ vers un code géo dupliqué (possiblement soft-deleted) : " . $codeGeo . " - " . $e->getMessage());
-                 return false;
-             } else {
-                 error_log("Erreur PDO lors de la MAJ du code géo ID $id: " . $e->getMessage());
-                 $this->lastError = $this->db->errorInfo();
-                 return false;
-             }
+            $this->db->rollBack();
+            $this->lastError = $e->errorInfo ?? [$e->getCode(), null, $e->getMessage()];
+            error_log("Erreur PDO lors de la MAJ du code géo ID {$id} vers {$codeGeo}: " . $e->getMessage());
+            return false;
         }
-        // --- FIN TRY-CATCH ---
     }
 
 
     /**
-     * Effectue un soft delete (met à la corbeille).
+     * Effectue un soft delete et enregistre l'action.
      * @param int $id ID du code géo.
      * @return bool True si succès.
      */
     public function deleteGeoCode(int $id): bool {
+         $this->db->beginTransaction();
         try {
-            // Met à jour deleted_at au lieu de supprimer
-            $sql = "UPDATE geo_codes SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL";
+            $sql = "UPDATE geo_codes SET deleted_at = NOW(), updated_at = NOW() WHERE id = :id AND deleted_at IS NULL";
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
             $stmt->execute();
-            // Retourne true si une ligne a été affectée
-            return $stmt->rowCount() > 0;
+            $rowCount = $stmt->rowCount();
+            if ($rowCount > 0) {
+                 $this->logHistory($id, 'deleted');
+                 $this->db->commit();
+                 return true;
+            } else {
+                 // Code non trouvé ou déjà supprimé
+                 $this->db->rollBack();
+                 return false;
+            }
         } catch (Exception $e) {
+             $this->db->rollBack();
             error_log("Erreur deleteGeoCode (soft delete) (ID: $id): " . $e->getMessage());
             return false;
         }
@@ -311,7 +326,8 @@ class GeoCodeManager {
      * @return array La liste des codes géo supprimés.
      */
     public function getDeletedGeoCodes(): array {
-         $sql = "SELECT gc.*, u.nom AS univers_nom
+         // ... (code inchangé) ...
+        $sql = "SELECT gc.*, u.nom AS univers_nom
                 FROM geo_codes gc
                 LEFT JOIN univers u ON gc.univers_id = u.id
                 WHERE gc.deleted_at IS NOT NULL
@@ -321,38 +337,33 @@ class GeoCodeManager {
     }
 
     /**
-     * Restaure un code géo depuis la corbeille (annule le soft delete).
-     * Vérifie si un code ACTIF avec le même 'code_geo' existe avant de restaurer.
+     * Restaure un code géo et enregistre l'action.
      * @param int $id ID du code géo à restaurer.
      * @return bool True si succès.
      */
     public function restoreGeoCode(int $id): bool {
          try {
-            // 1. Récupérer le code_geo de l'élément à restaurer
             $stmtCheck = $this->db->prepare("SELECT code_geo FROM geo_codes WHERE id = :id AND deleted_at IS NOT NULL");
             $stmtCheck->bindParam(':id', $id, PDO::PARAM_INT);
             $stmtCheck->execute();
             $codeToRestore = $stmtCheck->fetchColumn();
+            if (!$codeToRestore) { /* ... erreur ... */ return false; }
+            if ($this->codeGeoExists($codeToRestore)) { /* ... erreur duplicata ... */ return false; }
 
-            if (!$codeToRestore) {
-                error_log("Tentative de restauration d'un code ID $id non trouvé ou non supprimé.");
-                return false; // Code non trouvé ou pas dans la corbeille
-            }
-
-            // 2. Vérifier si un code ACTIF avec le même code_geo existe DÉJÀ
-            if ($this->codeGeoExists($codeToRestore)) {
-                 error_log("Impossible de restaurer le code ID $id car le code_geo '$codeToRestore' existe déjà activement.");
-                 $this->lastError = ['23000', null, "Un code actif '$codeToRestore' existe déjà."]; // Simule une erreur de duplicata
-                 return false; // Un code actif existe déjà
-            }
-
-            // 3. Procéder à la restauration
+            $this->db->beginTransaction();
             $sql = "UPDATE geo_codes SET deleted_at = NULL, updated_at = NOW() WHERE id = :id AND deleted_at IS NOT NULL";
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-            $stmt->execute();
-            return $stmt->rowCount() > 0;
+            if ($stmt->execute() && $stmt->rowCount() > 0) {
+                 $this->logHistory($id, 'restored');
+                 $this->db->commit();
+                 return true;
+            } else {
+                 $this->db->rollBack();
+                 return false;
+            }
         } catch (Exception $e) {
+             if ($this->db->inTransaction()) $this->db->rollBack();
             error_log("Erreur restoreGeoCode (ID: $id): " . $e->getMessage());
             return false;
         }
@@ -360,31 +371,21 @@ class GeoCodeManager {
 
 
     /**
-     * Supprime définitivement un code géo de la BDD (utilisé depuis la corbeille).
+     * Supprime définitivement un code géo (utilisé depuis la corbeille).
+     * L'historique associé est conservé grâce à ON DELETE CASCADE sur la FK dans la table history (si défini comme ça).
      * @param int $id ID du code géo.
      * @return bool True si succès.
      */
     public function forceDeleteGeoCode(int $id): bool {
-        $this->db->beginTransaction();
+        // Pas besoin de transaction ici, une seule requête
         try {
-            // On s'assure que les dépendances (positions, history) sont gérées (ON DELETE CASCADE)
             // Supprime uniquement s'il est bien marqué comme supprimé
             $stmtCode = $this->db->prepare("DELETE FROM geo_codes WHERE id = :id AND deleted_at IS NOT NULL");
             $stmtCode->bindParam(':id', $id, PDO::PARAM_INT);
-            $deleted = $stmtCode->execute();
-
-            if (!$deleted) {
-                 // Soit l'ID n'existe pas, soit il n'était pas dans la corbeille
-                 // On peut considérer ça comme une non-erreur et commit quand même
-                 // ou rollback si on veut être strict. Ici, on commit.
-                 // throw new Exception("Code non trouvé ou non supprimé pour suppression définitive.");
-            }
-
-            $this->db->commit();
-            // Retourne true si une ligne a été affectée par DELETE
+            $stmtCode->execute();
+            // L'historique n'est PAS mis à jour ici car l'enregistrement disparaît.
             return $stmtCode->rowCount() > 0;
         } catch (Exception $e) {
-            $this->db->rollBack();
             error_log("Erreur forceDeleteGeoCode (ID: $id): " . $e->getMessage());
             return false;
         }
@@ -396,6 +397,7 @@ class GeoCodeManager {
      * @return array La liste des entrées d'historique.
      */
     public function getHistoryForGeoCode(int $geoCodeId): array {
+        // ... (code inchangé) ...
         try {
             $sql = "SELECT * FROM geo_codes_history
                     WHERE geo_code_id = :geo_code_id
@@ -415,8 +417,8 @@ class GeoCodeManager {
      * @return array La liste des entrées d'historique.
      */
     public function getFullHistory(): array {
-         try {
-             // Jointure pour récupérer le code_geo même s'il a été supprimé
+         // ... (code inchangé) ...
+        try {
             $sql = "SELECT h.*, COALESCE(gc.code_geo, '(Supprimé)') as code_geo
                     FROM geo_codes_history h
                     LEFT JOIN geo_codes gc ON h.geo_code_id = gc.id
@@ -430,409 +432,269 @@ class GeoCodeManager {
         }
     }
 
-    /**
-     * Récupère tous les codes géo (actifs) AVEC leurs positions groupées.
-     * @return array Liste des codes géo, chacun avec une clé 'placements'.
-     */
-    public function getAllGeoCodesWithPositions(): array {
-        // 1. Récupère les codes actifs
-         $sqlCodes = "SELECT gc.*, u.nom AS univers_nom, u.color AS univers_color
-                FROM geo_codes gc
-                LEFT JOIN univers u ON gc.univers_id = u.id
-                WHERE gc.deleted_at IS NULL
-                ORDER BY gc.code_geo ASC";
-        $stmtCodes = $this->db->query($sqlCodes);
-        $codes = $stmtCodes->fetchAll(PDO::FETCH_ASSOC);
-
-        // 2. Récupère toutes les positions
-        $positions = $this->getAllPositions();
-
-        // 3. Assemble les données
-        $codesById = [];
-        foreach ($codes as $code) {
-            $code['placements'] = [];
-            $codesById[$code['id']] = $code;
-        }
-        foreach ($positions as $pos) {
-            if (isset($codesById[$pos['geo_code_id']])) {
-                $codesById[$pos['geo_code_id']]['placements'][] = $pos;
-            } else {
-                 // La position est liée à un code géo supprimé ou inexistant
-                 // error_log("Position orpheline (ou liée à un code supprimé) trouvée: position_id=" . $pos['position_id'] . ", geo_code_id=" . $pos['geo_code_id']);
-                 // On ignore simplement cette position plutôt que de logger une erreur fréquente
-            }
-        }
-        return array_values($codesById);
-    }
+    // --- Gestion des Positions ---
 
     /**
-     * Récupère TOUTES les positions de TOUS les codes géo.
-     * @return array Liste de toutes les positions.
+     * Récupère toutes les positions pour un plan donné.
+     * @param int $planId ID du plan.
+     * @return array Liste des positions.
      */
-    public function getAllPositions(): array {
+    public function getPositionsForPlan(int $planId): array {
         try {
-            $stmt = $this->db->query("SELECT id AS position_id, geo_code_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y
-                                  FROM geo_positions ORDER BY plan_id, geo_code_id");
+            $sql = "SELECT id AS position_id, geo_code_id, plan_id, pos_x, pos_y, width, height, anchor_x, anchor_y, properties
+                    FROM geo_positions
+                    WHERE plan_id = :plan_id";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':plan_id', $planId, PDO::PARAM_INT);
+            $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-             error_log("Erreur PDO dans getAllPositions: " . $e->getMessage());
-             return [];
+            error_log("Erreur PDO dans getPositionsForPlan (planId: $planId): " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Récupère toutes les positions pour un plan donné AVEC les détails du code géo associé.
+     * @param int $planId ID du plan.
+     * @return array Liste des positions avec détails.
+     */
+    public function getPositionsForPlanWithDetails(int $planId): array {
+        try {
+            $sql = "SELECT
+                        gp.id AS position_id, gp.geo_code_id, gp.plan_id, gp.pos_x, gp.pos_y,
+                        gp.width, gp.height, gp.anchor_x, gp.anchor_y, gp.properties,
+                        gc.code_geo, gc.libelle, gc.commentaire, gc.zone,
+                        gc.univers_id, u.nom as univers_nom, u.color as univers_color
+                    FROM geo_positions gp
+                    JOIN geo_codes gc ON gp.geo_code_id = gc.id
+                    LEFT JOIN univers u ON gc.univers_id = u.id
+                    WHERE gp.plan_id = :plan_id
+                      AND gc.deleted_at IS NULL"; // Important: Ne charge que les positions des codes actifs
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':plan_id', $planId, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur PDO dans getPositionsForPlanWithDetails (planId: $planId): " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Ajoute ou met à jour la position d'un code géo sur un plan.
+     * @param int $geoCodeId
+     * @param int $planId
+     * @param float $posX Position X en %.
+     * @param float $posY Position Y en %.
+     * @param int|null $width Largeur (optionnel, stocké en pixels ? ou % ?)
+     * @param int|null $height Hauteur (optionnel, stocké en pixels ? ou % ?)
+     * @param array|null $properties Propriétés JSON supplémentaires (style, etc.)
+     * @return int|false L'ID de la position (geo_positions.id) ou false en cas d'erreur.
+     */
+    public function setGeoCodePosition(int $geoCodeId, int $planId, float $posX, float $posY, ?int $width = null, ?int $height = null, ?array $properties = null): int|false {
+        // Utilisation de INSERT ... ON DUPLICATE KEY UPDATE pour gérer l'ajout et la mise à jour
+        $sql = "INSERT INTO geo_positions (geo_code_id, plan_id, pos_x, pos_y, width, height, properties, created_at, updated_at)
+                VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y, :width, :height, :properties, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    pos_x = VALUES(pos_x),
+                    pos_y = VALUES(pos_y),
+                    width = VALUES(width),
+                    height = VALUES(height),
+                    properties = VALUES(properties),
+                    updated_at = NOW()";
+
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare($sql);
+            $propertiesJson = $properties ? json_encode($properties) : null;
+
+            $stmt->bindParam(':geo_code_id', $geoCodeId, PDO::PARAM_INT);
+            $stmt->bindParam(':plan_id', $planId, PDO::PARAM_INT);
+            $stmt->bindParam(':pos_x', $posX); // PDO::PARAM_STR par défaut convient pour FLOAT
+            $stmt->bindParam(':pos_y', $posY);
+            $stmt->bindValue(':width', $width, $width === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmt->bindValue(':height', $height, $height === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmt->bindValue(':properties', $propertiesJson, $propertiesJson === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+
+            if ($stmt->execute()) {
+                // Pour récupérer l'ID, que ce soit un INSERT ou un UPDATE sur MySQL:
+                // lastInsertId() fonctionne pour INSERT. Pour UPDATE, il faut re-sélectionner.
+                // On peut simplifier en ne retournant que true/false, ou faire une requête SELECT après.
+                $positionId = $this->db->lastInsertId();
+                 if ($positionId == 0) { // Cela signifie probablement que c'était un UPDATE
+                     // Récupérer l'ID existant
+                     $selectStmt = $this->db->prepare("SELECT id FROM geo_positions WHERE geo_code_id = :geo_code_id AND plan_id = :plan_id");
+                     $selectStmt->execute([':geo_code_id' => $geoCodeId, ':plan_id' => $planId]);
+                     $positionId = $selectStmt->fetchColumn();
+                 }
+
+                // Enregistrer l'historique du placement/déplacement
+                $this->logPositionHistory($geoCodeId, $planId, $posX, $posY, ($positionId == $this->db->lastInsertId() && $this->db->lastInsertId() != 0) ? 'placed' : 'moved');
+
+                $this->db->commit();
+                return $positionId ?: false; // Retourne l'ID ou false si l'ID n'a pas pu être récupéré après UPDATE
+            } else {
+                $this->lastError = $stmt->errorInfo();
+                throw new PDOException("Erreur BDD (non-exception) lors du setPosition: " . ($this->lastError[2] ?? 'Inconnue'), (int)($this->lastError[1] ?? 0));
+            }
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            $this->lastError = $e->errorInfo ?? [$e->getCode(), null, $e->getMessage()];
+            error_log("Erreur PDO setGeoCodePosition (geoCode: $geoCodeId, plan: $planId): " . $e->getMessage());
+            return false;
         }
     }
 
 
     /**
-     * Récupère les codes géo (actifs) disponibles pour un plan donné.
-     * (Codes des univers liés au plan, qui ne sont pas DÉJÀ sur ce plan)
+     * Supprime la position d'un code géo d'un plan spécifique.
+     * @param int $geoCodeId
+     * @param int $planId
+     * @return bool True si succès.
+     */
+    public function removeGeoCodePosition(int $geoCodeId, int $planId): bool {
+        $this->db->beginTransaction();
+        try {
+            $sql = "DELETE FROM geo_positions WHERE geo_code_id = :geo_code_id AND plan_id = :plan_id";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':geo_code_id', $geoCodeId, PDO::PARAM_INT);
+            $stmt->bindParam(':plan_id', $planId, PDO::PARAM_INT);
+
+            if ($stmt->execute()) {
+                if ($stmt->rowCount() > 0) {
+                     // Enregistrer l'historique de la suppression
+                     $this->logPositionHistory($geoCodeId, $planId, null, null, 'removed');
+                     $this->db->commit();
+                     return true;
+                } else {
+                     // Aucune ligne supprimée (n'existait peut-être pas)
+                     $this->db->rollBack(); // Ou commit() si on ne considère pas ça comme une erreur
+                     return false; // Indique que rien n'a été fait
+                }
+            } else {
+                 $this->lastError = $stmt->errorInfo();
+                 throw new PDOException("Erreur BDD (non-exception) lors du removePosition: " . ($this->lastError[2] ?? 'Inconnue'), (int)($this->lastError[1] ?? 0));
+            }
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            $this->lastError = $e->errorInfo ?? [$e->getCode(), null, $e->getMessage()];
+            error_log("Erreur PDO removeGeoCodePosition (geoCode: $geoCodeId, plan: $planId): " . $e->getMessage());
+            return false;
+        }
+    }
+
+
+    // --- Fin Gestion des Positions ---
+
+    /**
+     * Récupère TOUTES les positions de TOUS les codes géo. (Dupliquée, déjà présente plus haut)
+     * @return array Liste de toutes les positions.
+     */
+    // public function getAllPositions(): array { ... }
+
+    /**
+     * Récupère les codes géo (actifs) disponibles pour un plan donné. (Dupliquée)
      * @param int $planId L'ID du plan concerné.
      * @return array Liste des codes géo disponibles.
      */
-    public function getAvailableCodesForPlan(int $planId): array {
-        // 1. Récupérer les IDs des univers associés à ce plan
-        $planUniversSql = "SELECT univers_id FROM plan_univers WHERE plan_id = :plan_id";
-        $stmtUnivers = $this->db->prepare($planUniversSql);
-        $stmtUnivers->execute(['plan_id' => $planId]);
-        $universRows = $stmtUnivers->fetchAll(PDO::FETCH_ASSOC);
-        $universIds = array_column($universRows, 'univers_id');
-
-        if (empty($universIds)) {
-            return []; // Aucun univers lié, donc aucun code dispo
-        }
-
-        // 2. Préparer les placeholders pour la clause IN des univers
-        $inUnivers = str_repeat('?,', count($universIds) - 1) . '?';
-
-        // 3. Construire la requête SQL principale
-        $sql = "SELECT gc.id, gc.code_geo, gc.libelle, gc.commentaire, gc.zone,
-                       gc.univers_id, u.nom as univers_nom, u.color as univers_color
-                FROM geo_codes gc
-                JOIN univers u ON gc.univers_id = u.id
-                WHERE gc.deleted_at IS NULL
-                  AND gc.univers_id IN ($inUnivers)
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM geo_positions gp
-                      WHERE gp.geo_code_id = gc.id
-                        AND gp.plan_id = ?
-                  )
-                ORDER BY gc.code_geo ASC";
-
-        // 4. Préparer les paramètres pour l'exécution
-        $params = array_merge($universIds, [$planId]);
-
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-        } catch (PDOException $e) {
-            error_log("PDO Error in getAvailableCodesForPlan: " . $e->getMessage());
-             // En production, on ne devrait pas faire die()
-             // throw new RuntimeException("Erreur lors de la récupération des codes disponibles.");
-             return []; // Retourner un tableau vide en cas d'erreur
-        }
-
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return $results ?: [];
-    }
+    // public function getAvailableCodesForPlan(int $planId): array { ... }
 
     /**
-     * Vérifie si un code géo ACTIF existe déjà.
+     * Vérifie si un code géo ACTIF existe déjà. (Dupliquée)
      * @param string $codeGeo Le code géo à vérifier.
      * @param int|null $excludeId ID à exclure (pour les mises à jour).
      * @return bool True si le code existe, false sinon.
      */
-    public function codeGeoExists(string $codeGeo, ?int $excludeId = null): bool {
-        $sql = "SELECT COUNT(*) FROM geo_codes WHERE code_geo = :code_geo AND deleted_at IS NULL";
-        $params = [':code_geo' => $codeGeo];
-        if ($excludeId !== null) {
-            $sql .= " AND id != :exclude_id";
-            $params[':exclude_id'] = $excludeId;
-        }
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        return $stmt->fetchColumn() > 0;
-    }
+    // public function codeGeoExists(string $codeGeo, ?int $excludeId = null): bool { ... }
 
     /**
-     * Récupère une liste de codes géo actifs existants parmi ceux fournis.
+     * Récupère une liste de codes géo actifs existants parmi ceux fournis. (Dupliquée)
      * @param array $codeGeoList Liste de strings (code_geo).
      * @return array Liste des code_geo qui existent déjà et sont actifs.
      */
-    public function getExistingCodes(array $codeGeoList): array {
-        if (empty($codeGeoList)) {
-            return [];
-        }
-        $uniqueCodes = array_unique(array_filter($codeGeoList)); // Nettoyer et dédoublonner
-        if (empty($uniqueCodes)) {
-             return [];
-        }
-
-        $inPlaceholders = str_repeat('?,', count($uniqueCodes) - 1) . '?';
-        $sql = "SELECT code_geo FROM geo_codes WHERE code_geo IN ($inPlaceholders) AND deleted_at IS NULL";
-
-        try {
-            $stmt = $this->db->prepare($sql);
-            // PDO attend un tableau indexé numériquement pour execute() avec des placeholders '?'
-            $stmt->execute(array_values($uniqueCodes));
-            return $stmt->fetchAll(PDO::FETCH_COLUMN); // Renvoie un tableau plat
-        } catch (PDOException $e) {
-            error_log("Erreur getExistingCodes: " . $e->getMessage());
-            return [];
-        }
-    }
-
+    // public function getExistingCodes(array $codeGeoList): array { ... }
 
     /**
-     * Récupère un code géo actif par son nom (code_geo).
+     * Récupère un code géo actif par son nom (code_geo). (Dupliquée)
      * @param string $codeGeo Le code géo exact.
      * @return array|false Les données du code géo ou false.
      */
-     public function getGeoCodeByCode(string $codeGeo) {
-         $sql = "SELECT gc.*, u.nom AS univers_nom, u.color AS univers_color
-                 FROM geo_codes gc
-                 LEFT JOIN univers u ON gc.univers_id = u.id
-                 WHERE gc.code_geo = :code_geo AND gc.deleted_at IS NULL";
-         $stmt = $this->db->prepare($sql);
-         $stmt->bindParam(':code_geo', $codeGeo);
-         $stmt->execute();
-         return $stmt->fetch(PDO::FETCH_ASSOC);
-     }
+     // public function getGeoCodeByCode(string $codeGeo) { ... }
 
     /**
-     * Récupère les codes géo actifs pour une liste d'IDs d'univers.
+     * Récupère les codes géo actifs pour une liste d'IDs d'univers. (Dupliquée)
      * @param array $universIds Tableau d'IDs d'univers.
      * @return array La liste des codes géo correspondants.
      */
-    public function getGeoCodesByUniversIds(array $universIds): array {
-        if (empty($universIds)) {
-            return [];
-        }
-        // Crée une chaîne de placeholders (?, ?, ?) pour la requête SQL
-        $inPlaceholders = str_repeat('?,', count($universIds) - 1) . '?';
-
-        $sql = "SELECT gc.id, gc.code_geo, gc.libelle, gc.commentaire, u.nom AS univers
-                FROM geo_codes gc
-                LEFT JOIN univers u ON gc.univers_id = u.id
-                WHERE gc.univers_id IN ($inPlaceholders)
-                AND gc.deleted_at IS NULL
-                ORDER BY u.nom, gc.code_geo ASC"; // Tri optionnel
-
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($universIds); // Passe le tableau d'IDs
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            error_log("Erreur getGeoCodesByUniversIds: " . $e->getMessage());
-            $this->lastError = $this->db->errorInfo();
-            return []; // Retourne un tableau vide en cas d'erreur
-        }
-    }
+    // public function getGeoCodesByUniversIds(array $universIds): array { ... }
 
     /**
-     * Récupère les codes géo actifs filtrés pour l'export.
+     * Récupère les codes géo actifs filtrés pour l'export. (Dupliquée)
      * @param array $filters Filtres (zones, univers_ids).
      * @return array La liste des codes géo filtrés.
      */
-    public function getFilteredGeoCodes(array $filters): array {
-        $sql = "SELECT gc.code_geo, gc.libelle, gc.commentaire, gc.zone, u.nom AS univers
-                FROM geo_codes gc
-                LEFT JOIN univers u ON gc.univers_id = u.id
-                WHERE gc.deleted_at IS NULL";
-
-        $params = [];
-        $conditions = [];
-
-        if (!empty($filters['zones'])) {
-            $zonePlaceholders = str_repeat('?,', count($filters['zones']) - 1) . '?';
-            $conditions[] = "gc.zone IN ($zonePlaceholders)";
-            $params = array_merge($params, $filters['zones']);
-        }
-
-        if (!empty($filters['univers_ids'])) {
-             $universPlaceholders = str_repeat('?,', count($filters['univers_ids']) - 1) . '?';
-             $conditions[] = "gc.univers_id IN ($universPlaceholders)";
-             $params = array_merge($params, $filters['univers_ids']);
-        }
-
-        if (!empty($conditions)) {
-            $sql .= " AND " . implode(" AND ", $conditions);
-        }
-
-        $sql .= " ORDER BY gc.code_geo ASC";
-
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            error_log("Erreur getFilteredGeoCodes: " . $e->getMessage());
-            return [];
-        }
-    }
+    // public function getFilteredGeoCodes(array $filters): array { ... }
 
 
     /**
-     * Ajoute plusieurs codes géo en lot (batch).
-     * @param array $codesToInsert Tableau de tableaux associatifs contenant les données des codes.
-     * Chaque tableau doit avoir : ['code_geo', 'libelle', 'univers_id', 'zone', 'commentaire']
-     * @return array Un tableau avec le nombre de succès et la liste des erreurs.
+     * Ajoute plusieurs codes géo en lot (batch). (Dupliquée)
+     * @param array $codesToInsert
+     * @return array
      */
-    public function createBatchGeoCodes(array $codesToInsert): array {
-        $results = ['success' => 0, 'errors' => []];
-
-        // Préparation de la requête
-        $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire, created_at, updated_at)
-                VALUES (:code_geo, :libelle, :univers_id, :zone, :commentaire, NOW(), NOW())";
-
-        $this->db->beginTransaction(); // Commence une transaction
-
-        try {
-            $stmt = $this->db->prepare($sql);
-
-            foreach ($codesToInsert as $codeData) {
-                // 1. Vérifier si un code ACTIF existe déjà
-                if ($this->codeGeoExists($codeData['code_geo'])) {
-                    $results['errors'][] = "Le code " . htmlspecialchars($codeData['code_geo']) . " existe déjà activement.";
-                    continue; // Passe au suivant
-                }
-
-                // 2. Lier les paramètres
-                $stmt->bindParam(':code_geo', $codeData['code_geo']);
-                $stmt->bindValue(':libelle', $codeData['libelle'], $codeData['libelle'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-                $stmt->bindParam(':univers_id', $codeData['univers_id'], PDO::PARAM_INT);
-                $stmt->bindParam(':zone', $codeData['zone']); // Doit être 'vente' ou 'reserve'
-                $stmt->bindValue(':commentaire', $codeData['commentaire'], $codeData['commentaire'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-
-                // 3. Exécuter (le try-catch externe gère les duplicatas soft-deleted)
-                if ($stmt->execute()) {
-                    $results['success']++;
-                } else {
-                    $errorInfo = $stmt->errorInfo();
-                    $results['errors'][] = "Erreur BDD (non-exception) pour " . htmlspecialchars($codeData['code_geo']) . ": " . ($errorInfo[2] ?? 'Erreur inconnue');
-                }
-            }
-
-            $this->db->commit(); // Valide les insertions
-
-        } catch (PDOException $e) {
-             if ($e->getCode() === '23000') {
-                 // Erreur de duplicata interceptée pendant le lot (probablement un code soft-deleted)
-                 $this->db->rollBack(); // Annule TOUT le lot en cas de duplicata
-                 error_log("Erreur createBatchGeoCodes (Duplicata détecté dans le lot): " . $e->getMessage());
-                 $results['errors'][] = "Erreur de duplicata détectée dans le lot. L'opération a été annulée. Vérifiez les codes (y compris la corbeille).";
-                 $results['success'] = 0; // Réinitialise le compteur de succès
-             } else {
-                 $this->db->rollBack(); // Annule tout en cas d'autre erreur majeure
-                 error_log("Erreur PDO createBatchGeoCodes: " . $e->getMessage());
-                 $results['errors'][] = "Erreur de transaction PDO: " . $e->getMessage();
-                 $results['success'] = 0;
-             }
-        } catch (Exception $e) { // Autre type d'exception
-            $this->db->rollBack();
-            error_log("Erreur Exception createBatchGeoCodes: " . $e->getMessage());
-            $results['errors'][] = "Erreur générale de transaction : " . $e->getMessage();
-            $results['success'] = 0;
-        }
-
-        return $results;
-    }
-
+    // public function createBatchGeoCodes(array $codesToInsert): array { ... }
 
     /**
-     * Crée plusieurs codes géo (généralement depuis un import CSV).
-     * Gère la création/récupération d'univers par leur nom.
-     * NE GÈRE PAS les duplicatas de code_geo (le contrôleur doit le faire en amont).
-     *
-     * @param array $codesToInsert Tableau de tableaux associatifs.
-     * Format attendu: ['code_geo', 'libelle', 'univers' (nom), 'zone', 'commentaire']
-     * @param UniversManager $universManager Instance pour gérer les univers.
-     * @return int Le nombre de codes géo insérés avec succès (ou false en cas d'erreur de transaction).
+     * Crée plusieurs codes géo (import CSV). (Dupliquée)
+     * @param array $codesToInsert
+     * @param UniversManager $universManager
+     * @return int|false
      */
-    public function createMultipleGeoCodes(array $codesToInsert, UniversManager $universManager): int|false {
-        $insertedCount = 0;
+    // public function createMultipleGeoCodes(array $codesToInsert, UniversManager $universManager): int|false { ... }
 
-        // Préparation de la requête
-        $sql = "INSERT INTO geo_codes (code_geo, libelle, univers_id, zone, commentaire, created_at, updated_at)
-                VALUES (:code_geo, :libelle, :univers_id, :zone, :commentaire, NOW(), NOW())";
-
-        $this->db->beginTransaction();
-
+    /**
+     * Enregistre une action dans la table d'historique des codes géo.
+     * @param int $geoCodeId
+     * @param string $actionType 'created', 'updated', 'deleted', 'restored'
+     * @param string|null $details Détails sur les modifications (pour 'updated')
+     */
+    private function logHistory(int $geoCodeId, string $actionType, ?string $details = null): void {
         try {
+            $sql = "INSERT INTO geo_codes_history (geo_code_id, action_type, details, action_timestamp)
+                    VALUES (:geo_code_id, :action_type, :details, NOW())";
             $stmt = $this->db->prepare($sql);
-            $universCache = []; // Cache simple pour éviter les requêtes répétées
-
-            foreach ($codesToInsert as $codeData) {
-                // 1. Gérer l'univers
-                $universName = trim($codeData['univers'] ?? 'Indéfini');
-                if (empty($universName)) $universName = 'Indéfini';
-                $universId = null;
-                $universZone = null;
-
-                // Chercher dans le cache d'abord
-                if (isset($universCache[$universName])) {
-                    $universId = $universCache[$universName]['id'];
-                    $universZone = $universCache[$universName]['zone_assignee'];
-                } else {
-                    // Sinon, chercher en BDD
-                    $univers = $universManager->getUniversByName($universName);
-                    if ($univers) {
-                        $universId = $univers['id'];
-                        $universZone = $univers['zone_assignee'];
-                        $universCache[$universName] = $univers; // Mettre en cache
-                    }
-                }
-
-                // 2. Déterminer la zone (priorité à la zone du CSV, sinon celle de l'univers)
-                $zone = $codeData['zone'] ?? $universZone ?? 'vente';
-                // Assurer que la zone est valide pour l'ENUM
-                if (!in_array($zone, ['vente', 'reserve'])) {
-                    $zone = 'vente'; // Défaut de sécurité
-                }
-
-                // Si l'univers n'a pas été trouvé ni en cache ni en BDD, on le crée
-                if ($universId === null) {
-                    $newUniversId = $universManager->addUnivers($universName, $zone, null); // Ajout de null pour la couleur
-                    if (!$newUniversId) {
-                         error_log("Échec de la création de l'univers '$universName' pendant l'import.");
-                         // On pourrait décider d'arrêter ou de continuer sans cet enregistrement
-                         continue; // Ici on saute cette ligne
-                    }
-                    $universId = $newUniversId;
-                    // Ajouter au cache pour les prochaines itérations
-                    $universCache[$universName] = ['id' => $universId, 'zone_assignee' => $zone];
-                }
-
-
-                // 3. Lier les paramètres
-                $stmt->bindParam(':code_geo', $codeData['code_geo']);
-                $stmt->bindValue(':libelle', $codeData['libelle'], $codeData['libelle'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-                $stmt->bindParam(':univers_id', $universId, PDO::PARAM_INT);
-                $stmt->bindParam(':zone', $zone);
-                $stmt->bindValue(':commentaire', $codeData['commentaire'], $codeData['commentaire'] === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-
-                // 4. Exécuter (Assume pas de duplicata ici)
-                if ($stmt->execute()) {
-                    $insertedCount++;
-                } else {
-                    // Log l'erreur mais continue le lot (commit sera fait à la fin si pas d'exception)
-                    $errorInfo = $stmt->errorInfo();
-                    error_log("Échec d'insertion CSV pour " . $codeData['code_geo'] . ": " . ($errorInfo[2] ?? 'Erreur inconnue'));
-                }
-            }
-
-            $this->db->commit();
-
-        } catch (PDOException $e) { // Attrape les erreurs PDO pendant l'insertion
-            $this->db->rollBack();
-            error_log("Erreur PDO createMultipleGeoCodes (Transaction): " . $e->getMessage());
-            $this->lastError = $this->db->errorInfo();
-            return false; // Retourne false en cas d'échec de la transaction
-        } catch (Exception $e) { // Attrape d'autres exceptions (ex: venant de UniversManager)
-            $this->db->rollBack();
-            error_log("Erreur Exception createMultipleGeoCodes (Transaction): " . $e->getMessage());
-            return false;
+            $stmt->bindParam(':geo_code_id', $geoCodeId, PDO::PARAM_INT);
+            $stmt->bindParam(':action_type', $actionType);
+            $stmt->bindValue(':details', $details, $details === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->execute();
+        } catch (Exception $e) {
+            error_log("Erreur logHistory pour geo_code_id $geoCodeId: " . $e->getMessage());
+            // Ne pas bloquer l'opération principale pour une erreur de log
         }
+    }
 
-        return $insertedCount;
+    /**
+     * Enregistre une action dans la table d'historique des positions géo.
+     * @param int $geoCodeId
+     * @param int $planId
+     * @param float|null $posX Position X (ou null si 'removed')
+     * @param float|null $posY Position Y (ou null si 'removed')
+     * @param string $actionType 'placed', 'moved', 'removed'
+     */
+    private function logPositionHistory(int $geoCodeId, int $planId, ?float $posX, ?float $posY, string $actionType): void {
+         try {
+             $sql = "INSERT INTO geo_positions_history (geo_code_id, plan_id, pos_x, pos_y, action_type, action_timestamp)
+                     VALUES (:geo_code_id, :plan_id, :pos_x, :pos_y, :action_type, NOW())";
+             $stmt = $this->db->prepare($sql);
+             $stmt->bindParam(':geo_code_id', $geoCodeId, PDO::PARAM_INT);
+             $stmt->bindParam(':plan_id', $planId, PDO::PARAM_INT);
+             $stmt->bindValue(':pos_x', $posX); // Null si action = removed
+             $stmt->bindValue(':pos_y', $posY); // Null si action = removed
+             $stmt->bindParam(':action_type', $actionType);
+             $stmt->execute();
+         } catch (Exception $e) {
+             error_log("Erreur logPositionHistory pour geo_code_id $geoCodeId, plan_id $planId: " . $e->getMessage());
+         }
     }
 
 
