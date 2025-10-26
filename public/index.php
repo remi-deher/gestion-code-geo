@@ -37,12 +37,14 @@ require_once __DIR__ . '/../controllers/BaseController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/GeoCodeController.php';
 require_once __DIR__ . '/../controllers/UniversController.php';
+require_once __DIR__ . '/../controllers/PlanController.php';
 // Retrait des contrôleurs PlanController et AssetController (si non utilisés)
 
 // Initialisation des contrôleurs
 $dashboardController = new DashboardController($db);
 $geoCodeController = new GeoCodeController($db);
 $universController = new UniversController($db);
+$planController = new PlanController($db);
 // Retrait de l'initialisation de PlanController et AssetController (si non utilisés)
 
 // Action par défaut
@@ -88,6 +90,21 @@ switch ($action) {
     case 'addUnivers': $universController->addAction(); break;
     case 'updateUnivers': $universController->updateAction(); break;
     case 'deleteUnivers': $universController->deleteAction(); break;
+
+    // --- PLANS ---
+    case 'listPlans': $planController->listAction(); break; // Affiche la liste des plans
+    case 'addPlanForm': $planController->addPlanFormAction(); break; // Affiche le formulaire d'ajout
+    case 'handleAddPlan': $planController->handleAddPlanAction(); break; // Traite l'ajout d'un plan uploadé
+    case 'editPlan': $planController->editPlanAction(); break; // Affiche le formulaire de modification (métadonnées)
+    case 'handleUpdatePlan': $planController->handleUpdatePlanAction(); break; // Traite la modification (métadonnées)
+    case 'deletePlan': $planController->deletePlanAction(); break; // Supprime (soft delete) un plan
+    case 'viewPlan': $planController->viewPlanAction(); break; // Affiche l'éditeur/visualiseur unifié
+    case 'printPlan': $planController->printPlanAction(); break; // Action pour l'impression (vue simple pour l'instant)
+
+    // --- API pour l'éditeur de plan (appelées par JS) ---
+    case 'apiSaveDrawing': $planController->saveDrawingAction(); break; // Sauvegarde le dessin Fabric.js
+    case 'apiPlaceGeoCode': $planController->placeGeoCodeAction(); break; // Ajoute/Met à jour une position
+    case 'apiRemoveGeoCode': $planController->removeGeoCodeAction(); break; // Supprime une position
 
     // Action non trouvée ou par défaut
     default:
