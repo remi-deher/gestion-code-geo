@@ -32,7 +32,7 @@ class CanvasManager {
         });
 
         // Adapter la taille du canvas à son conteneur initialement
-        this.resizeCanvas();
+	setTimeout(() => this.resizeCanvas(), 10);
 
         // Écouter les redimensionnements de la fenêtre pour adapter le canvas
         window.addEventListener('resize', this._boundResizeCanvas);
