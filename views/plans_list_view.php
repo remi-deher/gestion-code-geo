@@ -9,9 +9,14 @@
     <section id="plan-manager">
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h1 class="mb-0"><i class="bi bi-map-fill"></i> Gestion des Plans</h1>
-            <a href="index.php?action=addPlanForm" class="btn btn-primary">
-                <i class="bi bi-plus-circle-fill"></i> Ajouter un nouveau plan
-            </a>
+            <div class="d-flex gap-2">
+                <a href="index.php?action=manageAssets" class="btn btn-outline-secondary"> <?php // AJOUT ?>
+                    <i class="bi bi-box-seam"></i> Gérer les Assets                 <?php // AJOUT ?>
+                </a>                                                                  <?php // AJOUT ?>
+                <a href="index.php?action=addPlanForm" class="btn btn-primary">
+                    <i class="bi bi-plus-circle-fill"></i> Ajouter un plan
+                </a>
+            </div>
         </div>
 
         <?php include __DIR__ . '/partials/flash_messages.php'; // Inclut les messages flash ?>

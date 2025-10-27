@@ -38,14 +38,14 @@ require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/GeoCodeController.php';
 require_once __DIR__ . '/../controllers/UniversController.php';
 require_once __DIR__ . '/../controllers/PlanController.php';
-// Retrait des contrôleurs PlanController et AssetController (si non utilisés)
+require_once __DIR__ . '/../controllers/AssetsController.php';
 
 // Initialisation des contrôleurs
 $dashboardController = new DashboardController($db);
 $geoCodeController = new GeoCodeController($db);
 $universController = new UniversController($db);
 $planController = new PlanController($db);
-// Retrait de l'initialisation de PlanController et AssetController (si non utilisés)
+$assetsController = new AssetsController($db);
 
 // Action par défaut
 $action = $_GET['action'] ?? 'dashboard';
@@ -107,7 +107,15 @@ switch ($action) {
     case 'apiRemoveGeoCode': $planController->removeGeoCodeAction(); break; // Supprime une position
     case 'apiSavePageFormat': $planController->savePageFormatAction(); break; // Sauvegarde format de la page
 
-// Action non trouvée ou par défaut
+    // --- ASSETS ---
+    case 'manageAssets': $assetsController->manageAction(); break; // Page de gestion (HTML)
+    // API Actions (JSON)
+    case 'apiListAssets': $assetsController->listAction(); break;   // Récupère la liste
+    case 'apiGetAsset': $assetsController->getAction(); break;     // Récupère un asset spécifique
+    case 'apiCreateAsset': $assetsController->createAction(); break; // Crée un asset depuis l'éditeur
+    case 'apiDeleteAsset': $assetsController->deleteAction(); break; // Supprime un asset
+
+    // Action non trouvée ou par défaut
     default:
         // Rediriger vers le tableau de bord
         $dashboardController->indexAction();
