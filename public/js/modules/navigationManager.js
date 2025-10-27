@@ -29,17 +29,30 @@ const handleWheelZoom = (opt) => {
 // --- Logique de Pan (commune aux deux modes) ---
 const handleMouseDownPanLogic = (opt) => {
     const evt = opt.e;
-    // Condition: Soit l'outil Pan est actif, SOIT la touche Alt est pressée
-    if ((isPanToolActive || evt.altKey === true) && canvasInstance) {
-        isPanningWithAlt = true; // Utiliser ce flag pour les deux modes
+    // ---> Log initial
+    console.log("[handleMouseDownPanLogic] Événement mouse:down:before détecté.", { isPanToolActive, isAltKey: evt.altKey });
+
+    // Condition PLUS STRICTE:
+    // UNIQUEMENT si l'outil Pan est actif OU si Alt est pressée ET que l'outil Pan N'EST PAS actif (pour éviter double activation)
+    const shouldPan = isPanToolActive || (evt.altKey === true && !isPanToolActive);
+
+    if (shouldPan && canvasInstance) {
+        console.log("[handleMouseDownPanLogic] Condition de Panning REMPLIE."); // ---> Log condition pan
+        isPanningWithAlt = true; // Flag utilisé pour les deux modes de pan
         canvasInstance.selection = false; // Désactiver sélection pendant pan
         lastPosX = evt.clientX;
         lastPosY = evt.clientY;
         canvasInstance.setCursor('grab'); // Curseur "main fermée"
         canvasInstance.renderAll(); // Mettre à jour le curseur visuellement
-        return true; // Indique que l'événement a été géré
+
+        // Tenter d'arrêter la propagation SEULEMENT si on initie un pan
+        // opt.e.stopPropagation(); // On peut essayer avec ou sans cette ligne si le problème persiste
+        // opt.e.preventDefault(); // Potentiellement utile aussi
+
+        return true; // Indique que l'événement a été géré (ou qu'un pan a commencé)
     }
-    return false; // Non géré
+    console.log("[handleMouseDownPanLogic] Condition de Panning NON remplie."); // ---> Log condition pan
+    return false; // Non géré, laisse l'événement continuer pour d'autres listeners (comme le placement d'asset)
 };
 
 const handleMouseMovePanLogic = (opt) => {

@@ -247,15 +247,23 @@ public function handleAddPlanAction() {
          // Récupérer les assets (placeholder)
          $assets = [];
 
-         // Transmettre les données nécessaires à la vue de l'éditeur
+	 // Transmettre les données nécessaires à la vue de l'éditeur
          $viewData = [
              'currentPlan' => $plan,
              'placedGeoCodes' => $placedGeoCodes,
              'availableGeoCodes' => $availableGeoCodes,
              'universColors' => $universColors,
-             'assets' => $assets,
-             'csrfToken' => '',
-             'title' => 'Plan: ' . htmlspecialchars($plan['nom'])
+             'assets' => $assets, // Keep this if used elsewhere
+             'csrfToken' => '', // If you use CSRF
+             'title' => 'Plan: ' . htmlspecialchars($plan['nom']),
+             // URLs for API calls (already present)
+             'saveDrawingUrl' => 'index.php?action=apiSaveDrawing',
+             'placeGeoCodeUrl' => 'index.php?action=apiPlaceGeoCode',
+             'removeGeoCodeUrl' => 'index.php?action=apiRemoveGeoCode',
+             'listAssetsUrl' => 'index.php?action=apiListAssets', // Ensure these are correct
+             'getAssetUrl' => 'index.php?action=apiGetAsset',     // Ensure these are correct
+             // --> NOUVELLE LIGNE <--
+             'assetBaseUrl' => 'uploads/assets/' // Path relative to the public directory
          ];
 
          // Utiliser le troisième paramètre de render pour désactiver le layout
