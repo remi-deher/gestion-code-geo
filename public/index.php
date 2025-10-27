@@ -109,6 +109,7 @@ switch ($action) {
 
     // --- ASSETS ---
     case 'manageAssets': $assetsController->manageAction(); break; // Page de gestion (HTML)
+    case 'handleAssetUpload': $assetsController->handleUploadAction(); break;
     // API Actions (JSON)
     case 'apiListAssets': $assetsController->listAction(); break;   // Récupère la liste
     case 'apiGetAsset': $assetsController->getAction(); break;     // Récupère un asset spécifique

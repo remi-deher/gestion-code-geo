@@ -148,5 +148,71 @@ class AssetsController extends BaseController {
          // Passer les données à une nouvelle vue 'assets_manage_view.php'
          $this->render('assets_manage_view', ['assets' => $assets]);
     }
+
+/**
+     * Action pour gérer l'upload d'un fichier asset depuis la page manageAssets.
+     */
+    public function handleUploadAction() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Méthode non autorisée.'];
+            header('Location: index.php?action=manageAssets'); exit();
+        }
+
+        $assetName = trim($_POST['assetName'] ?? '');
+        if (empty($assetName) || !isset($_FILES['assetFile']) || $_FILES['assetFile']['error'] !== UPLOAD_ERR_OK) {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Nom ou fichier manquant ou erreur lors de l\'upload.'];
+            header('Location: index.php?action=manageAssets'); exit();
+        }
+
+        $file = $_FILES['assetFile'];
+        $uploadDir = __DIR__ . '/../public/uploads/assets/'; // Dossier spécifique pour les assets
+        
+        // S'assurer que le dossier existe et est accessible en écriture
+        if (!is_dir($uploadDir)) {
+            if (!mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+                 $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur serveur: Impossible de créer le dossier assets.'];
+                 header('Location: index.php?action=manageAssets'); exit();
+            }
+        } elseif (!is_writable($uploadDir)) {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur serveur: Dossier assets non accessible en écriture.'];
+            header('Location: index.php?action=manageAssets'); exit();
+        }
+
+        // Valider le type de fichier (côté serveur aussi)
+        $allowedTypes = ['image/svg+xml', 'image/png', 'image/jpeg'];
+        $fileType = mime_content_type($file['tmp_name']);
+        $allowedExtensions = ['svg', 'png', 'jpg', 'jpeg'];
+        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+        if (!in_array($fileType, $allowedTypes) || !in_array($extension, $allowedExtensions)) {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Type de fichier non autorisé (autorisés: SVG, PNG, JPG).'];
+            header('Location: index.php?action=manageAssets'); exit();
+        }
+
+        // Générer un nom de fichier unique
+        $safeOriginalName = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($file['name'], PATHINFO_FILENAME));
+        $uniqueFilename = substr($safeOriginalName, 0, 50) . '_' . uniqid() . '.' . $extension;
+        $destination = $uploadDir . $uniqueFilename;
+
+        // Déplacer le fichier
+        if (move_uploaded_file($file['tmp_name'], $destination)) {
+            // Appeler le AssetManager pour enregistrer en BDD
+            $assetId = $this->assetManager->addFileAsset($assetName, $uniqueFilename, $file['name']);
+
+            if ($assetId) {
+                $_SESSION['flash_message'] = ['type' => 'success', 'message' => "Asset '$assetName' importé avec succès."];
+            } else {
+                unlink($destination); // Supprimer le fichier si l'ajout BDD échoue
+                $dbError = $this->assetManager->getLastError();
+                $_SESSION['flash_message'] = ['type' => 'danger', 'message' => "Erreur BDD lors de l'enregistrement de l'asset: " . ($dbError[2] ?? 'Erreur inconnue')];
+            }
+        } else {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors du déplacement du fichier uploadé.'];
+        }
+
+        header('Location: index.php?action=manageAssets');
+        exit();
+    }
+
 }
 ?>

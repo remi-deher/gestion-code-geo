@@ -133,9 +133,57 @@ class AssetManager {
         return $this->lastError;
     }
 
-    // Ajouter ici d'autres méthodes si nécessaire :
-    // - updateAsset(...)
-    // - searchAssets(...)
-    // - addImageAsset(...) etc. pour d'autres types d'import
+/**
+     * Ajoute un nouvel asset à partir d'un fichier uploadé.
+     * @param string $name Nom de l'asset.
+     * @param string $filename Nom unique du fichier sauvegardé sur le serveur.
+     * @param string $originalFilename Nom original du fichier pour déterminer le type.
+     * @return int|false L'ID de l'asset créé ou false en cas d'erreur.
+     */
+    public function addFileAsset(string $name, string $filename, string $originalFilename): int|false {
+        $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
+        $type = match ($extension) {
+            'svg' => 'svg',
+            'png' => 'image',
+            'jpg', 'jpeg' => 'image',
+            default => 'raw', // Ou gérer une erreur si type non supporté
+        };
+
+        if ($type === 'raw') {
+            $this->lastError = [null, null, "Type de fichier non supporté: .$extension"];
+            error_log("Tentative d'ajout d'asset avec un type non supporté: " . $originalFilename);
+            return false;
+        }
+
+        // Pour les assets fichiers, 'data' peut être NULL, on utilise 'nom_fichier'.
+        // Thumbnail pourrait être généré ici pour les images si GD ou Imagick sont dispo.
+        $thumbnailDataUrl = null; 
+
+        $sql = "INSERT INTO assets (name, type, nom_fichier, thumbnail, created_at)
+                VALUES (:name, :type, :nom_fichier, :thumbnail, NOW())";
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':name', $name);
+            $stmt->bindParam(':type', $type);
+            $stmt->bindParam(':nom_fichier', $filename);
+            $stmt->bindValue(':thumbnail', $thumbnailDataUrl, $thumbnailDataUrl === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+
+            if ($stmt->execute()) {
+                return (int)$this->db->lastInsertId();
+            } else {
+                $this->lastError = $stmt->errorInfo();
+                error_log("Erreur BDD (non-exception) lors de l'ajout de l'asset fichier '$name': " . ($this->lastError[2] ?? 'Inconnue'));
+                return false;
+            }
+        } catch (PDOException $e) {
+            $this->lastError = $e->errorInfo ?? [$e->getCode(), null, $e->getMessage()];
+            // Vérifier si c'est une erreur de duplicata de nom (si on ajoute une contrainte UNIQUE sur 'name')
+            // if ($e->getCode() == '23000') { ... }
+            error_log("Erreur PDO addFileAsset pour '$name': " . $e->getMessage());
+            return false;
+        }
+    }
+
+
 }
 ?>

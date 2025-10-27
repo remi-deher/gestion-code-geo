@@ -134,10 +134,23 @@ $title = $title ?? 'Éditeur de Plan'; // Utilise le titre passé par le contrô
                      <p class="mt-3 small text-muted">Cliquez ou glissez un code sur le plan pour le placer.</p>
                 </div>
 
-                <div class="tab-pane fade" id="assets-panel" role="tabpanel" aria-labelledby="assets-tab">
+		<div class="tab-pane fade" id="assets-panel" role="tabpanel" aria-labelledby="assets-tab">
                      <h6>Bibliothèque d'Assets</h6>
-                     <p class="text-muted small">(Fonctionnalité à venir)</p>
-                     </div>
+
+                     <input type="search" id="asset-search" class="form-control form-control-sm mb-2" placeholder="Filtrer les assets...">
+
+                     <ul class="list-group list-group-flush" id="available-assets-list" style="max-height: 70vh; overflow-y: auto;">
+                         <li id="asset-list-placeholder" class="list-group-item text-muted small">Chargement des assets...</li>
+                     </ul>
+
+                     <p class="mt-3 small text-muted">Cliquez ou glissez un asset sur le plan pour le placer.</p>
+
+                     <hr>
+                     <a href="index.php?action=manageAssets" class="btn btn-outline-secondary btn-sm mt-2">
+                         <i class="bi bi-gear-fill"></i> Gérer la bibliothèque d'assets
+                     </a>
+                </div>
+
             </div>
         </div>
     </div>

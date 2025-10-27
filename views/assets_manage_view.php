@@ -21,11 +21,32 @@
 
     <?php include __DIR__ . '/partials/flash_messages.php'; ?>
 
-    <div class="card mb-4">
-        <div class="card-header">Ajouter un Asset (depuis l'éditeur de plan)</div>
+<div class="card mb-4">
+        <div class="card-header">Ajouter un Asset</div>
         <div class="card-body">
-            <p>Pour ajouter un nouvel asset, allez dans l'éditeur d'un plan (<a href="index.php?action=listPlans">Liste des plans</a>), sélectionnez un ou plusieurs objets, puis utilisez le bouton "Créer Asset" dans la barre d'outils.</p>
-            <p class="small text-muted">(L'import direct de fichiers SVG/Image sera ajouté ultérieurement ici si besoin).</p>
+            <p>Vous pouvez importer des fichiers (SVG, JPG, PNG) ou créer des assets depuis l'éditeur de plan.</p>
+            
+            <hr>
+            <h6><i class="bi bi-upload"></i> Importer un fichier</h6>
+            <form action="index.php?action=handleAssetUpload" method="POST" enctype="multipart/form-data" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label for="assetName" class="form-label">Nom de l'asset <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="assetName" name="assetName" required>
+                </div>
+                <div class="col-md-5">
+                    <label for="assetFile" class="form-label">Fichier <span class="text-danger">*</span></label>
+                    <input type="file" class="form-control" id="assetFile" name="assetFile" accept=".svg,.png,.jpg,.jpeg" required>
+                     <div class="form-text small">Types autorisés: SVG, PNG, JPG/JPEG.</div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Importer</button>
+                </div>
+            </form>
+            
+            <hr>
+            <h6><i class="bi bi-pencil-square"></i> Créer depuis l'éditeur</h6>
+             <p class="small text-muted">Allez dans l'éditeur d'un plan (<a href="index.php?action=listPlans">Liste des plans</a>), sélectionnez un ou plusieurs objets, puis utilisez le bouton <kbd><i class="bi bi-plus-square-dotted"></i> Créer Asset</kbd> dans la barre d'outils.</p>
+
         </div>
     </div>
 
