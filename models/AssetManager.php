@@ -65,40 +65,40 @@ class AssetManager {
         }
     }
 
-    /**
-     * Ajoute un nouvel asset (créé depuis l'éditeur Fabric.js).
+/**
+     * Ajoute un nouvel asset à partir de données JSON Fabric.js.
      * @param string $name Nom de l'asset.
-     * @param string $jsonData Données JSON de l'objet/groupe Fabric.js (doit être une chaîne JSON valide).
-     * @param string|null $thumbnailDataUrl Miniature en Data URL (optionnel).
+     * @param string $fabricJsonData Données JSON de l'objet Fabric.
+     * @param string|null $thumbnailDataUrl Miniatue en Data URL (optionnelle).
      * @return int|false L'ID de l'asset créé ou false en cas d'erreur.
      */
-    public function addFabricAsset(string $name, string $jsonData, ?string $thumbnailDataUrl = null): int|false {
-        // Vérifier si le JSON est valide avant insertion (sécurité)
-        json_decode($jsonData);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("Erreur addFabricAsset: JSON invalide fourni pour l'asset '$name'. Erreur: " . json_last_error_msg());
-            $this->lastError = [null, null, "Format JSON invalide pour l'asset."];
-            return false;
-        }
-
+    public function addFabricAsset(string $name, string $fabricJsonData, ?string $thumbnailDataUrl): int|false {
+        // Le type 'fabric' indique que la colonne 'data' contient du JSON Fabric.js
+        $type = 'fabric';
+        
+        // Pour les assets JSON, 'nom_fichier' est NULL, on utilise 'data'.
         $sql = "INSERT INTO assets (name, type, data, thumbnail, created_at)
-                VALUES (:name, 'fabric', :data, :thumbnail, NOW())";
+                VALUES (:name, :type, :data, :thumbnail, NOW())";
         try {
             $stmt = $this->db->prepare($sql);
             $stmt->bindParam(':name', $name);
-            // S'assurer que $jsonData est bien traité comme une chaîne, même si elle ressemble à un nombre, etc.
-            $stmt->bindParam(':data', $jsonData, PDO::PARAM_STR);
+            $stmt->bindParam(':type', $type);
+            $stmt->bindParam(':data', $fabricJsonData);
             $stmt->bindValue(':thumbnail', $thumbnailDataUrl, $thumbnailDataUrl === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
 
             if ($stmt->execute()) {
                 return (int)$this->db->lastInsertId();
             } else {
                 $this->lastError = $stmt->errorInfo();
-                error_log("Erreur BDD (non-exception) lors de l'ajout de l'asset '$name': " . ($this->lastError[2] ?? 'Inconnue'));
+                error_log("Erreur BDD (non-exception) lors de l'ajout de l'asset JSON '$name': " . ($this->lastError[2] ?? 'Inconnue'));
                 return false;
             }
         } catch (PDOException $e) {
             $this->lastError = $e->errorInfo ?? [$e->getCode(), null, $e->getMessage()];
+            // Gérer les contraintes uniques (ex: si le nom doit être unique)
+            if ($e->getCode() == '23000' && str_contains($e->getMessage(), 'Duplicate entry')) {
+                 $this->lastError = [null, null, "Un asset avec le nom '$name' existe déjà."];
+            }
             error_log("Erreur PDO addFabricAsset pour '$name': " . $e->getMessage());
             return false;
         }

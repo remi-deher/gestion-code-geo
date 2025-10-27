@@ -68,37 +68,69 @@ class AssetsController extends BaseController {
      * Attend du JSON en POST: { name: "nom_asset", jsonData: "...", thumbnailDataUrl: "..." }
      * Renvoie du JSON.
      */
-    public function createAction() {
+	public function createAction() {
+        // Définir l'en-tête de réponse en JSON
         header('Content-Type: application/json');
+
+        // Vérifier la méthode de requête
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405); echo json_encode(['success' => false, 'error' => 'Méthode POST requise.']); exit();
+            http_response_code(405); // Method Not Allowed
+            echo json_encode(['success' => false, 'error' => 'Méthode non autorisée. POST requis.']);
+            exit();
         }
 
-        $input = json_decode(file_get_contents('php://input'), true);
-        $name = trim($input['name'] ?? '');
-        $jsonData = $input['jsonData'] ?? null; // C'est déjà une chaîne JSON
-        $thumbnailDataUrl = $input['thumbnailDataUrl'] ?? null;
+        // Lire le corps de la requête JSON
+        $jsonInput = file_get_contents('php://input');
+        $data = json_decode($jsonInput, true);
 
-        if (empty($name) || $jsonData === null) {
-            http_response_code(400); echo json_encode(['success' => false, 'error' => 'Nom et données JSON requis pour créer l\'asset.']); exit();
+        // Valider les données reçues
+        if (json_last_error() !== JSON_ERROR_NONE || !isset($data['name']) || !isset($data['jsonData'])) {
+            http_response_code(400); // Bad Request
+            echo json_encode(['success' => false, 'error' => 'Données JSON invalides ou manquantes (name, jsonData).']);
+            exit();
+        }
+
+        $assetName = trim($data['name']);
+        $fabricJsonData = $data['jsonData'];
+        $thumbnailDataUrl = $data['thumbnailDataUrl'] ?? null; // Optionnel
+
+        if (empty($assetName) || empty($fabricJsonData)) {
+             http_response_code(400); // Bad Request
+             echo json_encode(['success' => false, 'error' => 'Le nom et les données JSON ne peuvent pas être vides.']);
+             exit();
         }
 
         try {
-            $assetId = $this->assetManager->addFabricAsset($name, $jsonData, $thumbnailDataUrl);
+            // Appeler le AssetManager pour créer l'asset
+            $assetId = $this->assetManager->addFabricAsset($assetName, $fabricJsonData, $thumbnailDataUrl);
 
             if ($assetId) {
-                // Récupérer l'asset nouvellement créé pour le renvoyer (sans les data)
-                $newAsset = $this->assetManager->getAssetById($assetId); // Assurez-vous que getAssetById existe et renvoie au moins id, name, type, thumbnail
-                if ($newAsset) { unset($newAsset['data']); } // Ne pas renvoyer les grosses data
-
-                echo json_encode(['success' => true, 'message' => 'Asset créé avec succès.', 'asset' => $newAsset ?? ['id' => $assetId, 'name' => $name]]);
+                // Succès
+                http_response_code(201); // Created
+                echo json_encode([
+                    'success' => true,
+                    'message' => "Asset '$assetName' créé avec succès.",
+                    'assetId' => $assetId
+                ]);
             } else {
-                http_response_code(500); echo json_encode(['success' => false, 'error' => 'Erreur lors de l\'enregistrement de l\'asset en base de données.']);
+                // Erreur lors de l'insertion BDD
+                $dbError = $this->assetManager->getLastError();
+                $errorMessage = $dbError[2] ?? 'Erreur inconnue lors de la sauvegarde en base de données.';
+                
+                // Si c'est une erreur de duplicata
+                if ($dbError[0] === null && $dbError[1] === null && str_contains($errorMessage, 'existe déjà')) {
+                     http_response_code(409); // Conflict
+                } else {
+                     http_response_code(500); // Internal Server Error
+                }
+                
+                echo json_encode(['success' => false, 'error' => $errorMessage]);
             }
         } catch (Exception $e) {
+            // Erreur inattendue
             http_response_code(500);
-            error_log("Erreur createAction Asset: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => 'Erreur serveur lors de la création de l\'asset.']);
+            error_log("Exception dans AssetsController::createAction: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erreur serveur: ' . $e->getMessage()]);
         }
         exit();
     }

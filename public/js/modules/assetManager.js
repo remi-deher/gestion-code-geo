@@ -69,15 +69,53 @@ async function createAssetFromSelection() {
     try {
         // 1. Exporter la sélection en JSON Fabric.js
         const fabricObjectData = activeObject.toObject(['customData']);
+
+        // --- CORRECTION DU DÉCALAGE ---
+        // Réinitialiser la position de l'objet DANS LE JSON,
+        // pour que son point d'origine (0,0) soit relatif à l'objet lui-même.
+        // L'objet sur le canvas (activeObject) n'est PAS modifié.
+        fabricObjectData.left = 0;
+        fabricObjectData.top = 0;
+        // S'assurer que l'origine est définie au centre pour le placement futur
+        fabricObjectData.originX = 'center';
+        fabricObjectData.originY = 'center';
+        // --- FIN CORRECTION ---
+
         const jsonDataString = JSON.stringify(fabricObjectData);
 
         // 2. Générer une miniature (optionnel mais recommandé)
         let thumbnailDataUrl = null;
         try {
+            // Pour la miniature, nous devons temporairement appliquer la réinitialisation
+            // à l'objet cloné ou à l'original (ici on utilise l'original)
+            // Sauvegarder l'état
+            const originalPos = {
+                left: activeObject.left,
+                top: activeObject.top,
+                originX: activeObject.originX,
+                originY: activeObject.originY
+            };
+            
+            // Appliquer la normalisation pour la capture de la miniature
+            activeObject.set({
+                left: 0,
+                top: 0,
+                originX: 'center',
+                originY: 'center'
+            });
+            // Forcer le recalcul de la position AVANT de générer le DataURL
+            activeObject.setCoords(); 
+            
             thumbnailDataUrl = activeObject.toDataURL({
                 format: 'png',
                 quality: 0.7,
             });
+
+            // Restaurer l'objet original
+            activeObject.set(originalPos);
+            activeObject.setCoords();
+            canvasInstance.requestRenderAll(); // Rafraîchir le canvas
+
         } catch (thumbError) {
             console.warn("Impossible de générer la miniature pour l'asset:", thumbError);
         }
@@ -93,7 +131,7 @@ async function createAssetFromSelection() {
             },
             body: JSON.stringify({
                 name: assetName.trim(),
-                jsonData: jsonDataString,
+                jsonData: jsonDataString, // Envoie le JSON normalisé (left: 0, top: 0)
                 thumbnailDataUrl: thumbnailDataUrl
             })
         });
