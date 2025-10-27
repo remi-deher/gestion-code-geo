@@ -3,7 +3,7 @@
  * Gère la création d'assets depuis la sélection et le placement d'assets sur le canvas.
  */
 import { showToast } from './utils.js'; // Pour les notifications
-import { getCurrentAssetPlacementData, cancelAssetPlacementMode } from '../ui/sidebar.js';
+import { getCurrentAssetPlacementData, cancelAssetPlacementMode, reloadAssetList } from '../ui/sidebar.js';
 
 let canvasInstance = null;
 
@@ -168,7 +168,8 @@ async function createAssetFromSelection() {
         const result = await response.json();
         if (result.success) {
             showToast(`Asset "${assetName}" créé avec succès !`, 'success');
-            // TODO: Rafraîchir la liste des assets dans la sidebar
+	    console.log("[AssetManager] Asset créé, rechargement de la liste...");
+            await reloadAssetList();
         } else {
             throw new Error(result.error || "Erreur inconnue lors de la création de l'asset.");
         }

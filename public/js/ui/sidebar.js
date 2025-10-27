@@ -16,19 +16,12 @@ let currentAssetPlacementData = null;
 export async function setupSidebar(canvas) { // Rendre async pour fetch
     const geocodeSearchInput = document.getElementById('geocode-search');
     const availableGeocodesList = document.getElementById('available-geocodes-list');
-
-    // Éléments pour les assets
     const assetSearchInput = document.getElementById('asset-search');
-    const availableAssetsList = document.getElementById('available-assets-list');
-    const assetListPlaceholder = document.getElementById('asset-list-placeholder');
-
 
     if (!geocodeSearchInput || !availableGeocodesList) {
         console.warn("[Sidebar] Éléments de recherche ou liste de codes géo manquants.");
     }
-    if (!assetSearchInput || !availableAssetsList || !assetListPlaceholder) {
-         console.warn("[Sidebar] Éléments de recherche, liste ou placeholder d'assets manquants.");
-    }
+    // Les vérifications pour les assets sont maintenant dans reloadAssetList
 
     // --- 1. Filtrage de la liste Codes Géo ---
     if (geocodeSearchInput && availableGeocodesList) {
@@ -51,8 +44,10 @@ export async function setupSidebar(canvas) { // Rendre async pour fetch
             if (!targetItem) return;
 
             // Désélectionner l'ancien item actif (code géo OU asset)
+            const availableAssetsList = document.getElementById('available-assets-list'); // Doit le récupérer ici
             const currentlyActiveAsset = availableAssetsList?.querySelector('.placement-active');
             if (currentlyActiveAsset) currentlyActiveAsset.classList.remove('placement-active');
+            
             const currentlyActiveCode = availableGeocodesList.querySelector('.placement-active');
             if (currentlyActiveCode && currentlyActiveCode !== targetItem) {
                 currentlyActiveCode.classList.remove('placement-active');
@@ -85,7 +80,6 @@ export async function setupSidebar(canvas) { // Rendre async pour fetch
     // --- 3. Annuler le placement si on clique sur un objet existant ---
     canvas.on('mouse:down', (options) => {
         // Si on clique sur un objet existant pendant un mode placement (code ou asset), on annule ce mode.
-        // La vérification pour le placement d'asset est prioritaire dans assetManager.js
         if (currentPlacementData && options.target) {
              console.log("[Sidebar] Clic sur objet existant, annulation mode placement Code Géo.");
              cancelPlacementMode(canvas);
@@ -111,7 +105,7 @@ export async function setupSidebar(canvas) { // Rendre async pour fetch
                 e.dataTransfer.setData('text/plain', dataToSend);
                 e.dataTransfer.effectAllowed = 'copy';
                 document.body.classList.add('dragging-geocode'); // Style visuel global
-                console.log("[Sidebar] Drag start Code Géo. Données:", dataToSend); // Log
+                console.log("[Sidebar] Drag start Code Géo. Données:", dataToSend);
             } else {
                 e.preventDefault();
             }
@@ -123,36 +117,28 @@ export async function setupSidebar(canvas) { // Rendre async pour fetch
     }
 
     // --- 5. Logique pour l'onglet Assets ---
-    if (assetSearchInput && availableAssetsList && assetListPlaceholder) {
-        // Chargement initial des assets
-        try {
-            console.log("[Sidebar] Chargement des assets via API...");
-            const response = await fetch(window.planData?.listAssetsUrl || 'index.php?action=apiListAssets');
-            if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error || "Erreur API");
+    
+    // Appel initial pour charger les assets
+    await reloadAssetList();
 
-            renderAssetList(result.assets || [], availableAssetsList, assetListPlaceholder);
-            console.log(`[Sidebar] ${result.assets?.length || 0} assets chargés.`);
-
-        } catch (error) {
-            console.error("[Sidebar] Erreur chargement assets:", error);
-            assetListPlaceholder.textContent = "Erreur chargement assets.";
-            assetListPlaceholder.classList.remove('text-muted');
-            assetListPlaceholder.classList.add('text-danger');
-        }
-
-        // Filtrage de la liste d'assets
+    // Filtrage de la liste d'assets
+    if (assetSearchInput) {
         assetSearchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase().trim();
-            const items = availableAssetsList.querySelectorAll('.available-asset-item');
+            // Utiliser un sélecteur robuste qui ne dépend pas de la variable locale
+            const items = document.querySelectorAll('#available-assets-list .available-asset-item');
             items.forEach(item => {
                 const name = item.dataset.name?.toLowerCase() || '';
                 const isVisible = name.includes(searchTerm);
-                item.style.display = isVisible ? 'flex' : 'none'; // Utiliser 'flex' car c'est un flex container
+                item.style.display = isVisible ? 'flex' : 'none';
             });
         });
+    }
 
+    // Attacher les écouteurs de clic/drag à la liste (ils fonctionneront
+    // même si le contenu est rechargé grâce à la délégation d'événements)
+    const availableAssetsList = document.getElementById('available-assets-list');
+    if (availableAssetsList) {
         // Sélection d'asset pour Placement (Clic)
         availableAssetsList.addEventListener('click', (e) => {
             const targetItem = e.target.closest('.available-asset-item');
@@ -161,6 +147,7 @@ export async function setupSidebar(canvas) { // Rendre async pour fetch
             // Désélectionner l'ancien item actif (code géo OU asset)
             const currentlyActiveCode = availableGeocodesList?.querySelector('.placement-active');
             if (currentlyActiveCode) currentlyActiveCode.classList.remove('placement-active');
+            
             const currentlyActiveAsset = availableAssetsList.querySelector('.placement-active');
             if (currentlyActiveAsset && currentlyActiveAsset !== targetItem) {
                 currentlyActiveAsset.classList.remove('placement-active');
@@ -194,7 +181,7 @@ export async function setupSidebar(canvas) { // Rendre async pour fetch
                  e.dataTransfer.setData('text/plain', dataToSend);
                  e.dataTransfer.effectAllowed = 'copy';
                  document.body.classList.add('dragging-asset');
-                 console.log("[Sidebar] Drag start Asset. Données:", dataToSend); // Log
+                 console.log("[Sidebar] Drag start Asset. Données:", dataToSend);
              } else {
                  e.preventDefault();
              }
@@ -203,10 +190,48 @@ export async function setupSidebar(canvas) { // Rendre async pour fetch
          availableAssetsList.addEventListener('dragend', (e) => {
             document.body.classList.remove('dragging-asset');
          });
-
-    } // Fin if assets elements exist
+    } // Fin if availableAssetsList
 
     console.log("[Sidebar] Initialisation terminée.");
+}
+
+/**
+ * Recharge la liste des assets depuis l'API. (Exportée)
+ */
+export async function reloadAssetList() {
+    // Cherche les éléments à chaque appel
+    const availableAssetsList = document.getElementById('available-assets-list');
+    const assetListPlaceholder = document.getElementById('asset-list-placeholder');
+
+    if (!availableAssetsList || !assetListPlaceholder) {
+        // Cette erreur ne devrait plus apparaître si les IDs sont corrects dans le HTML
+        console.warn("[Sidebar] Éléments de liste ou placeholder d'assets manquants pour le rechargement.");
+        return;
+    }
+
+    // Afficher le chargement
+    assetListPlaceholder.textContent = "Chargement des assets...";
+    assetListPlaceholder.classList.remove('text-danger'); // Retirer erreur précédente
+    assetListPlaceholder.classList.add('text-muted');
+    assetListPlaceholder.style.display = 'block';
+    availableAssetsList.innerHTML = ''; // Vider l'ancienne liste
+
+    try {
+        console.log("[Sidebar] Rechargement des assets via API...");
+        const response = await fetch(window.planData?.listAssetsUrl || 'index.php?action=apiListAssets');
+        if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || "Erreur API");
+
+        renderAssetList(result.assets || [], availableAssetsList, assetListPlaceholder);
+        console.log(`[Sidebar] ${result.assets?.length || 0} assets rechargés.`);
+
+    } catch (error) {
+        console.error("[Sidebar] Erreur rechargement assets:", error);
+        assetListPlaceholder.textContent = "Erreur chargement assets.";
+        assetListPlaceholder.classList.remove('text-muted');
+        assetListPlaceholder.classList.add('text-danger');
+    }
 }
 
 
@@ -293,7 +318,6 @@ function renderAssetList(assets, listElement, placeholderElement) {
         li.title = `Placer "${asset.name}"`;
 
         const img = document.createElement('img');
-        // Utiliser une icône par défaut si la miniature est null ou vide
         img.src = asset.thumbnail || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 fill=%22currentColor%22 class=%22bi bi-bounding-box%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M5 2V0H0v5h2v6H0v5h5v-2h6v2h5v-5h-2V5h2V0H5zm6 1v2h2v6h-2v2H5v-2H3V5h2V3zM1 1h3v2H1zm1 12H1v3h3zM14 15h-3v-2h3zm0-12V1h-3v2z%22/%3E%3C/svg%3E';
         img.alt = asset.name;
         img.style.width = '32px';
