@@ -155,6 +155,9 @@ $title = $title ?? 'Éditeur de Plan'; // Utilise le titre passé par le contrô
         </div>
     </div>
 
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+    </div>
+
     <script>
         // Passer les données du contrôleur au JavaScript
         window.planData = {
