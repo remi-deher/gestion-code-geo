@@ -47,7 +47,7 @@ export function setupAssetCreation(toolbarElement, canvas) {
  */
 async function createAssetFromSelection() {
     if (!canvasInstance) return;
-    const activeObject = canvasInstance.getActiveObject();
+    let activeObject = canvasInstance.getActiveObject(); // Utiliser 'let'
     if (!activeObject) {
         showToast("Veuillez sélectionner un ou plusieurs objets.", "warning");
         return;
@@ -66,29 +66,39 @@ async function createAssetFromSelection() {
         createAssetBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Création...`;
     }
 
+    let createdGroup = null; // Pour suivre si nous avons créé un groupe temporaire
+
     try {
+        // --- CORRECTION POUR SELECTION MULTIPLE ---
+        // Si c'est une sélection multiple (ActiveSelection),
+        // on la transforme en un VRAI groupe pour que les
+        // coordonnées internes soient recalculées.
+        if (activeObject.type === 'activeSelection') {
+            console.log("[AssetManager] Normalisation d'une ActiveSelection en Group...");
+            // toGroup() remplace la sélection active par un nouveau groupe sur le canvas
+            // et recalcule les coordonnées des enfants.
+            const group = activeObject.toGroup();
+            createdGroup = group; // On stocke le groupe créé
+            activeObject = group; // L'objet à sauvegarder est maintenant ce groupe
+        }
+        // --- FIN CORRECTION ---
+
         // 1. Exporter la sélection en JSON Fabric.js
+        // 'activeObject' est soit l'objet unique, soit le nouveau groupe
         const fabricObjectData = activeObject.toObject(['customData']);
 
-        // --- CORRECTION DU DÉCALAGE ---
-        // Réinitialiser la position de l'objet DANS LE JSON,
-        // pour que son point d'origine (0,0) soit relatif à l'objet lui-même.
-        // L'objet sur le canvas (activeObject) n'est PAS modifié.
+        // Normaliser la position de l'objet/groupe DANS LE JSON
         fabricObjectData.left = 0;
         fabricObjectData.top = 0;
-        // S'assurer que l'origine est définie au centre pour le placement futur
         fabricObjectData.originX = 'center';
         fabricObjectData.originY = 'center';
-        // --- FIN CORRECTION ---
 
         const jsonDataString = JSON.stringify(fabricObjectData);
 
-        // 2. Générer une miniature (optionnel mais recommandé)
+        // 2. Générer une miniature
         let thumbnailDataUrl = null;
         try {
-            // Pour la miniature, nous devons temporairement appliquer la réinitialisation
-            // à l'objet cloné ou à l'original (ici on utilise l'original)
-            // Sauvegarder l'état
+            // Sauvegarder l'état de l'objet sur le canvas
             const originalPos = {
                 left: activeObject.left,
                 top: activeObject.top,
@@ -103,7 +113,6 @@ async function createAssetFromSelection() {
                 originX: 'center',
                 originY: 'center'
             });
-            // Forcer le recalcul de la position AVANT de générer le DataURL
             activeObject.setCoords(); 
             
             thumbnailDataUrl = activeObject.toDataURL({
@@ -111,14 +120,29 @@ async function createAssetFromSelection() {
                 quality: 0.7,
             });
 
-            // Restaurer l'objet original
+            // Restaurer l'objet original sur le canvas
             activeObject.set(originalPos);
             activeObject.setCoords();
-            canvasInstance.requestRenderAll(); // Rafraîchir le canvas
 
         } catch (thumbError) {
             console.warn("Impossible de générer la miniature pour l'asset:", thumbError);
+            // Assurer la restauration même en cas d'erreur
+            if (createdGroup) {
+                activeObject.set(originalPos);
+                activeObject.setCoords();
+            }
         }
+
+        // --- CORRECTION (UNDO) ---
+        // Si on a créé un groupe temporaire, on le "défait" pour
+        // redonner à l'utilisateur sa sélection d'origine (ActiveSelection).
+        if (createdGroup) {
+            console.log("[AssetManager] Restauration de l'ActiveSelection...");
+            // toActiveSelection() remplace le groupe par la sélection
+            createdGroup.toActiveSelection();
+        }
+        canvasInstance.requestRenderAll();
+        // --- FIN CORRECTION ---
 
         // 3. Envoyer à l'API backend
         const apiUrl = 'index.php?action=apiCreateAsset';
@@ -145,7 +169,6 @@ async function createAssetFromSelection() {
         if (result.success) {
             showToast(`Asset "${assetName}" créé avec succès !`, 'success');
             // TODO: Rafraîchir la liste des assets dans la sidebar
-            // (peut nécessiter d'appeler une fonction exportée de sidebar.js ou un événement)
         } else {
             throw new Error(result.error || "Erreur inconnue lors de la création de l'asset.");
         }
@@ -153,6 +176,14 @@ async function createAssetFromSelection() {
     } catch (error) {
         console.error("Erreur lors de la création de l'asset:", error);
         showToast(`Erreur création asset : ${error.message}`, 'danger');
+        
+        // S'assurer de restaurer l'état en cas d'erreur (ex: API échoue)
+        if (createdGroup) {
+            console.log("[AssetManager] Restauration de l'ActiveSelection après erreur.");
+            createdGroup.toActiveSelection();
+            canvasInstance.requestRenderAll();
+        }
+
     } finally {
          if(createAssetBtn) {
              createAssetBtn.disabled = false;
