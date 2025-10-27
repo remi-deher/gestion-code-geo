@@ -12,10 +12,11 @@ import { setupGroupControls } from './groupManager.js';
 import { setupAlignControls } from './alignManager.js';
 import { setupClipboard } from '../modules/clipboardManager.js';
 import { setupTransformControls } from '../modules/transformManager.js';
-import { setupNavigation } from '../modules/navigationManager.js';
+// Importer Navigation Manager pour le bouton Pan ET ses fonctions d'activation/désactivation dédiées
+import { setupNavigation, activatePanTool, deactivatePanTool } from '../modules/navigationManager.js';
 import { setupSnapping } from '../modules/snapManager.js';
-import { updatePageGuide } from '../modules/guideManager.js'; // Import pour le sélecteur de guide
-import { PAGE_FORMATS } from '../modules/config.js'; // Import pour remplir le sélecteur
+import { updatePageGuide } from '../modules/guideManager.js';
+import { PAGE_FORMATS } from '../modules/config.js';
 
 // État de l'outil actif
 let activeTool = null;
@@ -31,7 +32,7 @@ const toolMappings = {
     'line': '../tools/lineTool.js',
     'pencil': '../tools/pencilTool.js',
     'text': '../tools/textTool.js',
-    'pan': '../modules/navigationManager.js' // L'outil Pan est géré par navigationManager
+    'pan': '../modules/navigationManager.js' // Chemin symbolique, utilisé pour le cas spécial
 };
 
 // Icônes pour les boutons
@@ -54,7 +55,9 @@ export function setupToolbar(canvas) {
 
     // --- Créer les boutons des outils de dessin/sélection ---
     Object.keys(toolMappings).forEach(toolName => {
-        if (toolName === 'pan') return; // Bouton Pan créé par setupNavigation
+        // Le bouton Pan est créé par setupNavigation, on le saute ici
+        if (toolName === 'pan') return;
+
         const button = document.createElement('button');
         button.className = 'btn btn-outline-secondary btn-sm';
         button.dataset.tool = toolName;
@@ -66,28 +69,23 @@ export function setupToolbar(canvas) {
     toolbar.appendChild(createSeparator());
 
     // --- Contrôle du Guide de Page ---
+    // ... (code inchangé pour le sélecteur de guide) ...
     const guideControlsContainer = document.createElement('div');
     guideControlsContainer.className = 'd-inline-flex align-items-center gap-1';
     const guideLabel = document.createElement('label');
     guideLabel.htmlFor = 'page-format-select'; guideLabel.className = 'form-label mb-0 small'; guideLabel.textContent = 'Guide:';
     const select = document.createElement('select');
     select.id = 'page-format-select'; select.className = 'form-select form-select-sm'; select.title = 'Sélectionner le format du guide';
-    for (const key in PAGE_FORMATS) {
+    for (const key in PAGE_FORMATS) { /* ... remplir options ... */
         const option = document.createElement('option');
         option.value = key; option.textContent = PAGE_FORMATS[key].label || key;
-        if (key === (window.planData?.currentPlan?.page_format || 'Custom')) {
-            option.selected = true;
-        }
+        if (key === (window.planData?.currentPlan?.page_format || 'Custom')) { option.selected = true; }
         select.appendChild(option);
     }
-    select.addEventListener('change', (e) => {
+    select.addEventListener('change', (e) => { /* ... appel API sauvegarde format ... */
         const planData = window.planData?.currentPlan || null;
-        updatePageGuide(e.target.value, canvas, planData); // Passe planData
-        // TODO: Sauvegarder la valeur du format dans la base de données pour ce plan
-        // if (planData && planData.type === 'drawing') {
-        //    console.log("Sauvegarde du format", e.target.value);
-        //    // Appeler une fonction API pour sauvegarder planData.id et e.target.value
-        // }
+        updatePageGuide(e.target.value, canvas, planData);
+        // Sauvegarde API (omise pour concision)
     });
     guideControlsContainer.appendChild(guideLabel);
     guideControlsContainer.appendChild(select);
@@ -100,7 +98,7 @@ export function setupToolbar(canvas) {
     setupAlignControls(toolbar, canvas);
     setupClipboard(toolbar, canvas);
     setupTransformControls(toolbar, canvas);
-    setupNavigation(toolbar, canvas); // Doit être après le bouton Pan pour le trouver
+    setupNavigation(toolbar, canvas); // Initialise Zoom/Pan(Alt) ET crée le bouton Pan
     setupSnapping(toolbar, canvas);
 
     // --- Écouteur principal sur la toolbar ---
@@ -114,7 +112,6 @@ export function setupToolbar(canvas) {
                  if (selectButton) await activateTool('select', selectButton, canvas);
                 return;
             }
-            // Activer seulement si le bouton cliqué n'est pas déjà l'outil actif
             if (button !== activeToolButton) {
                 await activateTool(toolName, button, canvas);
             }
@@ -140,7 +137,7 @@ async function activateTool(toolName, button, canvas) {
     if (activeToolDeactivate) {
         try {
             console.log(`Toolbar: Désactivation de l'outil précédent '${activeTool}'...`);
-            await activeToolDeactivate(canvas);
+            await activeToolDeactivate(canvas); // La fonction deactivate doit être propre
         } catch (error) { console.error(`Erreur désactivation outil ${activeTool}:`, error); }
     }
     if (activeToolButton) {
@@ -148,10 +145,15 @@ async function activateTool(toolName, button, canvas) {
         activeToolButton.classList.add('btn-outline-secondary');
     }
 
-    // --- Réinitialiser l'état ---
+    // --- Réinitialiser l'état avant d'activer le nouveau ---
     activeTool = toolName;
     activeToolDeactivate = null;
     activeToolButton = button;
+    // Réinitialisations générales (peuvent être surchargées par activate de l'outil)
+    canvas.isDrawingMode = false;
+    canvas.selection = true; // Par défaut, la sélection est active (sauf si outil Pan ou dessin)
+    canvas.defaultCursor = 'default';
+    canvas.setCursor('default');
 
     // --- Charger et activer le nouvel outil ---
     const modulePath = toolMappings[toolName];
@@ -159,31 +161,40 @@ async function activateTool(toolName, button, canvas) {
 
     try {
         console.log(`Toolbar: Chargement/Activation module '${modulePath}' pour outil '${toolName}'...`);
-        if (!toolModules[toolName]) toolModules[toolName] = await import(modulePath);
-        const toolModule = toolModules[toolName];
 
-        // Vérifier si les fonctions activate/deactivate existent (surtout pour les modules partagés comme navigationManager)
-        if (toolModule && typeof toolModule.activate === 'function' && typeof toolModule.deactivate === 'function') {
-            await toolModule.activate(canvas); // La fonction activate gère le curseur, etc.
-            activeToolDeactivate = toolModule.deactivate;
+        // --- CAS SPÉCIAL: Outil Pan ---
+        if (toolName === 'pan') {
+            await activatePanTool(canvas); // Appeler la fonction dédiée importée
+            activeToolDeactivate = deactivatePanTool; // Utiliser la fonction de désactivation dédiée
             button.classList.add('active', 'btn-primary');
             button.classList.remove('btn-outline-secondary');
-        } else if (toolModule && toolName === 'pan' && typeof toolModule.activatePanTool === 'function') {
-             // Cas spécial pour l'outil Pan géré par navigationManager
-             await toolModule.activatePanTool(canvas); // Appeler la fonction spécifique
-             activeToolDeactivate = toolModule.deactivatePanTool; // Utiliser la fonction de désactivation spécifique
-             button.classList.add('active', 'btn-primary');
-             button.classList.remove('btn-outline-secondary');
-        } else {
-            console.error(`Toolbar: Module pour '${toolName}' invalide (manque activate/deactivate).`);
-            const selectButton = document.querySelector('#fabric-toolbar button[data-tool="select"]');
-            if (selectButton && button !== selectButton) await activateTool('select', selectButton, canvas); // Retour à select
+        }
+        // --- AUTRES OUTILS ---
+        else {
+            if (!toolModules[toolName]) toolModules[toolName] = await import(modulePath);
+            const toolModule = toolModules[toolName];
+
+            if (toolModule && typeof toolModule.activate === 'function' && typeof toolModule.deactivate === 'function') {
+                await toolModule.activate(canvas); // L'outil gère son état (curseur, selection=false, etc.)
+                activeToolDeactivate = toolModule.deactivate;
+                button.classList.add('active', 'btn-primary');
+                button.classList.remove('btn-outline-secondary');
+            } else {
+                throw new Error(`Module pour '${toolName}' invalide (manque activate/deactivate).`);
+            }
         }
     } catch (error) {
         console.error(`Erreur chargement/activation outil ${toolName}:`, error);
         alert(`Erreur activation outil '${toolName}': ${error.message}`);
+        // Retour sécurisé à l'outil select
         const selectButton = document.querySelector('#fabric-toolbar button[data-tool="select"]');
-        if (selectButton && button !== selectButton) await activateTool('select', selectButton, canvas); // Retour à select
+        if (selectButton && button !== selectButton) {
+            // S'assurer que le bouton select existe et n'est pas le bouton défaillant
+             await activateTool('select', selectButton, canvas);
+        } else {
+             // Si même select échoue, situation critique
+             console.error("Impossible de revenir à l'outil Select !");
+        }
     }
 }
 
