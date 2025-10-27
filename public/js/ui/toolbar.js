@@ -19,6 +19,8 @@ import { setupSnapping } from '../modules/snapManager.js';
 import { setCanvasSizeFromFormat, updatePageGuideBorder } from '../modules/guideManager.js';
 import { PAGE_FORMATS } from '../modules/config.js'; // Import pour remplir le sélecteur
 
+import { setupAssetCreation } from '../modules/assetManager.js';
+
 // État de l'outil actif
 let activeTool = null;
 let activeToolDeactivate = null;
@@ -136,6 +138,7 @@ export function setupToolbar(canvas) {
     setupTransformControls(toolbar, canvas);
     setupNavigation(toolbar, canvas); // Doit être après le bouton Pan pour le trouver
     setupSnapping(toolbar, canvas);
+    setupAssetCreation(toolbar, canvas);
 
     // --- Écouteur principal sur la toolbar ---
     toolbar.addEventListener('click', async (e) => {
