@@ -31,8 +31,10 @@ const MM_TO_PIXEL = 3.779527559;
 const mmToPx = (mm) => Math.round(mm * MM_TO_PIXEL);
 
 
-// Dimensions des formats de page en pixels @ 96 DPI (pour les guides)
+// Dimensions des formats de page en pixels @ 96 DPI (utilisées pour définir la taille du canvas)
 export const PAGE_FORMATS = {
+    // Le format 'Custom' n'aura pas de dimensions fixes ici,
+    // la taille sera déterminée par l'image importée ou une valeur par défaut.
     'Custom': { width: 0, height: 0, label: 'Personnalisé' },
     'A4-P': { width: mmToPx(210), height: mmToPx(297), label: 'A4 Portrait (210x297mm)' },
     'A4-L': { width: mmToPx(297), height: mmToPx(210), label: 'A4 Paysage (297x210mm)' },
@@ -40,7 +42,4 @@ export const PAGE_FORMATS = {
     'A3-L': { width: mmToPx(420), height: mmToPx(297), label: 'A3 Paysage (420x297mm)' },
 };
 
-// Facteur de mise à l'échelle pour le canvas de travail (pour avoir de l'espace autour du guide)
-// 1.2 signifie 20% de marge autour du format de page sélectionné.
-// *** CORRECTION : Ajout du mot-clé 'export' ***
-export const CANVAS_OVERSIZE_FACTOR = 1.2;
+// CANVAS_OVERSIZE_FACTOR n'est plus nécessaire.

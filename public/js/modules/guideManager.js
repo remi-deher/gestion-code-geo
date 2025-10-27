@@ -1,124 +1,134 @@
 // Fichier: public/js/modules/guideManager.js
 /**
- * Gère l'affichage, la création et la mise à jour du rectangle de guide de page.
- * Redimensionne le canvas de travail en fonction du format sélectionné.
+ * Gère l'affichage de la bordure de guide aux dimensions du canvas
+ * et la fonction pour définir la taille du canvas à partir d'un format.
  */
-import { PAGE_FORMATS, CANVAS_OVERSIZE_FACTOR } from './config.js';
+import { PAGE_FORMATS } from './config.js';
 
-const GUIDE_ID = 'page-guide';
+const GUIDE_ID = 'page-guide-border'; // Renommé pour clarté
 let canvasInstance = null;
 
 /**
- * Crée ou met à jour le rectangle de guide sur le canvas, et adapte le canvas pour laisser une marge.
- * @param {string} formatKey - Clé du format (ex: 'A4-P', 'A3-L', 'Custom').
+ * Crée ou met à jour le rectangle de guide pour correspondre aux dimensions actuelles du canvas.
+ * Dessine une bordure simple aux limites du canvas.
  * @param {fabric.Canvas} canvas - L'instance du canvas Fabric.
- * @param {object} [planData=null] - Les données du plan (pour vérification).
  */
-export function updatePageGuide(formatKey, canvas, planData = null) {
+export function updatePageGuideBorder(canvas) {
     if (!canvas) return;
-    canvasInstance = canvas;
+    canvasInstance = canvas; // Mémoriser l'instance pour getActiveGuide
 
     const currentGuide = getActiveGuide();
-    const format = PAGE_FORMATS[formatKey];
+    const canvasWidth = canvas.getWidth();
+    const canvasHeight = canvas.getHeight();
 
-    // --- 1. Gestion du format Custom / Aucun ---
-    if (!format || formatKey === 'Custom' || (format.width === 0 && format.height === 0)) {
-        if (currentGuide) {
-            canvas.remove(currentGuide);
-            canvas.renderAll();
-            console.log("GuideManager: Guide supprimé (format Custom ou invalide).");
-        }
+    // Si le canvas n'a pas de dimensions valides, ne rien faire ou supprimer
+    if (canvasWidth <= 0 || canvasHeight <= 0) {
+        removePageGuideBorder();
         return;
     }
 
-    // Définir les dimensions cibles du guide
-    const guideWidth = format.width;
-    const guideHeight = format.height;
+    // Le guide prend 100% de la taille du canvas, positionné à (0,0)
+    const guideLeft = 0;
+    const guideTop = 0;
+    const guideWidth = canvasWidth;
+    const guideHeight = canvasHeight;
 
-    // Dimensions du nouveau Canvas de travail (Guide x Facteur d'agrandissement)
-    const newCanvasWidth = Math.round(guideWidth * CANVAS_OVERSIZE_FACTOR);
-    const newCanvasHeight = Math.round(guideHeight * CANVAS_OVERSIZE_FACTOR);
-
-    // Position du guide dans le nouveau Canvas (centré)
-    const guideLeft = (newCanvasWidth - guideWidth) / 2;
-    const guideTop = (newCanvasHeight - guideHeight) / 2;
-
-    // --- 2. Adaptation du CANVAS ---
-    if (canvas.getWidth() !== newCanvasWidth || canvas.getHeight() !== newCanvasHeight) {
-
-        const oldWidth = canvas.getWidth();
-        const oldHeight = canvas.getHeight();
-        const background = canvas.backgroundImage;
-
-        canvas.setWidth(newCanvasWidth);
-        canvas.setHeight(newCanvasHeight);
-        canvas.calcOffset();
-
-        if (background && background.isBackground) {
-            background.set({
-                left: guideLeft,
-                top: guideTop,
-            });
-            background.setCoords();
-            console.log(`GuideManager: Fond repositionné à (${guideLeft.toFixed(0)}, ${guideTop.toFixed(0)}) après redimensionnement.`);
-        }
-        console.log(`GuideManager: Canvas de travail redimensionné à (${newCanvasWidth}x${newCanvasHeight}px) pour format '${formatKey}'.`);
-    }
-
-    // --- 3. Création / Mise à jour du Guide (le rectangle de bordure) ---
     if (currentGuide) {
+        // Mettre à jour les propriétés du guide existant
         currentGuide.set({
             left: guideLeft,
             top: guideTop,
             width: guideWidth,
             height: guideHeight
         });
-        currentGuide.setCoords();
+        currentGuide.setCoords(); // Recalculer
     } else {
+        // Créer un nouveau guide (bordure)
         const guide = new fabric.Rect({
             id: GUIDE_ID,
             left: guideLeft,
             top: guideTop,
             width: guideWidth,
             height: guideHeight,
-            fill: 'rgba(255, 255, 255, 0.05)',
-            stroke: 'rgba(0, 0, 0, 0.5)',
-            strokeDashArray: [5, 5],
-            strokeWidth: 2,
-            selectable: false,
+            fill: 'transparent', // Pas de remplissage
+            stroke: 'rgba(0, 0, 0, 0.3)', // Bordure discrète
+            strokeDashArray: [3, 3], // Pointillés
+            strokeWidth: 1, // Ligne fine
+            selectable: false, // Non interactif
             evented: false,
             hasControls: false,
             hasBorders: false,
-            excludeFromExport: true,
-            isGuide: true,
-            objectCaching: false
+            excludeFromExport: true, // Ne pas sauvegarder dans le JSON
+            isGuide: true, // Marqueur
+            objectCaching: false // Assurer le rendu correct des pointillés
         });
         canvas.add(guide);
-        canvas.sendToBack(guide);
+        canvas.sendToBack(guide); // Envoyer derrière tous les autres objets
     }
 
-    canvas.renderAll();
-    console.log(`GuideManager: Guide '${formatKey}' mis à jour/créé et centré.`);
+    canvas.requestRenderAll(); // Demander un rendu, ne pas forcer
+    console.log(`GuideManager: Bordure de guide mise à jour (${guideWidth.toFixed(0)}x${guideHeight.toFixed(0)}px).`);
 }
 
 /**
- * Récupère l'objet guide actif sur le canvas.
+ * Récupère l'objet guide (bordure) actif sur le canvas.
  * @returns {fabric.Object | null}
  */
 export function getActiveGuide() {
+    // Utiliser la variable mémorisée canvasInstance
     if (!canvasInstance) return null;
     return canvasInstance.getObjects().find(obj => obj.isGuide === true);
 }
 
 /**
- * Supprime le guide de page du canvas.
+ * Supprime le guide (bordure) du canvas.
  */
-export function removePageGuide() {
+export function removePageGuideBorder() {
     if (!canvasInstance) return;
     const currentGuide = getActiveGuide();
     if (currentGuide) {
         canvasInstance.remove(currentGuide);
-        canvasInstance.renderAll();
-        console.log("GuideManager: Guide supprimé.");
+        canvasInstance.requestRenderAll();
+        console.log("GuideManager: Bordure de guide supprimée.");
     }
+}
+
+/**
+ * Définit la taille du canvas en fonction du format de page choisi.
+ * @param {string} formatKey - Clé du format (ex: 'A4-P').
+ * @param {fabric.Canvas} canvas - L'instance du canvas.
+ * @param {object|null} fallbackImage - L'image chargée (si format Custom) pour définir la taille.
+ * @returns {boolean} True si la taille a été définie/modifiée, false sinon.
+ */
+export function setCanvasSizeFromFormat(formatKey, canvas, fallbackImage = null) {
+     if (!canvas) return false;
+     const format = PAGE_FORMATS[formatKey];
+
+     let newWidth = 0;
+     let newHeight = 0;
+
+     if (format && formatKey !== 'Custom' && format.width > 0 && format.height > 0) {
+         // Utiliser les dimensions du format prédéfini
+         newWidth = format.width;
+         newHeight = format.height;
+     } else if (formatKey === 'Custom' && fallbackImage && fallbackImage.width > 0 && fallbackImage.height > 0) {
+          // Si Custom ET une image de fond existe, prendre la taille de l'image
+          newWidth = fallbackImage.width;
+          newHeight = fallbackImage.height;
+          console.log(`GuideManager: Format 'Custom', taille canvas définie par l'image (${newWidth}x${newHeight}px).`);
+     } else {
+         // Fallback si format Custom sans image ou format invalide
+         console.warn(`GuideManager: Format '${formatKey}' invalide ou Custom sans image fallback. Utilisation taille par défaut 800x600.`);
+         newWidth = 800; // Taille par défaut arbitraire
+         newHeight = 600;
+     }
+
+     if (canvas.getWidth() !== newWidth || canvas.getHeight() !== newHeight) {
+         canvas.setWidth(newWidth);
+         canvas.setHeight(newHeight);
+         canvas.calcOffset(); // Recalculer offset
+         console.log(`GuideManager: Taille du canvas définie à ${newWidth}x${newHeight}px pour format '${formatKey}'.`);
+         return true; // La taille a changé
+     }
+     return false; // La taille était déjà correcte
 }

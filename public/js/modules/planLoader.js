@@ -1,16 +1,20 @@
 // Fichier: public/js/modules/planLoader.js
 /**
  * Module pour charger le fond du plan (image/SVG) et les objets Fabric.js sauvegardés.
- * Met à l'échelle le fond pour correspondre au format de page (guide).
+ * Met à l'échelle le fond pour REMPLIR le canvas (qui a la taille A4/A3).
+ * Adapte la taille du canvas si le format est 'Custom'.
  */
-import { PAGE_FORMATS } from './config.js';
-// Importer getActiveGuide pour obtenir les dimensions cibles si le canvas a déjà été redimensionné
-import { getActiveGuide } from './guideManager.js';
+import { setCanvasSizeFromFormat } from './guideManager.js'; // Import pour le format Custom
+
+// Variable globale pour stocker les dimensions de référence (taille du canvas A4/A3)
+window.originalPlanWidth = 0;
+window.originalPlanHeight = 0;
 
 /**
  * Charge le fond du plan (image ou SVG) et les objets Fabric.js sur le canvas.
- * @param {fabric.Canvas} canvas - L'instance du canvas Fabric.
- * @param {object} planData - Les données du plan (provenant de window.planData.currentPlan).
+ * Adapte la taille du canvas si le format est 'Custom' et qu'un fond est chargé.
+ * @param {fabric.Canvas} canvas - L'instance du canvas Fabric (déjà dimensionnée A4/A3 si format prédéfini).
+ * @param {object} planData - Les données du plan.
  */
 export async function loadPlanBackgroundAndObjects(canvas, planData) {
     if (!canvas || !planData) {
@@ -18,40 +22,68 @@ export async function loadPlanBackgroundAndObjects(canvas, planData) {
         return;
     }
 
-    // Effacer le canvas précédent (au cas où)
+    // Effacer le canvas (sauf couleur de fond)
     canvas.clear();
-    canvas.setBackgroundImage(null);
-    canvas.setBackgroundColor(window.canvasBackgroundColor || '#ffffff'); // Utiliser la couleur de fond définie
+    if (canvas.backgroundImage instanceof fabric.Object) canvas.backgroundImage = null;
+    canvas.getObjects().filter(o => o.isBackground).forEach(o => canvas.remove(o));
+    canvas.setBackgroundColor(window.canvasBackgroundColor || '#ffffff', canvas.renderAll.bind(canvas));
 
-    const planUrl = `uploads/plans/${planData.nom_fichier}`;
+    const planUrl = planData.nom_fichier ? `uploads/plans/${planData.nom_fichier}` : null;
     const formatKey = planData.page_format || 'Custom'; // Format défini lors de la création/modif
     const isDrawingPlan = planData.type === 'drawing';
 
     try {
-        // --- 1. Charger le fond du plan (si ce n'est pas un plan 'drawing') ---
-        console.log(`PlanLoader: Chargement plan type '${planData.type}'. Format cible: '${formatKey}'`);
+        // --- 1. Charger le fond (si plan importé) ---
+        console.log(`PlanLoader: Chargement plan type '${planData.type}'. Format initial: '${formatKey}'`);
 
-        let backgroundObject = null; // Pour stocker l'objet créé (Image ou Group)
+        let backgroundImg = null; // Image/Groupe Fabric à utiliser comme fond
 
-        if (!isDrawingPlan && planData.nom_fichier) { // Charger fond seulement si importé
-            if (planData.type === 'image' || planData.type === 'pdf') {
-                backgroundObject = await loadImageBackground(canvas, planUrl, formatKey);
+        if (!isDrawingPlan && planUrl) {
+            if (planData.type === 'image' || planData.type === 'pdf') { // PDF traité comme image
+                backgroundImg = await loadImageForBackground(canvas, planUrl);
             } else if (planData.type === 'svg') {
-                backgroundObject = await loadSVGBackground(canvas, planUrl, formatKey);
+                backgroundImg = await loadSVGForBackground(canvas, planUrl);
+            }
+
+            // --- Redimensionner le canvas si format 'Custom' basé sur l'image chargée ---
+            // Fait AVANT d'appliquer l'image de fond
+            if (formatKey === 'Custom' && backgroundImg) {
+                console.log("PlanLoader: Format 'Custom', adaptation du canvas à l'image de fond.");
+                // Redimensionne le canvas Fabric aux dimensions de l'image/SVG chargé
+                if (setCanvasSizeFromFormat('Custom', canvas, backgroundImg)) {
+                    // Si la taille a changé, il faut que canvasManager mette à jour le wrapper CSS
+                    // On pourrait déclencher un événement ou appeler une méthode de canvasManager ici
+                    // Pour l'instant, on suppose que le wrapper s'adapte via CSS (align/justify-center)
+                }
+            }
+
+            // --- Appliquer et mettre à l'échelle le fond ---
+            if (backgroundImg) {
+                // S'assurer que les dimensions du canvas sont > 0 avant de scaler
+                if (canvas.width > 0 && canvas.height > 0) {
+                    canvas.setBackgroundImage(backgroundImg, canvas.renderAll.bind(canvas), {
+                        // Mettre à l'échelle pour couvrir/remplir le canvas (A4/A3 ou Custom)
+                        scaleX: canvas.width / backgroundImg.width,
+                        scaleY: canvas.height / backgroundImg.height,
+                        originX: 'left',
+                        originY: 'top',
+                        // Propriétés pour fond non interactif
+                        selectable: false, evented: false, excludeFromExport: true, isBackground: true
+                    });
+                    console.log("PlanLoader: Fond appliqué et mis à l'échelle pour remplir le canvas.");
+                } else {
+                    console.error("PlanLoader: Dimensions du canvas invalides, impossible d'appliquer le fond.");
+                }
             } else {
-                console.warn(`PlanLoader: Type de plan '${planData.type}' non géré pour le fond.`);
+                 console.warn(`PlanLoader: Type de plan '${planData.type}' non géré ou chargement échoué.`);
             }
         } else {
-            console.log("PlanLoader: Plan de type 'drawing' ou sans fichier, pas de fond à charger.");
-            // Le canvas a déjà été dimensionné par updatePageGuide s'il y a un format
+            console.log("PlanLoader: Plan 'drawing' ou sans fichier, pas de fond appliqué.");
+            // Le canvas a déjà été dimensionné par setCanvasSizeFromFormat dans plan-editor.js
         }
 
-        // Positionner le fond chargé (s'il y en a un)
-        if (backgroundObject) {
-            positionBackground(canvas, backgroundObject);
-        }
 
-        // --- 2. Charger les objets Fabric.js sauvegardés (dessins, codes géo placés via JSON) ---
+        // --- 2. Charger les objets Fabric.js sauvegardés (dessins, codes géo) ---
         if (planData.drawing_data) {
             console.log("PlanLoader: Chargement des objets sauvegardés (drawing_data)...");
             await loadJsonData(canvas, planData.drawing_data);
@@ -59,160 +91,69 @@ export async function loadPlanBackgroundAndObjects(canvas, planData) {
             console.log("PlanLoader: Aucune donnée de dessin (drawing_data) à charger.");
         }
 
-        // Stocker les dimensions originales pour la conversion Pixels <=> Pourcentage
-        // Utiliser les dimensions du guide s'il existe, sinon celles du fond, sinon celles du canvas
-        const guide = getActiveGuide();
-        if (guide) {
-             window.originalPlanWidth = guide.width;
-             window.originalPlanHeight = guide.height;
-        } else if (backgroundObject) {
-            window.originalPlanWidth = backgroundObject.width * (backgroundObject.scaleX || 1);
-            window.originalPlanHeight = backgroundObject.height * (backgroundObject.scaleY || 1);
+        // --- 3. Définir les dimensions de référence pour la conversion % ---
+        // La référence est maintenant TOUJOURS la taille du canvas
+        window.originalPlanWidth = canvas.getWidth();
+        window.originalPlanHeight = canvas.getHeight();
+        if(window.originalPlanWidth > 0 && window.originalPlanHeight > 0) {
+             console.log(`PlanLoader: Dimensions originales pour conversion % définies à ${window.originalPlanWidth.toFixed(0)}x${window.originalPlanHeight.toFixed(0)} (Taille Canvas/Page)`);
         } else {
-            window.originalPlanWidth = canvas.getWidth();
-            window.originalPlanHeight = canvas.getHeight();
+             console.warn("PlanLoader: Dimensions du canvas invalides après chargement.");
+             // Fallback ? Peut indiquer un problème dans setCanvasSizeFromFormat
+             window.originalPlanWidth = 800; window.originalPlanHeight = 600;
         }
-        console.log(`PlanLoader: Dimensions originales pour conversion % définies à ${window.originalPlanWidth}x${window.originalPlanHeight}`);
-
 
         canvas.renderAll();
         console.log("PlanLoader: Chargement du plan terminé.");
 
     } catch (error) {
         console.error("PlanLoader: Erreur lors du chargement du plan:", error);
-        canvas.clear();
-        throw error;
+        canvas.clear(); // Nettoyer en cas d'erreur
+        throw error; // Propager pour l'afficher à l'utilisateur
     }
 }
 
 /**
- * Charge une image et la met à l'échelle pour correspondre au formatKey.
+ * Charge une image pour l'utiliser comme fond. NE L'APPLIQUE PAS.
  * @param {fabric.Canvas} canvas
  * @param {string} url
- * @param {string} formatKey
  * @returns {Promise<fabric.Image|null>} L'objet image créé ou null.
  */
-function loadImageBackground(canvas, url, formatKey) {
-    return new Promise((resolve) => {
+function loadImageForBackground(canvas, url) {
+    return new Promise((resolve, reject) => {
         fabric.Image.fromURL(url, (img) => {
-            if (!img) {
-                console.error(`PlanLoader: Impossible de charger l'image depuis ${url}`);
-                return resolve(null);
+            if (!img || !img.width || !img.height) { // Vérifier validité image
+                return reject(new Error(`Impossible de charger l'image depuis ${url}`));
             }
             console.log(`PlanLoader: Image chargée (${img.width}x${img.height}).`);
-
-            const targetFormat = PAGE_FORMATS[formatKey];
-            if (formatKey !== 'Custom' && targetFormat) {
-                // Mettre à l'échelle pour correspondre au guide
-                scaleObjectToDimensions(img, targetFormat.width, targetFormat.height);
-                console.log(`PlanLoader: Image mise à l'échelle vers ${targetFormat.width}x${targetFormat.height}px.`);
-            }
-
-            // Marquer comme fond pour exclusion future
-             img.set({
-                 isBackground: true,
-                 selectable: false, evented: false, excludeFromExport: true,
-                 // Positionnement sera fait par positionBackground
-             });
-            resolve(img);
+            resolve(img); // Retourne l'objet image
 
         }, { crossOrigin: 'anonymous' });
     });
 }
 
 /**
- * Charge un SVG, le groupe, et le met à l'échelle pour correspondre au formatKey.
+ * Charge un SVG et le groupe pour l'utiliser comme fond. NE L'APPLIQUE PAS.
  * @param {fabric.Canvas} canvas
  * @param {string} url
- * @param {string} formatKey
  * @returns {Promise<fabric.Group|null>} Le groupe SVG créé ou null.
  */
-function loadSVGBackground(canvas, url, formatKey) {
-    return new Promise((resolve) => {
+function loadSVGForBackground(canvas, url) {
+    return new Promise((resolve, reject) => {
         fabric.loadSVGFromURL(url, (objects, options) => {
-            if (!objects) {
-                 console.error(`PlanLoader: Impossible de charger/parser le SVG depuis ${url}`);
-                 return resolve(null);
+            if (!objects || !options.width || !options.height) { // Vérifier validité SVG
+                 return reject(new Error(`Impossible de charger le SVG depuis ${url}`));
             }
             console.log(`PlanLoader: SVG chargé (${options.width}x${options.height}). ${objects.length} objets.`);
-
             const group = fabric.util.groupSVGElements(objects, options);
-            const targetFormat = PAGE_FORMATS[formatKey];
-
-            if (formatKey !== 'Custom' && targetFormat) {
-                // Mettre à l'échelle pour correspondre au guide
-                scaleObjectToDimensions(group, targetFormat.width, targetFormat.height);
-                console.log(`PlanLoader: Groupe SVG mis à l'échelle vers ${targetFormat.width}x${targetFormat.height}px.`);
-            }
-
-             // Marquer comme fond
-             group.set({
-                 isBackground: true,
-                 selectable: false, evented: false, excludeFromExport: true,
-                 // Positionnement sera fait par positionBackground
-             });
-            resolve(group);
+            // Assurer que width/height sont bien sur le groupe pour le scaling
+            group.width = options.width;
+            group.height = options.height;
+            resolve(group); // Retourne l'objet groupe
         });
     });
 }
 
-/**
- * Met à l'échelle un objet Fabric (Image ou Group) pour correspondre aux dimensions cibles.
- * @param {fabric.Object} obj - L'objet à redimensionner.
- * @param {number} targetWidth - Largeur cible en pixels.
- * @param {number} targetHeight - Hauteur cible en pixels.
- */
-function scaleObjectToDimensions(obj, targetWidth, targetHeight) {
-    const scaleX = targetWidth / obj.width;
-    const scaleY = targetHeight / obj.height;
-    // Utiliser le scale le plus contraignant pour conserver les proportions (fit)
-    // Ou choisir 'cover' si vous préférez remplir la zone et rogner
-    const scale = Math.min(scaleX, scaleY); // 'fit'
-
-    obj.scaleX = scale;
-    obj.scaleY = scale;
-    // Mettre à jour width/height après scaling pour le positionnement
-    // obj.width = obj.width * scale;
-    // obj.height = obj.height * scale;
-}
-
-/**
- * Positionne un objet (Image/Group) comme fond centré sur le guide (ou au centre du canvas).
- * @param {fabric.Canvas} canvas
- * @param {fabric.Object} backgroundObject
- */
-function positionBackground(canvas, backgroundObject) {
-    const guide = getActiveGuide();
-    let targetLeft, targetTop;
-
-    if (guide) {
-        // Centrer sur le guide
-        targetLeft = guide.left + (guide.width - backgroundObject.getScaledWidth()) / 2;
-        targetTop = guide.top + (guide.height - backgroundObject.getScaledHeight()) / 2;
-    } else {
-        // Centrer sur le canvas si pas de guide
-        targetLeft = (canvas.getWidth() - backgroundObject.getScaledWidth()) / 2;
-        targetTop = (canvas.getHeight() - backgroundObject.getScaledHeight()) / 2;
-    }
-
-    backgroundObject.set({
-        left: targetLeft,
-        top: targetTop,
-        originX: 'left', // Assurer que l'origine est cohérente
-        originY: 'top',
-        selectable: false,
-        evented: false,
-        hoverCursor: 'default',
-        excludeFromExport: true, // Ne pas inclure dans l'export JSON standard
-        isBackground: true // Marqueur pour l'identifier
-    });
-
-    // Ajouter l'objet au canvas (pas setBackgroundImage pour le contrôle)
-    canvas.add(backgroundObject);
-    canvas.sendToBack(backgroundObject); // Mettre en arrière-plan
-
-    console.log(`PlanLoader: Fond positionné à (${targetLeft.toFixed(0)}, ${targetTop.toFixed(0)})`);
-}
 
 /**
  * Charge les données JSON (objets Fabric.js) sur le canvas.
@@ -226,9 +167,7 @@ function loadJsonData(canvas, jsonString) {
                 canvas.renderAll();
                 console.log("PlanLoader: Objets JSON chargés sur le canvas.");
                 resolve();
-            }, (o, object) => {
-                // Callback pour chaque objet (utile pour réappliquer des propriétés non sérialisées)
-            });
+            }, (o, object) => { /* Callback pour chaque objet */ });
         } catch (error) {
             console.error("PlanLoader: Erreur lors du parsing ou chargement JSON:", error);
             reject(error);

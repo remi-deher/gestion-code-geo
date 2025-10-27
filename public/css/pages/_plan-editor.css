@@ -1,86 +1,73 @@
 /* public/css/pages/_plan-editor.css */
 
-/* Barre de contrôle supérieure */
+/* S'assurer que le body ne cause pas de dépassement */
+html, body {
+    height: 100%; margin: 0; padding: 0; overflow: hidden;
+}
+
+/* Conteneur principal: utiliser Flexbox en colonne */
+#editor-container {
+    display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden;
+}
+
+/* 1. Barre de contrôle supérieure (navbar) */
 .editor-controls {
-    flex-shrink: 0; /* Empêche la barre de rétrécir */
-    min-height: 50px; /* Hauteur minimale */
+    flex-shrink: 0; min-height: 50px; box-sizing: border-box;
+    /* Styles pour le titre */
+    h5 { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 
-.editor-controls h5 {
-    max-width: 300px; /* Limite la largeur du titre pour éviter qu'il prenne trop de place */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Barre d'outils Fabric.js */
+/* 2. Barre d'outils Fabric.js */
 #fabric-toolbar {
-    flex-shrink: 0; /* Empêche la barre de rétrécir */
-    padding: 0.5rem;
-    /* Ajoutez ici les styles pour les boutons d'outils */
+    flex-shrink: 0; padding: 0.3rem 0.5rem; box-sizing: border-box;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; /* Ajuster gap si besoin */
+    /* Styles pour les éléments input (couleur) */
+    .form-control-color { width: 30px; height: 30px; padding: 0.1rem; }
+    /* Styles pour le sélecteur de format */
+    #page-format-select { max-width: 150px; } /* Limiter largeur */
 }
+/* Style pour les séparateurs dans la toolbar */
+#fabric-toolbar .border-start { height: 24px; margin-left: 0.5rem !important; margin-right: 0.5rem !important; }
 
-/* Conteneur du Canvas */
+/* 3. Zone principale du Canvas Wrapper: prend l'espace restant ET CENTRE LE CANVAS */
 #canvas-wrapper {
-    position: relative; /* Nécessaire pour positionner l'indicateur de chargement */
-    cursor: default; /* Curseur par défaut, sera modifié par JS */
-     background-color: #e9ecef; /* Fond légèrement différent pour distinguer */
+    flex-grow: 1;
+    position: relative; /* Pour l'indicateur de chargement */
+    overflow: auto; /* PERMET LE SCROLL si le canvas zoomé est plus grand */
+    display: flex; /* Utiliser flexbox pour centrer */
+    align-items: center; /* Centrer verticalement */
+    justify-content: center; /* Centrer horizontalement */
+    padding: 20px; /* Espace gris autour du canvas */
+    box-sizing: border-box;
+    /* Fond quadrillé pour la zone de travail */
+     background-color: #e9ecef;
      background-image:
         linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-    background-size: 20px 20px; /* Taille de la grille de fond */
+    background-size: 20px 20px;
 }
 
-/* Style pour le canvas Fabric.js */
+/* Style pour le canvas Fabric.js lui-même (taille fixe A4/A3) */
 #plan-canvas {
-    /* Dimensions gérées par JavaScript */
-}
-
-/* Sidebar Offcanvas */
-#sidebarOffcanvas {
-    width: 300px; /* Largeur de la sidebar */
-}
-
-#sidebarOffcanvas .nav-link {
-    color: var(--bs-nav-link-color); /* Couleur par défaut des liens d'onglet */
-}
-
-#sidebarOffcanvas .nav-link.active {
-    font-weight: bold;
-}
-
-/* Liste des codes géo disponibles */
-#available-geocodes-list .list-group-item {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
-    border-left: 3px solid transparent; /* Pour indiquer l'état actif/survol */
-    transition: background-color 0.15s ease-in-out, border-left-color 0.15s ease-in-out;
-}
-
-#available-geocodes-list .list-group-item:hover {
-    background-color: #e9ecef;
-    border-left-color: var(--primary-color);
-}
-
-#available-geocodes-list .list-group-item.placement-active {
-    background-color: var(--bs-primary-bg-subtle); /* Fond légèrement bleu */
-    color: var(--bs-primary-text-emphasis);
-    font-weight: bold;
-    border-left-color: var(--primary-color);
-    cursor: grabbing !important; /* Indique qu'on est en train de placer */
-}
-
-/* Styles pour le drag-and-drop (visuel) */
-body.dragging-geocode {
-    cursor: grabbing !important;
-}
-#canvas-wrapper.drop-target-active {
-    outline: 2px dashed var(--primary-color);
-    outline-offset: -5px;
+    /* Dimensions gérées par JavaScript (setWidth/Height) */
+    /* Ajouter une ombre pour le distinguer du fond */
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    /* Le fond du canvas est géré par Fabric (setBackgroundColor) */
 }
 
 /* Style pour l'indicateur de chargement */
-#loading-indicator .spinner-border {
-    width: 3rem;
-    height: 3rem;
-}
+#loading-indicator { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; }
+#loading-indicator .spinner-border { width: 3rem; height: 3rem; }
+
+/* Styles pour le drag-and-drop (visuel) */
+body.dragging-geocode { cursor: grabbing !important; }
+#canvas-wrapper.drop-target-active { outline: 2px dashed var(--primary-color); outline-offset: -10px; } /* Augmenter offset */
+
+/* Sidebar Offcanvas */
+#sidebarOffcanvas { width: 300px; }
+#sidebarOffcanvas .nav-link { color: var(--bs-nav-link-color); }
+#sidebarOffcanvas .nav-link.active { font-weight: bold; }
+/* Liste des codes géo disponibles */
+#available-geocodes-list .list-group-item { padding: 0.5rem 0.75rem; font-size: 0.9rem; border-left: 3px solid transparent; transition: background-color 0.15s ease-in-out, border-left-color 0.15s ease-in-out; }
+#available-geocodes-list .list-group-item:hover { background-color: #e9ecef; border-left-color: var(--primary-color); }
+#available-geocodes-list .list-group-item.placement-active { background-color: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); font-weight: bold; border-left-color: var(--primary-color); cursor: grabbing !important; }
