@@ -23,15 +23,10 @@ class PlanController extends BaseController {
      */
     public function listAction() {
         $plans = $this->planManager->getAllPlansWithUnivers();
-        // S'assurer que le dossier d'upload existe
         $uploadDir = __DIR__ . '/../public/uploads/plans/';
         if (!is_dir($uploadDir)) {
-            // Tente de créer le dossier récursivement
             if (!mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
-                // Si la création échoue, enregistrer une erreur ou afficher un message
                 error_log("Impossible de créer le dossier d'upload : " . $uploadDir);
-                // Optionnel : Afficher un message à l'utilisateur via session flash
-                // $_SESSION['flash_message'] = ['type' => 'danger', 'message' 'Erreur de configuration serveur: Dossier uploads inaccessible.'];
             }
         }
         $this->render('plans_list_view', ['plans' => $plans]);
@@ -42,17 +37,16 @@ class PlanController extends BaseController {
      */
     public function addPlanFormAction() {
         $universList = $this->universManager->getAllUnivers();
-        // Note : Vous devrez créer la vue 'plan_add_view.php' plus tard
         $this->render('plan_add_view', ['universList' => $universList]);
     }
 
     /**
-     * Traite l'ajout d'un nouveau plan (upload et enregistrement BDD).
+     * Traite l'ajout d'un nouveau plan (upload et enregistrement BDD) ou la création d'un plan vide.
      */
-    public function handleAddPlanAction() {
+public function handleAddPlanAction() {
         // Validation minimale commune
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['nom'])) {
-            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur: Le nom du plan est obligatoire.'];
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['nom']) || empty($_POST['page_format'])) {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur: Le nom et le format de page sont obligatoires.'];
             header('Location: index.php?action=addPlanForm');
             exit();
         }
@@ -61,13 +55,13 @@ class PlanController extends BaseController {
         $nom = trim($_POST['nom']);
         $description = trim($_POST['description'] ?? '');
         $zone = empty($_POST['zone']) ? null : $_POST['zone'];
+        $pageFormat = $_POST['page_format']; // Format de page sélectionné
 
         $planId = false;
 
         if ($creationMode === 'import') {
-            // --- MODE IMPORT (Logique existante) ---
+            // --- MODE IMPORT ---
             
-            // Vérification de l'upload du fichier
             if (!isset($_FILES['planFile']) || $_FILES['planFile']['error'] !== UPLOAD_ERR_OK) {
                 $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur: Fichier manquant ou erreur lors de l\'upload.'];
                 header('Location: index.php?action=addPlanForm');
@@ -76,9 +70,8 @@ class PlanController extends BaseController {
 
             $file = $_FILES['planFile'];
             $uploadDir = __DIR__ . '/../public/uploads/plans/';
-            // Vérifier à nouveau l'existence et les permissions du dossier d'upload
             if (!is_dir($uploadDir) || !is_writable($uploadDir)) {
-                 $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur serveur: Impossible d\'écrire dans le dossier d\'upload.'];
+                 $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur serveur: Dossier upload inaccessible.'];
                  header('Location: index.php?action=addPlanForm');
                  exit();
             }
@@ -92,11 +85,11 @@ class PlanController extends BaseController {
                 exit();
             }
 
-            $planType = 'image'; // Défaut
+            $planType = 'image';
             if ($fileType === 'image/svg+xml') $planType = 'svg';
             if ($fileType === 'application/pdf') $planType = 'pdf';
 
-            // Univers pour l'import: utilise univers_ids[]
+            // Univers pour l'import
             $universIds = isset($_POST['univers_ids']) ? array_map('intval', $_POST['univers_ids']) : [];
 
             // Générer un nom de fichier unique et déplacer
@@ -106,9 +99,10 @@ class PlanController extends BaseController {
             $destination = $uploadDir . $uniqueFilename;
 
             if (move_uploaded_file($file['tmp_name'], $destination)) {
-                 $planId = $this->planManager->addPlan($nom, $uniqueFilename, $planType, $description, $zone, $universIds);
+                 // Passer le pageFormat sélectionné
+                 $planId = $this->planManager->addPlan($nom, $uniqueFilename, $planType, $description, $zone, $universIds, null, $pageFormat);
                 if (!$planId) {
-                    unlink($destination); // Supprimer le fichier uploadé si erreur BDD
+                    unlink($destination); 
                 }
             } else {
                  $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors du déplacement du fichier uploadé.'];
@@ -119,16 +113,15 @@ class PlanController extends BaseController {
         } else if ($creationMode === 'draw') {
             // --- MODE DESSIN "FROM SCRATCH" ---
             
-            $nomFichier = 'scratch_' . uniqid() . '.svg'; // Nom du fichier SVG pour le plan dessiné
-	    $planType = 'drawing'; // Nouveau type concis pour les plans dessinés
-            $pageFormat = $_POST['page_format'] ?? 'Custom';
+            $nomFichier = 'scratch_' . uniqid() . '.svg'; // Fichier SVG vide (non créé physiquement, juste une référence)
+            $planType = 'drawing'; // Type pour plans dessinés
             
-            // Univers pour le dessin: utilise univers_ids_draw[]
+            // Univers pour le dessin
             $universIds = isset($_POST['univers_ids_draw']) ? array_map('intval', $_POST['univers_ids_draw']) : [];
             
-            // L'initialisation du contenu de drawing_data sera faite par l'éditeur la première fois
-            $drawingData = null; 
+            $drawingData = null; // Sera initialisé dans l'éditeur.
 
+            // Passer le pageFormat sélectionné
             $planId = $this->planManager->addPlan($nom, $nomFichier, $planType, $description, $zone, $universIds, $drawingData, $pageFormat);
         } else {
              $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Mode de création invalide.'];
@@ -138,13 +131,9 @@ class PlanController extends BaseController {
 
         // Redirection finale
         if ($planId) {
-            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Nouveau plan créé avec succès.'];
-            // Rediriger directement vers l'éditeur pour commencer à dessiner si c'est un plan "from scratch"
-            if ($creationMode === 'draw') {
-                 header('Location: index.php?action=viewPlan&id=' . $planId);
-            } else {
-                 header('Location: index.php?action=listPlans');
-            }
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Plan créé. Redirection vers l\'éditeur.'];
+            // Rediriger directement vers l'éditeur pour les deux modes
+            header('Location: index.php?action=viewPlan&id=' . $planId);
         } else {
             $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de l\'enregistrement du plan en base de données.'];
             header('Location: index.php?action=addPlanForm');
@@ -187,10 +176,21 @@ class PlanController extends BaseController {
         $id = (int)$_POST['id'];
         $nom = trim($_POST['nom']);
         $description = trim($_POST['description'] ?? '');
-        $zone = empty($_POST['zone']) ? null : $_POST['zone']; // Mettre null si vide
+        $zone = empty($_POST['zone']) ? null : $_POST['zone'];
         $universIds = isset($_POST['univers_ids']) ? array_map('intval', $_POST['univers_ids']) : [];
+        // Récupérer le format de page s'il est envoyé (sera ajouté au formulaire d'édition plus tard)
+        $pageFormat = $_POST['page_format'] ?? null;
 
-        $success = $this->planManager->updatePlan($id, $nom, $description, $zone, $universIds);
+        // Récupérer les données de dessin existantes pour ne pas les écraser
+        $existingPlan = $this->planManager->getPlanById($id);
+        $drawingData = $existingPlan['drawing_data'] ?? null;
+
+        // Si le format de page n'est pas envoyé, conserver l'ancien
+        if ($pageFormat === null && $existingPlan) {
+            $pageFormat = $existingPlan['page_format'];
+        }
+
+        $success = $this->planManager->updatePlan($id, $nom, $description, $zone, $universIds, $drawingData, $pageFormat);
 
         if ($success) {
             $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Plan mis à jour avec succès.'];
@@ -207,17 +207,9 @@ class PlanController extends BaseController {
     public function deletePlanAction() {
         $id = (int)($_GET['id'] ?? 0);
         if ($id > 0) {
-            $plan = $this->planManager->getPlanById($id); // Récupérer infos avant suppression
             $success = $this->planManager->deletePlan($id);
             if ($success) {
                 $_SESSION['flash_message'] = ['type' => 'info', 'message' => 'Plan mis à la corbeille.'];
-                // Optionnel: Renommer le fichier physique
-                // if ($plan && !empty($plan['nom_fichier'])) {
-                //    $uploadDir = __DIR__ . '/../public/uploads/plans/';
-                //    $oldPath = $uploadDir . $plan['nom_fichier'];
-                //    $newPath = $uploadDir . 'deleted_' . uniqid() . '_' . $plan['nom_fichier'];
-                //    if (file_exists($oldPath)) { rename($oldPath, $newPath); }
-                // }
             } else {
                  $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de la suppression du plan.'];
             }
@@ -245,15 +237,15 @@ class PlanController extends BaseController {
          // Récupérer les codes géo déjà placés sur CE plan AVEC leurs détails
          $placedGeoCodes = $this->geoCodeManager->getPositionsForPlanWithDetails($id);
 
-         // Récupérer les codes géo disponibles pour CE plan (ceux des univers associés qui ne sont pas déjà placés)
+         // Récupérer les codes géo disponibles pour CE plan
          $availableGeoCodes = $this->geoCodeManager->getAvailableCodesForPlan($id);
 
-         // Récupérer les couleurs des univers pour l'affichage des codes
+         // Récupérer les couleurs des univers
          $universList = $this->universManager->getAllUnivers();
          $universColors = array_column($universList, 'color', 'id');
 
-         // Récupérer la liste des assets (à implémenter dans AssetManager si nécessaire)
-         $assets = []; // Placeholder
+         // Récupérer les assets (placeholder)
+         $assets = [];
 
          // Transmettre les données nécessaires à la vue de l'éditeur
          $viewData = [
@@ -262,7 +254,7 @@ class PlanController extends BaseController {
              'availableGeoCodes' => $availableGeoCodes,
              'universColors' => $universColors,
              'assets' => $assets,
-             'csrfToken' => '', // Ajoutez un token CSRF si nécessaire
+             'csrfToken' => '',
              'title' => 'Plan: ' . htmlspecialchars($plan['nom'])
          ];
 
@@ -273,7 +265,6 @@ class PlanController extends BaseController {
 
      /**
       * Action API pour sauvegarder les données de dessin (JSON Fabric.js).
-      * Appelée via fetch() depuis plan.js.
       */
      public function saveDrawingAction() {
          header('Content-Type: application/json');
@@ -286,7 +277,7 @@ class PlanController extends BaseController {
          if ($planId <= 0 || $drawingData === null) {
              http_response_code(400); echo json_encode(['success' => false, 'error' => 'Données invalides.']); exit();
          }
-         json_decode($drawingData); // Vérifier si c'est du JSON valide
+         json_decode($drawingData);
          if (json_last_error() !== JSON_ERROR_NONE) {
              http_response_code(400); echo json_encode(['success' => false, 'error' => 'Données de dessin JSON invalides.']); exit();
          }
@@ -315,15 +306,11 @@ class PlanController extends BaseController {
         $geoCodeId = filter_var($input['geo_code_id'] ?? 0, FILTER_VALIDATE_INT);
         $posX = filter_var($input['pos_x'] ?? null, FILTER_VALIDATE_FLOAT);
         $posY = filter_var($input['pos_y'] ?? null, FILTER_VALIDATE_FLOAT);
-        // $width = filter_var($input['width'] ?? null, FILTER_VALIDATE_FLOAT); // Si besoin
-        // $height = filter_var($input['height'] ?? null, FILTER_VALIDATE_FLOAT); // Si besoin
-        // $properties = isset($input['properties']) && is_array($input['properties']) ? $input['properties'] : null; // Si besoin
 
         if ($planId <= 0 || $geoCodeId <= 0 || $posX === null || $posY === null) {
             http_response_code(400); echo json_encode(['success' => false, 'error' => 'Données invalides.']); exit();
         }
-        // $result = $this->geoCodeManager->setGeoCodePosition($geoCodeId, $planId, $posX, $posY, $width, $height, $properties);
-        $result = $this->geoCodeManager->setGeoCodePosition($geoCodeId, $planId, $posX, $posY); // Version simplifiée
+        $result = $this->geoCodeManager->setGeoCodePosition($geoCodeId, $planId, $posX, $posY);
         if ($result !== false) {
             echo json_encode(['success' => true, 'position_id' => $result, 'message' => 'Position enregistrée.']);
         } else {
@@ -356,6 +343,46 @@ class PlanController extends BaseController {
          exit();
      }
 
+     /**
+     * Action API pour sauvegarder le format de page et le format si le plan est de type 'drawing'.
+     */
+    public function savePageFormatAction() {
+        header('Content-Type: application/json');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405); echo json_encode(['success' => false, 'error' => 'Méthode POST requise.']); exit();
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $planId = filter_var($input['plan_id'] ?? 0, FILTER_VALIDATE_INT);
+        $pageFormat = trim($input['page_format'] ?? '');
+
+        if ($planId <= 0 || empty($pageFormat)) {
+            http_response_code(400); echo json_encode(['success' => false, 'error' => 'ID du plan ou format de page manquant.']); exit();
+        }
+
+        $plan = $this->planManager->getPlanById($planId);
+        if (!$plan) {
+            http_response_code(404); echo json_encode(['success' => false, 'error' => 'Plan non trouvé.']); exit();
+        }
+
+        // Utiliser la méthode updatePlan pour mettre à jour les métadonnées spécifiques
+        $success = $this->planManager->updatePlan(
+            $planId,
+            $plan['nom'], // Nom existant
+            $plan['description'], // Description existante
+            $plan['zone'], // Zone existante
+            $this->planManager->getUniversIdsForPlan($planId), // IDs d'univers existants
+            $plan['drawing_data'], // Données de dessin existantes
+            $pageFormat // Nouveau format de page
+        );
+
+        if ($success) {
+            echo json_encode(['success' => true, 'message' => 'Format de page sauvegardé.']);
+        } else {
+            http_response_code(500); echo json_encode(['success' => false, 'error' => 'Erreur lors de la mise à jour du format.']);
+        }
+        exit();
+    }
 
     // --- Action Impression --- (Simplifiée)
     public function printPlanAction() {
@@ -367,7 +394,7 @@ class PlanController extends BaseController {
             exit();
         }
         $positions = $this->geoCodeManager->getPositionsForPlanWithDetails($id);
-        // Note: 'print_plan_view.php' à créer
+        // Utiliser 'print_plan_view.php'
         $this->render('print_plan_view', [
             'plan' => $plan,
             'positions' => $positions,
@@ -375,4 +402,4 @@ class PlanController extends BaseController {
         ], false); // Ne pas utiliser le layout standard
     }
 
-}
+} // Fin de la classe

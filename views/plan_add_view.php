@@ -10,7 +10,6 @@
         border-radius: 4px;
         background-color: #f8f9fa;
     }
-    /* Style spécifique pour le choix du mode */
     .mode-selection .btn {
         width: 100%;
         text-align: left;
@@ -35,7 +34,7 @@
             </a>
         </div>
 
-        <?php include __DIR__ . '/partials/flash_messages.php'; // Inclut les messages flash ?>
+        <?php include __DIR__ . '/partials/flash_messages.php'; ?>
 
 
         <form action="index.php?action=handleAddPlan" method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
@@ -49,6 +48,20 @@
                         <div class="invalid-feedback">
                             Veuillez entrer un nom pour le plan.
                         </div>
+                    </div>
+
+                     <div class="mb-3">
+                        <label for="pageFormat" class="form-label">Format de Page du Plan <span class="text-danger">*</span></label>
+                        <select class="form-select" id="pageFormat" name="page_format" required>
+                            <option value="">-- Choisir un format --</option>
+                            <option value="A4-P">A4 Portrait (210x297 mm)</option>
+                            <option value="A4-L">A4 Paysage (297x210 mm)</option>
+                            <option value="A3-P">A3 Portrait (297x420 mm)</option>
+                            <option value="A3-L">A3 Paysage (420x297 mm)</option>
+                            <option value="Custom">Personnalisé (Taille du fichier)</option>
+                        </select>
+                        <div class="form-text">Ce format définit la taille d'impression réelle du plan.</div>
+                        <div class="invalid-feedback">Veuillez choisir le format de page.</div>
                     </div>
 
                     <div class="mb-3">
@@ -72,10 +85,10 @@
                          <input type="hidden" name="creation_mode" id="creation-mode" value="import">
                          <div class="btn-group w-100" role="group">
                              <button type="button" class="btn btn-outline-primary active" data-mode="import">
-                                 <i class="bi bi-upload"></i> Importer un fichier (Image/PDF/SVG)
+                                 <i class="bi bi-upload"></i> Importer un fichier
                              </button>
                              <button type="button" class="btn btn-outline-primary" data-mode="draw">
-                                 <i class="bi bi-pencil-square"></i> Dessiner mon plan (Fabric.js)
+                                 <i class="bi bi-pencil-square"></i> Dessiner mon plan
                              </button>
                          </div>
                      </div>
@@ -110,18 +123,7 @@
                      
                      <div id="drawing-options-section" style="display: none;">
                           <div class="alert alert-info">
-                              Un plan vide sera créé. Vous pourrez y ajouter des formes, des textes et des assets dans l'éditeur.
-                          </div>
-                          <div class="mb-4">
-                            <label for="pageFormat" class="form-label">Format du canevas de base (Optionnel)</label>
-                            <select class="form-select" id="pageFormat" name="page_format">
-                                <option value="A4P">A4 Portrait (210x297 mm)</option>
-                                <option value="A4L">A4 Paysage (297x210 mm)</option>
-                                <option value="A3P">A3 Portrait (297x420 mm)</option>
-                                <option value="A3L">A3 Paysage (420x297 mm)</option>
-                                <option value="Custom" selected>Défini par l'éditeur (Vide par défaut)</option>
-                            </select>
-                            <div class="form-text">Ceci définit la taille initiale du canevas et le guide d'impression.</div>
+                              Un plan vierge sera créé à l'échelle du format choisi.
                           </div>
                           <div class="mb-4">
                             <label class="form-label">Univers Associés (Optionnel)</label>
@@ -157,7 +159,7 @@
     </section>
 </div>
 
-<?php ob_start(); // Début capture pour JS spécifique ?>
+<?php ob_start(); ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const creationModeInput = document.getElementById('creation-mode');
@@ -167,22 +169,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const drawButton = document.querySelector('[data-mode="draw"]');
     const planFileInput = document.getElementById('planFile');
     const form = document.querySelector('.needs-validation');
+    const pageFormatSelect = document.getElementById('pageFormat'); // Le sélecteur est maintenant commun
 
     function setMode(mode) {
         creationModeInput.value = mode;
 
+        // Mise à jour visuelle des boutons et sections
         if (mode === 'import') {
             importButton.classList.add('active');
             drawButton.classList.remove('active');
             importSection.style.display = 'block';
             drawSection.style.display = 'none';
-            planFileInput.required = true; // Rendre le fichier requis pour l'import
+            planFileInput.required = true;
         } else { // mode === 'draw'
             drawButton.classList.add('active');
             importButton.classList.remove('active');
             drawSection.style.display = 'block';
             importSection.style.display = 'none';
-            planFileInput.required = false; // Le fichier n'est pas requis pour le dessin
+            planFileInput.required = false;
         }
     }
 
@@ -196,15 +200,19 @@ document.addEventListener('DOMContentLoaded', function() {
         setMode('draw');
     });
 
-    // S'assurer que la validation gère correctement le mode dessin
+    // Gestion de la validation pour le champ Fichier
     form.addEventListener('submit', function (event) {
-        if (creationModeInput.value === 'draw') {
-             // Retirer l'attribut required du fichier pour la validation HTML5
-             planFileInput.removeAttribute('required'); 
-        } else {
+        const isImportMode = (creationModeInput.value === 'import');
+        
+        // Rendre le champ fichier requis SEULEMENT si mode import
+        if (isImportMode) {
              planFileInput.setAttribute('required', 'required');
+        } else {
+             planFileInput.removeAttribute('required'); 
         }
 
+        // Le champ pageFormat reste requis dans tous les cas grâce au HTML
+        
         if (!form.checkValidity()) {
           event.preventDefault()
           event.stopPropagation()
