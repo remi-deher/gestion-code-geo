@@ -105,8 +105,9 @@ switch ($action) {
     case 'apiSaveDrawing': $planController->saveDrawingAction(); break; // Sauvegarde le dessin Fabric.js
     case 'apiPlaceGeoCode': $planController->placeGeoCodeAction(); break; // Ajoute/Met à jour une position
     case 'apiRemoveGeoCode': $planController->removeGeoCodeAction(); break; // Supprime une position
+    case 'apiSavePageFormat': $planController->savePageFormatAction(); break; // Sauvegarde format de la page
 
-    // Action non trouvée ou par défaut
+// Action non trouvée ou par défaut
     default:
         // Rediriger vers le tableau de bord
         $dashboardController->indexAction();
