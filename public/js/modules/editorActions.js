@@ -23,7 +23,7 @@ async function showToast(message, type) {
  */
 export function setupEditorActions(canvas, saveBtn, printBtn, exportBtn) {
 
-    // --- Action Sauvegarder ---
+// --- Action Sauvegarder ---
     if (saveBtn) {
         saveBtn.addEventListener('click', async () => {
             console.log("Action: Clic sur Enregistrer");
@@ -32,12 +32,28 @@ export function setupEditorActions(canvas, saveBtn, printBtn, exportBtn) {
             saveBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enreg...`;
 
             try {
-                // Exclure temporairement les objets non nécessaires (ex: grille, guides) si besoin
-                // const objectsToSave = canvas.getObjects().filter(obj => !obj.isHelper);
-                // const jsonData = JSON.stringify(canvas.toDatalessJSON(objectsToSave));
+                // Propriétés personnalisées à inclure dans la sérialisation de chaque objet
+                // (afin que customData soit disponible pour le filtrage).
+                const propertiesToInclude = [
+                     'customData', // Inclure notre objet de données personnalisé
+                     'isGuide'    // Inclure la propriété des guides/bordures
+                ];
+                
+                // 1. Récupérer l'objet JavaScript du canevas, incluant les propriétés personnalisées
+                // La méthode toObject() inclut ces propriétés dans la sérialisation des sous-objets.
+                const canvasObject = canvas.toObject(propertiesToInclude);
 
-                // Sérialisation simple pour commencer
-                const jsonData = JSON.stringify(canvas.toJSON());
+                // 2. Filtrer les objets pour exclure les codes géo et les guides
+                canvasObject.objects = canvasObject.objects.filter(obj => 
+                    // Exclure les objets avec customData.type === 'geoCode'
+                    obj.customData?.type !== 'geoCode' && 
+                    // Exclure les guides (bordures, grilles, etc.)
+                    obj.isGuide !== true
+                );
+
+                // 3. Sérialiser l'objet canevas filtré en JSON
+                const jsonData = JSON.stringify(canvasObject);
+                
                 const planId = window.planData?.currentPlan?.id;
                 const saveUrl = window.planData?.saveDrawingUrl;
 
@@ -45,17 +61,15 @@ export function setupEditorActions(canvas, saveBtn, printBtn, exportBtn) {
                     throw new Error("ID du plan ou URL de sauvegarde non définis.");
                 }
 
-                console.log(`Action: Envoi des données JSON (${jsonData.length} chars) pour plan ID ${planId} à ${saveUrl}`);
+                console.log(`Action: Envoi des données JSON filtrées (${jsonData.length} chars) pour plan ID ${planId} à ${saveUrl}`);
 
-                // Appel API (fetch simple ici, pourrait utiliser apiFetch de api.js)
+                // Appel API
                 const response = await fetch(saveUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
-                        // Ajouter le token CSRF si nécessaire
-                        // 'X-CSRF-Token': window.planData?.csrfToken || ''
                     },
                     body: JSON.stringify({
                         plan_id: planId,
@@ -77,8 +91,7 @@ export function setupEditorActions(canvas, saveBtn, printBtn, exportBtn) {
                 if (result.success) {
                     console.log("Action: Sauvegarde réussie.");
                     showToast("Plan enregistré avec succès !", 'success');
-                    // Optionnel: Mettre à jour l'état "modifié" de l'éditeur
-                    canvas.fire('object:modified'); // Pourrait déclencher une réinitialisation de l'état "modifié"
+                    canvas.fire('object:modified');
                 } else {
                     throw new Error(result.error || "Erreur inconnue lors de la sauvegarde.");
                 }
@@ -93,32 +106,6 @@ export function setupEditorActions(canvas, saveBtn, printBtn, exportBtn) {
         });
     } else {
         console.warn("Actions: Bouton Sauvegarder non trouvé.");
-    }
-
-    // --- Action Imprimer --- (Implémentation basique)
-    if (printBtn) {
-        printBtn.addEventListener('click', () => {
-            console.log("Action: Clic sur Imprimer");
-            // Option 1 : Ouvrir une nouvelle fenêtre avec une vue dédiée à l'impression
-            // window.open(`index.php?action=printPlan&id=${window.planData?.currentPlan?.id}`, '_blank');
-
-            // Option 2 : Utiliser l'impression navigateur directe du canvas (qualité variable)
-            try {
-                 const dataUrl = canvas.toDataURL({ format: 'png', quality: 1.0 });
-                 const windowContent = '<!DOCTYPE html><html><head><title>Impression Plan</title></head><body><img src="' + dataUrl + '" style="max-width: 100%; height: auto;"></body></html>';
-                 const printWin = window.open('', '', 'width=' + screen.availWidth + ',height=' + screen.availHeight);
-                 printWin.document.open();
-                 printWin.document.write(windowContent);
-                 printWin.document.close();
-                 printWin.focus();
-                 setTimeout(() => { printWin.print(); printWin.close(); }, 250); // Laisse le temps de charger l'image
-            } catch (e) {
-                console.error("Erreur impression directe:", e);
-                showToast("Erreur lors de la préparation de l'impression.", "danger");
-            }
-        });
-    } else {
-         console.warn("Actions: Bouton Imprimer non trouvé.");
     }
 
     // --- Action Exporter --- (Implémentation basique : PNG)
