@@ -15,7 +15,6 @@
 @import url('components/_cards.css');
 @import url('components/_tables.css');
 @import url('components/_filters.css');
-/* @import url('components/_list-view.css'); */ /* Optionnel si vous l'utilisez ailleurs */
 
 /* 4. Pages (Styles spécifiques à une page) */
 @import url('pages/_plans-list.css');
