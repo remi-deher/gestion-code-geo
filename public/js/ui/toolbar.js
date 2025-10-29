@@ -9,12 +9,12 @@
 import { setupColorControls, getCurrentColors } from './colorManager.js';
 import { setupLayerControls } from './layerManager.js';
 import { setupGroupControls } from './groupManager.js';
-import { setupAlignControls } from './alignManager.js';
+import { setupAlignControls } from './alignManager.js'; // <-- MODIFIÉ : Ligne décommentée
 import { setupClipboard } from '../modules/clipboardManager.js';
 import { setupTransformControls } from '../modules/transformManager.js';
 // Importer Navigation Manager pour le bouton Pan ET ses fonctions d'activation/désactivation dédiées
 import { setupNavigation, activatePanTool, deactivatePanTool } from '../modules/navigationManager.js';
-import { setupSnapping } from '../modules/snapManager.js';
+import { setupSnapping } from '../modules/snapManager.js'; // <-- Déjà présent pour le magnétisme
 // Importer les fonctions du guide pour le sélecteur
 import { setCanvasSizeFromFormat, updatePageGuideBorder } from '../modules/guideManager.js';
 import { PAGE_FORMATS } from '../modules/config.js'; // Import pour remplir le sélecteur
@@ -133,11 +133,11 @@ export function setupToolbar(canvas) {
     setupColorControls(toolbar, canvas);
     setupLayerControls(toolbar, canvas);
     setupGroupControls(toolbar, canvas);
-    setupAlignControls(toolbar, canvas);
+    setupAlignControls(toolbar, canvas); // <-- MODIFIÉ : Ligne décommentée
     setupClipboard(toolbar, canvas);
     setupTransformControls(toolbar, canvas);
     setupNavigation(toolbar, canvas); // Doit être après le bouton Pan pour le trouver
-    setupSnapping(toolbar, canvas);
+    setupSnapping(toolbar, canvas); // <-- Déjà présent pour le magnétisme
     setupAssetCreation(toolbar, canvas);
 
     // --- Écouteur principal sur la toolbar ---
