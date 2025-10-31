@@ -315,14 +315,12 @@ public function handleAddPlanAction() {
         $posX = filter_var($input['pos_x'] ?? null, FILTER_VALIDATE_FLOAT);
         $posY = filter_var($input['pos_y'] ?? null, FILTER_VALIDATE_FLOAT);
         
-        // --- AJOUTER CETTE LIGNE ---
         $positionId = filter_var($input['position_id'] ?? null, FILTER_VALIDATE_INT); // Récupère l'ID de la position
 
         if ($planId <= 0 || $geoCodeId <= 0 || $posX === null || $posY === null) {
             http_response_code(400); echo json_encode(['success' => false, 'error' => 'Données invalides.']); exit();
         }
         
-        // --- MODIFIER CETTE LIGNE ---
         // On passe $positionId (qui sera null si c'est un nouveau)
         $result = $this->geoCodeManager->setGeoCodePosition($geoCodeId, $planId, $posX, $posY, $positionId); 
         
@@ -344,12 +342,22 @@ public function handleAddPlanAction() {
              http_response_code(405); echo json_encode(['success' => false, 'error' => 'Méthode POST requise.']); exit();
          }
          $input = json_decode(file_get_contents('php://input'), true);
+         
+         // --- CORRECTION ---
+         // Lire les 3 clés
          $planId = filter_var($input['plan_id'] ?? 0, FILTER_VALIDATE_INT);
          $geoCodeId = filter_var($input['geo_code_id'] ?? 0, FILTER_VALIDATE_INT);
-         if ($planId <= 0 || $geoCodeId <= 0) {
-             http_response_code(400); echo json_encode(['success' => false, 'error' => 'Données invalides.']); exit();
+         $positionId = filter_var($input['position_id'] ?? 0, FILTER_VALIDATE_INT); // Lire le position_id
+
+         // Valider les 3 clés
+         if ($planId <= 0 || $geoCodeId <= 0 || $positionId <= 0) {
+             http_response_code(400); echo json_encode(['success' => false, 'error' => 'Données invalides (plan, code, ou position ID manquant).']); exit();
          }
-         $success = $this->geoCodeManager->removeGeoCodePosition($geoCodeId, $planId);
+
+         // Appeler le manager avec les 3 arguments
+         $success = $this->geoCodeManager->removeGeoCodePosition($geoCodeId, $planId, $positionId);
+         // --- FIN CORRECTION ---
+         
          if ($success) {
              echo json_encode(['success' => true, 'message' => 'Position supprimée.']);
          } else {
