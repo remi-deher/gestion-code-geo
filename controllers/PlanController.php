@@ -301,7 +301,7 @@ public function handleAddPlanAction() {
 
     // --- Actions API pour la gestion des codes sur le plan ---
 
-    /**
+     /**
      * Action API pour ajouter/mettre à jour la position d'un code géo sur un plan.
      */
     public function placeGeoCodeAction() {
@@ -314,11 +314,18 @@ public function handleAddPlanAction() {
         $geoCodeId = filter_var($input['geo_code_id'] ?? 0, FILTER_VALIDATE_INT);
         $posX = filter_var($input['pos_x'] ?? null, FILTER_VALIDATE_FLOAT);
         $posY = filter_var($input['pos_y'] ?? null, FILTER_VALIDATE_FLOAT);
+        
+        // --- AJOUTER CETTE LIGNE ---
+        $positionId = filter_var($input['position_id'] ?? null, FILTER_VALIDATE_INT); // Récupère l'ID de la position
 
         if ($planId <= 0 || $geoCodeId <= 0 || $posX === null || $posY === null) {
             http_response_code(400); echo json_encode(['success' => false, 'error' => 'Données invalides.']); exit();
         }
-        $result = $this->geoCodeManager->setGeoCodePosition($geoCodeId, $planId, $posX, $posY);
+        
+        // --- MODIFIER CETTE LIGNE ---
+        // On passe $positionId (qui sera null si c'est un nouveau)
+        $result = $this->geoCodeManager->setGeoCodePosition($geoCodeId, $planId, $posX, $posY, $positionId); 
+        
         if ($result !== false) {
             echo json_encode(['success' => true, 'position_id' => $result, 'message' => 'Position enregistrée.']);
         } else {

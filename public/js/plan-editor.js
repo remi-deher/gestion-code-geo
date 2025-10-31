@@ -129,8 +129,10 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
             canvas.add(geoCodeObject); canvas.setActiveObject(geoCodeObject); canvas.requestRenderAll();
             saveGeoCodePosition(geoCodeObject); // Sauvegarde BDD
             geoCodeCancelFn(canvas); // Annule le mode placement dans la sidebar
-             const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${placementData.id}"]`);
-             if(listItem) listItem.remove();
+             
+             // MODIFICATION: On ne retire plus l'item de la liste pour permettre placements multiples
+             // const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${placementData.id}"]`);
+             // if(listItem) listItem.remove();
         }
     });
 
@@ -173,8 +175,10 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
                 const geoCodeObject = geoCodeRendererFn(placementData, pointer.x, pointer.y, window.planData?.universColors || {});
                 canvas.add(geoCodeObject); canvas.setActiveObject(geoCodeObject); canvas.requestRenderAll();
                 saveGeoCodePosition(geoCodeObject);
-                const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${placementData.id}"]`);
-                if(listItem) listItem.remove();
+                
+                // MODIFICATION: On ne retire plus l'item de la liste pour permettre placements multiples
+                // const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${placementData.id}"]`);
+                // if(listItem) listItem.remove();
 
             } else if (placementData && placementData.id && placementData.name) {
                 console.log("Drop: Détection Asset", placementData);
@@ -221,6 +225,10 @@ async function saveGeoCodePosition(geoCodeObject) {
     const planId = window.planData?.currentPlan?.id;
     const apiUrl = window.planData?.placeGeoCodeUrl;
     const geoCodeId = geoCodeObject.customData.geoCodeId;
+    
+    // MODIFICATION: Récupérer l'ID de position unique (s'il existe) pour différencier INSERT et UPDATE
+    const positionId = geoCodeObject.customData.positionId || null; 
+
     if (!canvas || !planId || !apiUrl || !geoCodeId) {
         showToast("Erreur interne : sauvegarde position impossible.", "danger"); return;
     }
@@ -229,7 +237,16 @@ async function saveGeoCodePosition(geoCodeObject) {
      if (isNaN(posX) || isNaN(posY)) {
         showToast("Erreur calcul position %, sauvegarde annulée.", "warning"); return;
     }
-    const payload = { plan_id: planId, geo_code_id: geoCodeId, pos_x: posX.toFixed(4), pos_y: posY.toFixed(4) };
+    
+    // MODIFICATION: Ajouter position_id au payload
+    const payload = { 
+        plan_id: planId, 
+        geo_code_id: geoCodeId, 
+        pos_x: posX.toFixed(4), 
+        pos_y: posY.toFixed(4),
+        position_id: positionId // Sera null si nouveau, ou un ID si déplacement
+    };
+
     console.log(`Sauvegarde Position GeoCode: Envoi pour ${geoCodeObject.customData.code}`, payload);
     try {
         const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(payload) });
@@ -240,9 +257,15 @@ async function saveGeoCodePosition(geoCodeObject) {
         }
         const result = await response.json(); if (!result.success) throw new Error(result.error || "Erreur API.");
         console.log(`Sauvegarde Position GeoCode: Succès pour ${geoCodeObject.customData.code}. ID Position BDD: ${result.position_id}`);
+        
+        // S'assurer que l'objet sur le canvas a maintenant son ID de position unique
         if (result.position_id) geoCodeObject.customData.positionId = result.position_id;
-         const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${geoCodeId}"]`);
-         if(listItem) listItem.remove();
+         
+         // MODIFICATION: On ne retire plus l'item de la liste
+         // const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${geoCodeId}"]`);
+         // if(listItem && positionId === null) { // Ne retirer que si c'était un NOUVEAU placement
+         //     listItem.remove();
+         // }
 
     } catch (error) {
          console.error(`Erreur API sauvegarde position ${geoCodeObject.customData.code}:`, error);
@@ -262,10 +285,18 @@ async function removeGeoCodePosition(geoCodeObject) {
     const positionId = geoCodeObject.customData.positionId;
 
     if (!planId || !apiUrl || !geoCodeId) { return; }
+    
+    // MODIFICATION: On a besoin du positionId pour savoir QUEL repère supprimer
+    if (!positionId) {
+        console.warn("Tentative de suppression d'un GeoCode sans positionId. Suppression BDD annulée.", geoCodeObject.customData);
+        // On laisse la suppression du canvas se faire, mais on n'appelle pas l'API
+        return;
+    }
 
-    console.log(`Suppression Position GeoCode: Envoi pour geoCodeId=${geoCodeId}, planId=${planId}`);
+    console.log(`Suppression Position GeoCode: Envoi pour positionId=${positionId} (geoCodeId=${geoCodeId}, planId=${planId})`);
     try {
-         const payload = { plan_id: planId, geo_code_id: geoCodeId };
+         // MODIFICATION: Envoyer l'ID de position unique pour supprimer la bonne instance
+         const payload = { plan_id: planId, geo_code_id: geoCodeId, position_id: positionId };
          const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(payload) });
          if (!response.ok) {
              let errorMsg = `Erreur HTTP ${response.status}`;
