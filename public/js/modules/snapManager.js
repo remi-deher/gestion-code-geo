@@ -7,8 +7,13 @@ import { GRID_SIZE } from './config.js'; // Importer la taille de la grille
 
 let canvasInstance = null;
 let isSnapToGridEnabled = false; // État initial
-let isSnapToObjectsEnabled = false; // MODIFIÉ: État initial
+let isSnapToObjectsEnabled = false; // État initial
 const snapThreshold = 10; // Pixels de tolérance pour l'accroche aux objets
+
+// --- NOUVEAU : Définition des couleurs pour le retour visuel ---
+const DEFAULT_CORNER_COLOR = 'blue'; // Couleur par défaut (doit correspondre à canvasManager.js)
+const SNAP_CORNER_COLOR = '#00ff00'; // Vert vif pour indiquer le magnétisme
+// --- FIN NOUVEAU ---
 
 /**
  * Initialise les contrôles et la logique du magnétisme.
@@ -30,7 +35,6 @@ export function setupSnapping(toolbarElement, canvas) {
     gridSnapBtn.addEventListener('click', toggleSnapToGrid);
     controlsContainer.appendChild(gridSnapBtn);
 
-    // --- MODIFIÉ: Ajout du bouton pour magnétisme aux objets ---
     const objectSnapBtn = document.createElement('button');
     objectSnapBtn.id = 'snap-objects-btn';
     objectSnapBtn.className = 'btn btn-outline-secondary btn-sm';
@@ -38,13 +42,21 @@ export function setupSnapping(toolbarElement, canvas) {
     objectSnapBtn.innerHTML = '<i class="bi bi-magnet"></i>';
     objectSnapBtn.addEventListener('click', toggleSnapToObjects);
     controlsContainer.appendChild(objectSnapBtn);
-    // --- FIN MODIFICATION ---
 
     toolbarElement.appendChild(controlsContainer);
 
     // --- Écouteurs Fabric pour l'accroche ---
     canvas.on('object:moving', handleObjectMoveSnap);
-    // Optionnel: Gérer aussi 'object:scaling' pour accrocher pendant redimensionnement
+    
+    // --- NOUVEAU : Réinitialiser la couleur au relâchement ---
+    // S'assure que la couleur revient à la normale si on arrête de bouger
+    canvas.on('object:moved', (options) => {
+         if (options.target && options.target.cornerColor !== DEFAULT_CORNER_COLOR) {
+            options.target.set({ cornerColor: DEFAULT_CORNER_COLOR });
+        }
+    });
+    // --- FIN NOUVEAU ---
+
 
     console.log("SnapManager: Initialisé.");
 }
@@ -62,11 +74,8 @@ function toggleSnapToGrid() {
         btn.title = isSnapToGridEnabled ? 'Désactiver le magnétisme à la grille' : 'Activer le magnétisme à la grille';
     }
     console.log("SnapManager: Magnétisme Grille", isSnapToGridEnabled ? "Activé" : "Désactivé");
-     // Redessiner la grille si elle est dynamique
-     // drawGrid();
 }
 
-// --- MODIFIÉ: Ajout de la fonction pour basculer le magnétisme aux objets ---
 /**
  * Active/Désactive le magnétisme aux objets.
  */
@@ -81,7 +90,6 @@ function toggleSnapToObjects() {
     }
     console.log("SnapManager: Magnétisme Objets", isSnapToObjectsEnabled ? "Activé" : "Désactivé");
 }
-// --- FIN MODIFICATION ---
 
 
 /**
@@ -92,16 +100,26 @@ function handleObjectMoveSnap(options) {
     if (!canvasInstance) return;
     const target = options.target;
 
-    // Le magnétisme à la grille a priorité
+    // --- MODIFIÉ : Ajout de la gestion des couleurs ---
+
+    // 1. Réinitialiser la couleur par défaut à chaque mouvement
+    // (Sauf si elle est déjà verte à cause d'un snap précédent dans ce même mouvement)
+    if (target.cornerColor !== SNAP_CORNER_COLOR) {
+         target.set({ cornerColor: DEFAULT_CORNER_COLOR });
+    }
+
+
+    // 2. Logique de magnétisme à la grille (prioritaire)
     if (isSnapToGridEnabled) {
         // Accrocher l'origine de l'objet à la grille
         const left = Math.round(target.left / GRID_SIZE) * GRID_SIZE;
         const top = Math.round(target.top / GRID_SIZE) * GRID_SIZE;
         target.set({ left: left, top: top });
+        
+        // PAS de changement de couleur pour la grille, comme demandé
     }
-    // --- MODIFIÉ: Implémentation du magnétisme aux objets ---
+    // 3. Logique de magnétisme aux objets (si grille désactivée)
     else if (isSnapToObjectsEnabled) {
-        // Logique plus complexe:
         const snapZone = snapThreshold / canvasInstance.getZoom(); // Tolérance ajustée au zoom
         let snapX = false;
         let snapY = false;
@@ -117,7 +135,7 @@ function handleObjectMoveSnap(options) {
         };
 
         canvasInstance.forEachObject((obj) => {
-            if (obj === target || obj.isGuide) return; // Ne pas s'accrocher à soi-même ou au guide
+            if (obj === target || obj.isGuide || !obj.visible) return; // Ne pas s'accrocher à soi-même, au guide ou aux objets cachés
 
             const objCenter = obj.getCenterPoint();
             const objHalfWidth = obj.getScaledWidth() / 2;
@@ -163,10 +181,13 @@ function handleObjectMoveSnap(options) {
             
             if (snapX && snapY) return; // Sortir tôt si on a déjà les deux
         });
+
+        // 4. Appliquer le retour visuel SI un magnétisme aux objets a eu lieu
+        if (snapX || snapY) {
+            target.set({ cornerColor: SNAP_CORNER_COLOR });
+        } else {
+             target.set({ cornerColor: DEFAULT_CORNER_COLOR });
+        }
     }
     // --- FIN MODIFICATION ---
 }
-
-// Optionnel: Fonction pour dessiner une grille visuelle
-// function drawGrid() { ... }
-
