@@ -8,7 +8,7 @@ import { convertPercentToPixels } from './utils.js'; // Pour charger les codes e
 
 const GEO_CODE_DEFAULT_WIDTH = 80; // Largeur par défaut en pixels
 const GEO_CODE_DEFAULT_HEIGHT = 40; // Hauteur par défaut
-const GEO_CODE_FONT_SIZE = 14; // Taille de police pour le code
+export const GEO_CODE_FONT_SIZE = 14; // Taille de police pour le code
 
 /**
  * Crée un objet Fabric.js représentant un code géo.

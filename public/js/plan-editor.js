@@ -2,8 +2,8 @@
 // Fichier principal pour l'éditeur de plan, utilisant des imports dynamiques.
 
 import { showToast, convertPixelsToPercent } from './modules/utils.js';
-// Importer la fonction de placement d'asset DEPUIS assetManager
 import { placeAssetById } from './modules/assetManager.js';
+import { createGeoCodeObject, renderPlacedGeoCodes, GEO_CODE_FONT_SIZE } from './modules/geoCodeRenderer.js';
 
 // Fonction d'initialisation asynchrone pour gérer les imports dynamiques
 async function initializeEditor() {
@@ -101,7 +101,7 @@ async function initializeEditor() {
  * Configure les écouteurs pour placer un nouveau code géo ou un asset (clic ou drop).
  * @param {fabric.Canvas} canvas
  * @param {HTMLElement} canvasWrapper - Le conteneur principal (div#canvas-wrapper)
- * @param {function} geoCodeRendererFn - Fonction pour créer l'objet Fabric GeoCode.
+ * @param {function} geoCodeRendererFn - Fonction pour créer l'objet Fabric GeoCode (le groupe Rect+Texte par défaut).
  * @param {function} geoCodeGetterFn - Fonction pour obtenir les données du code géo à placer.
  * @param {function} geoCodeCancelFn - Fonction pour annuler le mode placement code géo.
  * @param {function} assetGetterFn - Fonction pour obtenir les données de l'asset à placer.
@@ -127,9 +127,8 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
 
             // CAS 1: L'utilisateur a cliqué sur un objet texte (IText/Textbox)
             if (target && (target.type === 'i-text' || target.type === 'textbox')) {
-                console.log("[plan-editor.js] Placement GeoCode DANS un objet IText existant.");
+                console.log("[plan-editor.js] Placement GeoCode DANS un objet IText.");
                 
-                // Mettre à jour le texte de l'objet
                 target.set({
                     text: placementData.code,
                     // "Taguer" l'objet comme un geo-code
@@ -144,25 +143,67 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
                     }
                 });
                 
-                // Sauvegarder la position de cet objet (qui est maintenant un geo-code)
-                saveGeoCodePosition(target); 
-                
-                geoCodeCancelFn(canvas); // Annule le mode placement dans la sidebar
+                saveGeoCodePosition(target); // Sauvegarde BDD
+                geoCodeCancelFn(canvas); // Annule le mode placement
                 canvas.setActiveObject(target); // Garder l'objet sélectionné
                 canvas.requestRenderAll();
 
-            // CAS 2: L'utilisateur a cliqué sur une autre forme (Rect, Cercle, Asset, ou un autre GeoCode)
-            } else if (target) {
-                // L'utilisateur veut sélectionner cet objet, pas placer un code.
-                // On annule simplement le mode placement.
-                console.log("[plan-editor.js] Clic sur objet non-texte (forme/asset), annulation placement.");
-                geoCodeCancelFn(canvas); 
-                // En annulant le mode, le clic "passera" et sélectionnera l'objet.
-            
-            // CAS 3: L'utilisateur a cliqué sur un espace vide (comportement original)
-            } else {
+            // [NOUVEAU] CAS 2: Clic sur une FORME (Rect, Circle, Asset, etc.) - On GROUPE
+            } else if (target && target.selectable && !target.isGuide && !target.isBackground && target.customData?.type !== 'geoCode') {
+                // (On ne peut pas placer un code sur un fond, un guide, ou un code existant)
+                console.log("[plan-editor.js] Placement GeoCode SUR une FORME. Création d'un groupe.");
+
+                // 1. Créer le nouvel objet texte pour le code géo
+                const newText = new fabric.Textbox(placementData.code, {
+                    // Styles par défaut
+                    fontSize: GEO_CODE_FONT_SIZE || 14, // Utilise la constante importée
+                    fill: '#000000',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: target.width * 0.9, // 90% de la largeur de la forme
+                    originX: 'center',
+                    originY: 'center',
+                    splitByGrapheme: true
+                });
+
+                // 2. Cloner la forme cible (pour la mettre dans le groupe)
+                target.clone((clonedShape) => {
+                    // Positionner les objets du groupe par rapport au centre (0,0) du groupe
+                    clonedShape.set({ originX: 'center', originY: 'center', left: 0, top: 0 });
+                    newText.set({ left: 0, top: 0 }); // Déjà centré
+
+                    // 3. Créer le groupe
+                    const newGroup = new fabric.Group([clonedShape, newText], {
+                        left: target.left, // Positionner le groupe à l'emplacement de la forme d'origine
+                        top: target.top,
+                        originX: target.originX, // Garder l'origine de la forme d'origine
+                        originY: target.originY,
+                        // "Taguer" le groupe entier comme le code géo
+                        customData: {
+                            type: 'geoCode',
+                            geoCodeId: parseInt(placementData.id, 10),
+                            code: placementData.code,
+                            libelle: placementData.libelle,
+                            universId: placementData.universId,
+                            positionId: null // C'est un NOUVEAU placement
+                        }
+                    });
+
+                    // 4. Remplacer l'ancienne forme par le nouveau groupe
+                    canvas.remove(target);
+                    canvas.add(newGroup);
+                    
+                    // 5. Sauvegarder, annuler le mode, et sélectionner
+                    saveGeoCodePosition(newGroup);
+                    geoCodeCancelFn(canvas);
+                    canvas.setActiveObject(newGroup);
+                    canvas.requestRenderAll();
+                });
+
+            // CAS 3: L'utilisateur a cliqué sur un espace vide (Comportement original)
+            } else if (!target) {
                 console.log("[plan-editor.js mouse:down] Placement Code Géo sur espace vide.");
-                // Crée l'objet geo-code (Groupe)
+                // Crée l'objet geo-code (Groupe Rect+Texte par défaut)
                 const geoCodeObject = geoCodeRendererFn(placementData, pointer.x, pointer.y, window.planData?.universColors || {});
                 
                 canvas.add(geoCodeObject); 
@@ -170,12 +211,18 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
                 canvas.requestRenderAll();
                 saveGeoCodePosition(geoCodeObject); // Sauvegarde BDD
                 geoCodeCancelFn(canvas); // Annule le mode placement
+            
+            // CAS 4: Clic sur un objet non-gérable (guide, ou un geoCode existant)
+            } else if (target) {
+                 console.log("[plan-editor.js] Clic sur un objet non-modifiable (guide ou geo-code existant), annulation placement.");
+                 geoCodeCancelFn(canvas);
+                 // Le clic sélectionnera l'objet (comportement normal)
             }
         }
     });
 
     // --- Gestion du Drag and Drop (Code Géo ET Asset) ---
-    // Les écouteurs sont sur le 'canvasWrapper' (le parent)
+    // (Cette partie reste inchangée)
     
     canvasWrapper.addEventListener('dragover', (e) => {
         console.log("[Drag Over] Événement dragover détecté.");
@@ -214,8 +261,6 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
                 canvas.add(geoCodeObject); canvas.setActiveObject(geoCodeObject); canvas.requestRenderAll();
                 saveGeoCodePosition(geoCodeObject);
                 
-                // On ne retire plus l'item de la liste pour permettre placements multiples
-
             } else if (placementData && placementData.id && placementData.name) {
                 console.log("Drop: Détection Asset", placementData);
                 await placeAssetById(placementData.id, pointer.x, pointer.y, canvas);
