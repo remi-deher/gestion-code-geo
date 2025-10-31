@@ -81,7 +81,6 @@ async function initializeEditor() {
         setupEditorActions(canvas, saveDrawingBtn, printBtn, exportBtn);
 
         // --- 7. Gérer le placement des codes Géo et Assets ---
-        // --- MODIFICATION 2: Passer le canvasWrapper principal ---
         setupPlacement(canvas, canvasWrapper, createGeoCodeObject, getCurrentPlacementData, cancelPlacementMode, getCurrentAssetPlacementData);
 
         // --- 8. Gérer la sauvegarde/suppression des positions des codes Géo ---
@@ -107,43 +106,82 @@ async function initializeEditor() {
  * @param {function} geoCodeCancelFn - Fonction pour annuler le mode placement code géo.
  * @param {function} assetGetterFn - Fonction pour obtenir les données de l'asset à placer.
  */
-// --- MODIFICATION 3: Mettre à jour la signature de la fonction ---
 function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterFn, geoCodeCancelFn, assetGetterFn) {
 
     // --- Placement par Clic (Code Géo UNIQUEMENT) ---
     canvas.on('mouse:down', (options) => {
         const placementData = geoCodeGetterFn(); // Vérifie si on est en mode placement CODE GEO
-        
-        // --- MODIFICATION 4: Vérifier si le mode ASSET est actif ---
-        const assetPlacementData = assetGetterFn();
+        const assetPlacementData = assetGetterFn(); // Vérifie si on est en mode placement ASSET
+
+        // Si le mode placement d'asset est actif, on ne fait rien ici.
+        // Il sera géré par son propre listener dans assetManager.js
         if (assetPlacementData) {
             console.log("[plan-editor.js mouse:down] Clic détecté, mais mode Asset actif. Ignoré.");
-            return; // Ne rien faire, laisser assetManager.js s'en charger
+            return;
         }
-        // --- Fin Modification 4 ---
 
-        if (placementData && !options.target && !options.e.altKey) {
-            console.log("[plan-editor.js mouse:down] Placement Code Géo."); // Log
+        // Si le mode placement de code géo est actif (et pas Alt+Clic pour le pan)
+        if (placementData && !options.e.altKey) {
             const pointer = canvas.getPointer(options.e);
-            const geoCodeObject = geoCodeRendererFn(placementData, pointer.x, pointer.y, window.planData?.universColors || {});
-            canvas.add(geoCodeObject); canvas.setActiveObject(geoCodeObject); canvas.requestRenderAll();
-            saveGeoCodePosition(geoCodeObject); // Sauvegarde BDD
-            geoCodeCancelFn(canvas); // Annule le mode placement dans la sidebar
-             
-             // MODIFICATION: On ne retire plus l'item de la liste pour permettre placements multiples
-             // const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${placementData.id}"]`);
-             // if(listItem) listItem.remove();
+            const target = options.target;
+
+            // CAS 1: L'utilisateur a cliqué sur un objet texte (IText/Textbox)
+            if (target && (target.type === 'i-text' || target.type === 'textbox')) {
+                console.log("[plan-editor.js] Placement GeoCode DANS un objet IText existant.");
+                
+                // Mettre à jour le texte de l'objet
+                target.set({
+                    text: placementData.code,
+                    // "Taguer" l'objet comme un geo-code
+                    customData: {
+                        type: 'geoCode',
+                        geoCodeId: parseInt(placementData.id, 10),
+                        code: placementData.code,
+                        libelle: placementData.libelle,
+                        universId: placementData.universId,
+                        // Préserver l'ID de position s'il en avait déjà un
+                        positionId: target.customData?.positionId || null 
+                    }
+                });
+                
+                // Sauvegarder la position de cet objet (qui est maintenant un geo-code)
+                saveGeoCodePosition(target); 
+                
+                geoCodeCancelFn(canvas); // Annule le mode placement dans la sidebar
+                canvas.setActiveObject(target); // Garder l'objet sélectionné
+                canvas.requestRenderAll();
+
+            // CAS 2: L'utilisateur a cliqué sur une autre forme (Rect, Cercle, Asset, ou un autre GeoCode)
+            } else if (target) {
+                // L'utilisateur veut sélectionner cet objet, pas placer un code.
+                // On annule simplement le mode placement.
+                console.log("[plan-editor.js] Clic sur objet non-texte (forme/asset), annulation placement.");
+                geoCodeCancelFn(canvas); 
+                // En annulant le mode, le clic "passera" et sélectionnera l'objet.
+            
+            // CAS 3: L'utilisateur a cliqué sur un espace vide (comportement original)
+            } else {
+                console.log("[plan-editor.js mouse:down] Placement Code Géo sur espace vide.");
+                // Crée l'objet geo-code (Groupe)
+                const geoCodeObject = geoCodeRendererFn(placementData, pointer.x, pointer.y, window.planData?.universColors || {});
+                
+                canvas.add(geoCodeObject); 
+                canvas.setActiveObject(geoCodeObject); 
+                canvas.requestRenderAll();
+                saveGeoCodePosition(geoCodeObject); // Sauvegarde BDD
+                geoCodeCancelFn(canvas); // Annule le mode placement
+            }
         }
     });
 
     // --- Gestion du Drag and Drop (Code Géo ET Asset) ---
-    // --- MODIFICATION 5: Les écouteurs sont maintenant sur le bon 'canvasWrapper' (le parent) ---
+    // Les écouteurs sont sur le 'canvasWrapper' (le parent)
     
     canvasWrapper.addEventListener('dragover', (e) => {
-        console.log("[Drag Over] Événement dragover détecté."); // Log
+        console.log("[Drag Over] Événement dragover détecté.");
         e.preventDefault();
         if (e.dataTransfer.types.includes('text/plain')) {
-            console.log("[Drag Over] Type 'text/plain' détecté."); // Log
+            console.log("[Drag Over] Type 'text/plain' détecté.");
             e.dataTransfer.dropEffect = 'copy';
             canvasWrapper.classList.add('drop-target-active');
         } else { e.dataTransfer.dropEffect = 'none'; }
@@ -151,22 +189,22 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
 
     canvasWrapper.addEventListener('dragleave', (e) => {
         if (!canvasWrapper.contains(e.relatedTarget)) {
-            console.log("[Drag Leave] Sortie de la zone wrapper."); // Log
+            console.log("[Drag Leave] Sortie de la zone wrapper.");
             canvasWrapper.classList.remove('drop-target-active');
         }
     });
 
     canvasWrapper.addEventListener('drop', async (e) => {
-        console.log("[Drop Event] Drop détecté."); // Log
+        console.log("[Drop Event] Drop détecté.");
         e.preventDefault();
         canvasWrapper.classList.remove('drop-target-active');
         document.body.classList.remove('dragging-geocode');
         document.body.classList.remove('dragging-asset');
         try {
             const dataString = e.dataTransfer.getData('text/plain');
-            console.log("[Drop Event] dataString:", dataString); // Log
+            console.log("[Drop Event] dataString:", dataString);
             const placementData = JSON.parse(dataString);
-            console.log("[Drop Event] placementData:", placementData); // Log
+            console.log("[Drop Event] placementData:", placementData);
 
             const pointer = canvas.getPointer(e, true);
 
@@ -176,9 +214,7 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
                 canvas.add(geoCodeObject); canvas.setActiveObject(geoCodeObject); canvas.requestRenderAll();
                 saveGeoCodePosition(geoCodeObject);
                 
-                // MODIFICATION: On ne retire plus l'item de la liste pour permettre placements multiples
-                // const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${placementData.id}"]`);
-                // if(listItem) listItem.remove();
+                // On ne retire plus l'item de la liste pour permettre placements multiples
 
             } else if (placementData && placementData.id && placementData.name) {
                 console.log("Drop: Détection Asset", placementData);
@@ -193,9 +229,6 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
     });
     console.log("Placement: Écouteurs Clic (GeoCode) et Drop (GeoCode/Asset) configurés.");
 }
-
-// ... Le reste du fichier (setupPositionSaving, saveGeoCodePosition, removeGeoCodePosition) ...
-// ... est inchangé ...
 
 /**
  * Configure les écouteurs pour sauvegarder ou supprimer la position d'un code géo.

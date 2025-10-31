@@ -78,10 +78,6 @@ export async function setupSidebar(canvas) { // Rendre async pour fetch
 
     // --- 3. Annuler le placement si on clique sur un objet existant ---
     canvas.on('mouse:down', (options) => {
-        if (currentPlacementData && options.target) {
-             console.log("[Sidebar] Clic sur objet existant, annulation mode placement Code Géo.");
-             cancelPlacementMode(canvas);
-        }
         if (currentAssetPlacementData && options.target) {
             console.log("[Sidebar] Clic sur objet existant, annulation mode placement Asset.");
             cancelAssetPlacementMode(canvas);
