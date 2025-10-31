@@ -69,10 +69,20 @@ $title = $title ?? 'Éditeur de Plan'; // Utilise le titre passé par le contrô
                     <i class="bi bi-printer-fill"></i>
                      <span class="d-none d-md-inline ms-1">Imprimer</span>
                 </button>
-                <button class="btn btn-warning btn-sm" id="export-plan-btn" title="Exporter le plan">
-                    <i class="bi bi-download"></i>
-                     <span class="d-none d-md-inline ms-1">Exporter</span>
-                </button>
+		<div class="btn-group">
+                    <button type="button" class="btn btn-warning btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Exporter le plan">
+                        <i class="bi bi-download"></i>
+                        <span class="d-none d-md-inline ms-1">Exporter</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><button class="dropdown-item" type="button" id="export-plan-png-btn">
+                            <i class="bi bi-file-earmark-image me-2"></i>Exporter en PNG
+                        </button></li>
+                        <li><button class="dropdown-item" type="button" id="export-plan-svg-btn">
+                            <i class="bi bi-file-earmark-code me-2"></i>Exporter en SVG
+                        </button></li>
+                    </ul>
+                </div>
             </div>
         </nav>
 

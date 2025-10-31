@@ -1,5 +1,6 @@
 // Fichier: public/js/plan-editor.js
 // Fichier principal pour l'éditeur de plan, utilisant des imports dynamiques.
+// VERSION CORRIGÉE : Ne vérifie plus l'existence de l'ancien bouton 'export-plan-btn'.
 
 import { showToast, convertPixelsToPercent } from './modules/utils.js';
 import { placeAssetById } from './modules/assetManager.js';
@@ -12,9 +13,12 @@ async function initializeEditor() {
     const planCanvasElement = document.getElementById('plan-canvas');
     const saveDrawingBtn = document.getElementById('save-drawing-btn');
     const printBtn = document.getElementById('print-plan-btn');
-    const exportBtn = document.getElementById('export-plan-btn');
+    
+    // CORRECTION : Suppression de la variable 'exportBtn'
+    // const exportBtn = document.getElementById('export-plan-btn'); // ANCIENNE LIGNE SUPPRIMÉE
 
-    if (!canvasWrapper || !planCanvasElement || !loadingIndicator || !saveDrawingBtn || !printBtn || !exportBtn) {
+    // CORRECTION : 'exportBtn' retiré de la vérification
+    if (!canvasWrapper || !planCanvasElement || !loadingIndicator || !saveDrawingBtn || !printBtn) {
         console.error("Éléments DOM essentiels manquants pour l'éditeur.");
         alert("Erreur critique : Impossible d'initialiser l'interface de l'éditeur.");
         return;
@@ -29,7 +33,6 @@ async function initializeEditor() {
         const { loadPlanBackgroundAndObjects } = await import('./modules/planLoader.js');
         const { createGeoCodeObject, renderPlacedGeoCodes } = await import('./modules/geoCodeRenderer.js');
         
-        // --- MODIFICATION 1: Importer getCurrentAssetPlacementData ---
         const { getCurrentPlacementData, cancelPlacementMode, getCurrentAssetPlacementData } = await import('./ui/sidebar.js');
         
         const { setCanvasSizeFromFormat, updatePageGuideBorder } = await import('./modules/guideManager.js');
@@ -78,7 +81,8 @@ async function initializeEditor() {
 
         await setupSidebar(canvas);
         setupToolbar(canvas);
-        setupEditorActions(canvas, saveDrawingBtn, printBtn, exportBtn);
+        // CORRECTION : Le 4ème argument n'est plus nécessaire car editorActions.js trouve les boutons par ID
+        setupEditorActions(canvas, saveDrawingBtn, printBtn, null);
 
         // --- 7. Gérer le placement des codes Géo et Assets ---
         setupPlacement(canvas, canvasWrapper, createGeoCodeObject, getCurrentPlacementData, cancelPlacementMode, getCurrentAssetPlacementData);
@@ -148,52 +152,43 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
                 canvas.setActiveObject(target); // Garder l'objet sélectionné
                 canvas.requestRenderAll();
 
-            // [NOUVEAU] CAS 2: Clic sur une FORME (Rect, Circle, Asset, etc.) - On GROUPE
+            // CAS 2: Clic sur une FORME (Rect, Circle, Asset, etc.) - On GROUPE
             } else if (target && target.selectable && !target.isGuide && !target.isBackground && target.customData?.type !== 'geoCode') {
-                // (On ne peut pas placer un code sur un fond, un guide, ou un code existant)
                 console.log("[plan-editor.js] Placement GeoCode SUR une FORME. Création d'un groupe.");
 
-                // 1. Créer le nouvel objet texte pour le code géo
                 const newText = new fabric.Textbox(placementData.code, {
-                    // Styles par défaut
-                    fontSize: GEO_CODE_FONT_SIZE || 14, // Utilise la constante importée
+                    fontSize: GEO_CODE_FONT_SIZE || 14,
                     fill: '#000000',
                     fontWeight: 'bold',
                     textAlign: 'center',
-                    width: target.width * 0.9, // 90% de la largeur de la forme
+                    width: target.width * 0.9, 
                     originX: 'center',
                     originY: 'center',
                     splitByGrapheme: true
                 });
 
-                // 2. Cloner la forme cible (pour la mettre dans le groupe)
                 target.clone((clonedShape) => {
-                    // Positionner les objets du groupe par rapport au centre (0,0) du groupe
                     clonedShape.set({ originX: 'center', originY: 'center', left: 0, top: 0 });
-                    newText.set({ left: 0, top: 0 }); // Déjà centré
+                    newText.set({ left: 0, top: 0 }); 
 
-                    // 3. Créer le groupe
                     const newGroup = new fabric.Group([clonedShape, newText], {
-                        left: target.left, // Positionner le groupe à l'emplacement de la forme d'origine
+                        left: target.left, 
                         top: target.top,
-                        originX: target.originX, // Garder l'origine de la forme d'origine
+                        originX: target.originX, 
                         originY: target.originY,
-                        // "Taguer" le groupe entier comme le code géo
                         customData: {
                             type: 'geoCode',
                             geoCodeId: parseInt(placementData.id, 10),
                             code: placementData.code,
                             libelle: placementData.libelle,
                             universId: placementData.universId,
-                            positionId: null // C'est un NOUVEAU placement
+                            positionId: null 
                         }
                     });
 
-                    // 4. Remplacer l'ancienne forme par le nouveau groupe
                     canvas.remove(target);
                     canvas.add(newGroup);
                     
-                    // 5. Sauvegarder, annuler le mode, et sélectionner
                     saveGeoCodePosition(newGroup);
                     geoCodeCancelFn(canvas);
                     canvas.setActiveObject(newGroup);
@@ -203,32 +198,26 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
             // CAS 3: L'utilisateur a cliqué sur un espace vide (Comportement original)
             } else if (!target) {
                 console.log("[plan-editor.js mouse:down] Placement Code Géo sur espace vide.");
-                // Crée l'objet geo-code (Groupe Rect+Texte par défaut)
                 const geoCodeObject = geoCodeRendererFn(placementData, pointer.x, pointer.y, window.planData?.universColors || {});
                 
                 canvas.add(geoCodeObject); 
                 canvas.setActiveObject(geoCodeObject); 
                 canvas.requestRenderAll();
-                saveGeoCodePosition(geoCodeObject); // Sauvegarde BDD
-                geoCodeCancelFn(canvas); // Annule le mode placement
+                saveGeoCodePosition(geoCodeObject); 
+                geoCodeCancelFn(canvas); 
             
             // CAS 4: Clic sur un objet non-gérable (guide, ou un geoCode existant)
             } else if (target) {
                  console.log("[plan-editor.js] Clic sur un objet non-modifiable (guide ou geo-code existant), annulation placement.");
                  geoCodeCancelFn(canvas);
-                 // Le clic sélectionnera l'objet (comportement normal)
             }
         }
     });
 
     // --- Gestion du Drag and Drop (Code Géo ET Asset) ---
-    // (Cette partie reste inchangée)
-    
     canvasWrapper.addEventListener('dragover', (e) => {
-        console.log("[Drag Over] Événement dragover détecté.");
         e.preventDefault();
         if (e.dataTransfer.types.includes('text/plain')) {
-            console.log("[Drag Over] Type 'text/plain' détecté.");
             e.dataTransfer.dropEffect = 'copy';
             canvasWrapper.classList.add('drop-target-active');
         } else { e.dataTransfer.dropEffect = 'none'; }
@@ -236,24 +225,19 @@ function setupPlacement(canvas, canvasWrapper, geoCodeRendererFn, geoCodeGetterF
 
     canvasWrapper.addEventListener('dragleave', (e) => {
         if (!canvasWrapper.contains(e.relatedTarget)) {
-            console.log("[Drag Leave] Sortie de la zone wrapper.");
             canvasWrapper.classList.remove('drop-target-active');
         }
     });
 
     canvasWrapper.addEventListener('drop', async (e) => {
-        console.log("[Drop Event] Drop détecté.");
         e.preventDefault();
         canvasWrapper.classList.remove('drop-target-active');
         document.body.classList.remove('dragging-geocode');
         document.body.classList.remove('dragging-asset');
         try {
             const dataString = e.dataTransfer.getData('text/plain');
-            console.log("[Drop Event] dataString:", dataString);
             const placementData = JSON.parse(dataString);
-            console.log("[Drop Event] placementData:", placementData);
-
-            const pointer = canvas.getPointer(e, true);
+            const pointer = canvas.getPointer(e, true); // true pour ignorer le zoom
 
             if (placementData && placementData.id && placementData.code) {
                 console.log("Drop: Détection Code Géo", placementData);
@@ -284,11 +268,14 @@ function setupPositionSaving(canvas) {
         if (e.target?.customData?.type === 'geoCode') {
             saveGeoCodePosition(e.target);
         }
+        // Note: L'historique (historyManager) écoute aussi cet événement
     });
+    
     canvas.on('object:removed', (e) => {
         if (e.target?.customData?.type === 'geoCode') {
             removeGeoCodePosition(e.target);
         }
+        // Note: L'historique (historyManager) écoute aussi cet événement
     });
     console.log("Position Saving (GeoCode): Écouteurs Modifié/Supprimé configurés.");
 }
@@ -304,7 +291,6 @@ async function saveGeoCodePosition(geoCodeObject) {
     const apiUrl = window.planData?.placeGeoCodeUrl;
     const geoCodeId = geoCodeObject.customData.geoCodeId;
     
-    // MODIFICATION: Récupérer l'ID de position unique (s'il existe) pour différencier INSERT et UPDATE
     const positionId = geoCodeObject.customData.positionId || null; 
 
     if (!canvas || !planId || !apiUrl || !geoCodeId) {
@@ -316,13 +302,12 @@ async function saveGeoCodePosition(geoCodeObject) {
         showToast("Erreur calcul position %, sauvegarde annulée.", "warning"); return;
     }
     
-    // MODIFICATION: Ajouter position_id au payload
     const payload = { 
         plan_id: planId, 
         geo_code_id: geoCodeId, 
         pos_x: posX.toFixed(4), 
         pos_y: posY.toFixed(4),
-        position_id: positionId // Sera null si nouveau, ou un ID si déplacement
+        position_id: positionId
     };
 
     console.log(`Sauvegarde Position GeoCode: Envoi pour ${geoCodeObject.customData.code}`, payload);
@@ -336,15 +321,8 @@ async function saveGeoCodePosition(geoCodeObject) {
         const result = await response.json(); if (!result.success) throw new Error(result.error || "Erreur API.");
         console.log(`Sauvegarde Position GeoCode: Succès pour ${geoCodeObject.customData.code}. ID Position BDD: ${result.position_id}`);
         
-        // S'assurer que l'objet sur le canvas a maintenant son ID de position unique
         if (result.position_id) geoCodeObject.customData.positionId = result.position_id;
          
-         // MODIFICATION: On ne retire plus l'item de la liste
-         // const listItem = document.querySelector(`#available-geocodes-list .available-geocode-item[data-id="${geoCodeId}"]`);
-         // if(listItem && positionId === null) { // Ne retirer que si c'était un NOUVEAU placement
-         //     listItem.remove();
-         // }
-
     } catch (error) {
          console.error(`Erreur API sauvegarde position ${geoCodeObject.customData.code}:`, error);
          showToast(`Erreur sauvegarde position (${geoCodeObject.customData.code}): ${error.message}`, 'danger');
@@ -364,16 +342,13 @@ async function removeGeoCodePosition(geoCodeObject) {
 
     if (!planId || !apiUrl || !geoCodeId) { return; }
     
-    // MODIFICATION: On a besoin du positionId pour savoir QUEL repère supprimer
     if (!positionId) {
         console.warn("Tentative de suppression d'un GeoCode sans positionId. Suppression BDD annulée.", geoCodeObject.customData);
-        // On laisse la suppression du canvas se faire, mais on n'appelle pas l'API
         return;
     }
 
     console.log(`Suppression Position GeoCode: Envoi pour positionId=${positionId} (geoCodeId=${geoCodeId}, planId=${planId})`);
     try {
-         // MODIFICATION: Envoyer l'ID de position unique pour supprimer la bonne instance
          const payload = { plan_id: planId, geo_code_id: geoCodeId, position_id: positionId };
          const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(payload) });
          if (!response.ok) {
@@ -385,6 +360,7 @@ async function removeGeoCodePosition(geoCodeObject) {
          console.log(`Suppression Position BDD: Succès pour ${geoCodeObject.customData.code}.`);
          showToast(`'${geoCodeObject.customData.code}' retiré du plan.`, 'info');
 
+         // Remettre l'objet dans la liste "disponible" de la sidebar
          const availableList = document.getElementById('available-geocodes-list');
          const existingItem = availableList?.querySelector(`.available-geocode-item[data-id="${geoCodeId}"]`);
          if (availableList && !existingItem) {
@@ -392,6 +368,7 @@ async function removeGeoCodePosition(geoCodeObject) {
              listItem.className = "list-group-item list-group-item-action available-geocode-item";
              listItem.dataset.id = geoCodeId;
              listItem.dataset.code = geoCodeObject.customData.code;
+             // Essayer de retrouver les données complètes
              const originalCodeData = window.planData?.availableGeoCodes?.find(c => c.id == geoCodeId) || window.planData?.placedGeoCodes?.find(c => c.geo_code_id == geoCodeId);
              listItem.dataset.libelle = originalCodeData?.libelle || '';
              listItem.dataset.universId = originalCodeData?.univers_id || '';

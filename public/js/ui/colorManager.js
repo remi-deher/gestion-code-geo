@@ -2,16 +2,15 @@
 /**
  * Gère les sélecteurs de couleur pour le fond du canvas, le remplissage (fill) et la bordure (stroke)
  * et applique les couleurs à l'objet sélectionné ou aux futurs objets.
+ * NOTE: L'épaisseur (strokeWidth) est gérée par propertyInspector.js
  */
 
 let currentFillColor = '#ffffff'; // Blanc par défaut
 let currentStrokeColor = '#000000'; // Noir par défaut
-let currentStrokeWidth = 1; // Épaisseur par défaut
-let canvasBackgroundColor = '#ffffff'; // NOUVEAU: Couleur de fond du canvas par défaut
+let canvasBackgroundColor = '#ffffff'; // Couleur de fond du canvas par défaut
 
 let fillColorPicker = null;
 let strokeColorPicker = null;
-let strokeWidthSlider = null;
 let bgColorPicker = null; // Référence au picker de couleur de fond
 let canvasInstance = null;
 
@@ -102,7 +101,6 @@ export function setupColorControls(toolbarElement, canvas) {
         canvasBackgroundColor = e.target.value;
         // Utilisez setBackgroundColor de Fabric
         canvas.setBackgroundColor(canvasBackgroundColor, canvas.renderAll.bind(canvas));
-        // Idéalement, marquer le plan comme modifié
     });
 
     // Changement de couleur de remplissage
@@ -115,6 +113,11 @@ export function setupColorControls(toolbarElement, canvas) {
     strokeColorPicker.addEventListener('input', (e) => {
         currentStrokeColor = e.target.value;
         applyColorToSelection('stroke', currentStrokeColor);
+
+        // NOUVEAU: Mettre à jour la brosse de dessin si l'outil Crayon est actif
+        if (canvasInstance && canvasInstance.isDrawingMode && canvasInstance.freeDrawingBrush) {
+            canvasInstance.freeDrawingBrush.color = currentStrokeColor;
+        }
     });
 
     // Mettre à jour les pickers quand la sélection change
@@ -137,6 +140,7 @@ function applyColorToSelection(property, colorValue) {
     if (activeObject) {
         if (activeObject.type === 'activeSelection') {
             activeObject.forEachObject(obj => {
+                // Ne pas appliquer 'fill' aux lignes ou chemins ouverts
                 if (property === 'fill' && (obj.type === 'line' || (obj.type === 'path' && !obj.fill))) return;
                 obj.set(property, colorValue);
             });
@@ -184,13 +188,13 @@ function updatePickersFromSelection(event) {
 }
 
 /**
- * Retourne les couleurs et épaisseurs actuelles (pour les outils de dessin).
- * @returns {{fill: string, stroke: string, strokeWidth: number}}
+ * Retourne les couleurs actuelles (pour les outils de dessin).
+ * Ne retourne plus strokeWidth.
+ * @returns {{fill: string, stroke: string}}
  */
 export function getCurrentColors() {
     return {
         fill: currentFillColor,
-        stroke: currentStrokeColor,
-        strokeWidth: currentStrokeWidth
+        stroke: currentStrokeColor
     };
 }
