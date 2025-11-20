@@ -177,6 +177,79 @@ class PlanManager {
         }
     }
 
+/**
+     * Récupère les plans qui sont dans la corbeille (soft-deleted).
+     * @return array La liste des plans supprimés.
+     */
+    public function getDeletedPlans(): array {
+        $sql = "SELECT * FROM plans WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC";
+        try {
+            $stmt = $this->db->query($sql);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur getDeletedPlans: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Restaure un plan supprimé.
+     * @param int $id ID du plan.
+     * @return bool True si succès.
+     */
+    public function restorePlan(int $id): bool {
+        try {
+            $sql = "UPDATE plans SET deleted_at = NULL WHERE id = :id";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->rowCount() > 0;
+        } catch (PDOException $e) {
+            error_log("Erreur restorePlan (ID: $id): " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Supprime définitivement un plan et son fichier associé.
+     * @param int $id ID du plan.
+     * @return bool True si succès.
+     */
+    public function forceDeletePlan(int $id): bool {
+        // 1. Récupérer le nom du fichier avant suppression
+        $sqlInfo = "SELECT nom_fichier FROM plans WHERE id = :id";
+        $stmtInfo = $this->db->prepare($sqlInfo);
+        $stmtInfo->bindParam(':id', $id, PDO::PARAM_INT);
+        $stmtInfo->execute();
+        $filename = $stmtInfo->fetchColumn();
+
+        $this->db->beginTransaction();
+        try {
+            // 2. Supprimer de la BDD
+            $sql = "DELETE FROM plans WHERE id = :id";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+
+            // La suppression en cascade des geo_positions et plan_univers est gérée par MySQL (ON DELETE CASCADE)
+            
+            $this->db->commit();
+
+            // 3. Supprimer le fichier physique s'il existe
+            if ($filename) {
+                $filePath = __DIR__ . '/../public/uploads/plans/' . $filename;
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                }
+            }
+            return true;
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            error_log("Erreur forceDeletePlan (ID: $id): " . $e->getMessage());
+            return false;
+        }
+    }
+
     /**
      * Met à jour les associations entre un plan et ses univers.
      * @param int $planId ID du plan.

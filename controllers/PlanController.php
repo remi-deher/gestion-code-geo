@@ -191,6 +191,48 @@ class PlanController extends BaseController {
         exit();
     }
 
+/**
+     * Affiche la corbeille des plans.
+     */
+    public function trashAction() {
+        $deletedPlans = $this->planManager->getDeletedPlans();
+        $this->render('plans_trash_view', ['deletedPlans' => $deletedPlans]);
+    }
+
+    /**
+     * Restaure un plan de la corbeille.
+     */
+    public function restoreAction() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+             header('Location: index.php?action=trashPlans'); exit();
+        }
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0 && $this->planManager->restorePlan($id)) {
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Plan restauré avec succès.'];
+        } else {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de la restauration du plan.'];
+        }
+        header('Location: index.php?action=trashPlans');
+        exit();
+    }
+
+    /**
+     * Supprime définitivement un plan.
+     */
+    public function forceDeleteAction() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+             header('Location: index.php?action=trashPlans'); exit();
+        }
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0 && $this->planManager->forceDeletePlan($id)) {
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Plan et fichier supprimés définitivement.'];
+        } else {
+            $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Erreur lors de la suppression définitive.'];
+        }
+        header('Location: index.php?action=trashPlans');
+        exit();
+    }
+
 
     public function viewPlanAction() {
          $id = (int)($_GET['id'] ?? 0);

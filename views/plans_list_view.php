@@ -1,6 +1,6 @@
 <?php $title = 'Les Plans du Magasin'; ?>
 
-<?php ob_start(); ?>
+<?php ob_start(); // Début capture pour CSS spécifique si besoin ?>
 <link rel="stylesheet" href="css/pages/_plans-list.css">
 <?php $head_styles = ob_get_clean(); ?>
 
@@ -10,6 +10,10 @@
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h1 class="mb-0"><i class="bi bi-map-fill"></i> Gestion des Plans</h1>
             <div class="d-flex gap-2">
+                <a href="index.php?action=trashPlans" class="btn btn-outline-secondary">
+                    <i class="bi bi-trash"></i> Corbeille
+                </a>
+                
                 <a href="index.php?action=manageAssets" class="btn btn-outline-secondary">
                     <i class="bi bi-box-seam"></i> Gérer les Assets
                 </a>
@@ -19,12 +23,14 @@
             </div>
         </div>
 
-        <?php include __DIR__ . '/partials/flash_messages.php'; ?>
+        <?php include __DIR__ . '/partials/flash_messages.php'; // Inclut les messages flash ?>
 
         <?php if (!empty($plans)): ?>
             <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
                 <?php foreach ($plans as $plan):
+                    // Construire le chemin vers l'aperçu/image
                     $planImagePath = 'uploads/plans/' . htmlspecialchars($plan['nom_fichier']);
+                    // Vérifier si le fichier existe pour éviter les erreurs (sinon placeholder)
                     $imageSrc = file_exists(__DIR__ . '/../public/' . $planImagePath) ? $planImagePath : 'img/placeholder-plan.png';
                 ?>
                     <div class="col">
@@ -61,6 +67,7 @@
                                  <a href="index.php?action=printPlan&id=<?= $plan['id'] ?>" class="btn btn-sm btn-outline-info" title="Imprimer le plan" target="_blank">
                                      <i class="bi bi-printer-fill"></i> Imprimer
                                  </a>
+                                 
                                  <form action="index.php?action=deletePlan" method="POST" class="d-inline" onsubmit="return confirm('Êtes-vous sûr de vouloir mettre ce plan à la corbeille ?');">
                                     <input type="hidden" name="id" value="<?= $plan['id'] ?>">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer le plan">

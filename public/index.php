@@ -6,14 +6,9 @@ error_reporting(E_ALL);
 session_start();
 
 // Inclut l'autoloader de Composer (si vous l'utilisez)
-// Assurez-vous que le chemin est correct
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
-} else {
-    // Fallback si Composer n'est pas utilisé ou si le chemin est différent
-    // Inclure manuellement les fichiers nécessaires (moins idéal)
 }
-
 
 // Connexion à la base de données
 $dbConfigPath = __DIR__ . '/../config/database.php';
@@ -28,7 +23,6 @@ try {
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     error_log('Erreur de connexion BDD: ' . $e->getMessage());
-    // En production, afficher un message plus générique
     die('Erreur de connexion à la base de données. Veuillez vérifier la configuration et réessayer.');
 }
 
@@ -50,12 +44,12 @@ $assetsController = new AssetsController($db);
 // Action par défaut
 $action = $_GET['action'] ?? 'dashboard';
 
-// Routage simplifié
+// Routage
 switch ($action) {
-    // Dashboard
+    // --- DASHBOARD ---
     case 'dashboard': $dashboardController->indexAction(); break;
 
-    // Codes Géo (Gestion CRUD)
+    // --- CODES GÉO (Gestion CRUD) ---
     case 'list': $geoCodeController->listAction(); break;
     case 'create': $geoCodeController->createAction(); break;
     case 'add': $geoCodeController->addAction(); break;
@@ -63,58 +57,60 @@ switch ($action) {
     case 'update': $geoCodeController->updateAction(); break;
     case 'delete': $geoCodeController->deleteAction(); break; // Soft delete
 
-    // Codes Géo (Fonctionnalités avancées)
-    // Retrait de 'addGeoCodeFromPlan' et 'getAllCodesJson' qui dépendaient des plans
+    // --- CODES GÉO (Fonctionnalités avancées) ---
     case 'showBatchCreate': $geoCodeController->showBatchCreateAction(); break;
     case 'handleBatchCreate': $geoCodeController->handleBatchCreateAction(); break;
 
-    // Corbeille & Historique Codes Géo
+    // --- CORBEILLE & HISTORIQUE CODES GÉO ---
     case 'trash': $geoCodeController->trashAction(); break;
     case 'restore': $geoCodeController->restoreAction(); break;
     case 'forceDelete': $geoCodeController->forceDeleteAction(); break; // Suppression définitive
     case 'history': $geoCodeController->historyAction(); break; // Historique d'un code
     case 'fullHistory': $geoCodeController->fullHistoryAction(); break; // Historique global
 
-    // Import/Export et Impression Codes Géo
+    // --- IMPORT/EXPORT & IMPRESSION ---
     case 'showExport': $geoCodeController->showExportAction(); break;
-    case 'handleExport': $geoCodeController->handleExportAction(); break; // Renvoie JSON maintenant
+    case 'handleExport': $geoCodeController->handleExportAction(); break; // JSON
     case 'showImport': $geoCodeController->showImportAction(); break;
     case 'handleImport': $geoCodeController->handleImportAction(); break;
-    case 'printLabels': $geoCodeController->showPrintOptionsAction(); break; // Page options PDF (JS)
-    // case 'printSingle': $geoCodeController->printSingleLabelAction(); break; // Ancienne méthode HTML (commentée/supprimée)
-    case 'getCodesForPrint': $geoCodeController->getCodesForPrintAction(); break; // AJAX pour Générateur PDF Lot
-    case 'getSingleGeoCodeJson': $geoCodeController->getSingleGeoCodeJsonAction(); break; // NOUVELLE ROUTE AJAX pour impression unique
+    case 'printLabels': $geoCodeController->showPrintOptionsAction(); break; // Page options PDF
+    case 'getCodesForPrint': $geoCodeController->getCodesForPrintAction(); break; // AJAX PDF
+    case 'getSingleGeoCodeJson': $geoCodeController->getSingleGeoCodeJsonAction(); break; // AJAX PDF Unique
 
-    // Univers
+    // --- UNIVERS ---
     case 'listUnivers': $universController->listAction(); break;
     case 'addUnivers': $universController->addAction(); break;
     case 'updateUnivers': $universController->updateAction(); break;
     case 'deleteUnivers': $universController->deleteAction(); break;
 
-    // --- PLANS ---
-    case 'listPlans': $planController->listAction(); break; // Affiche la liste des plans
-    case 'addPlanForm': $planController->addPlanFormAction(); break; // Affiche le formulaire d'ajout
-    case 'handleAddPlan': $planController->handleAddPlanAction(); break; // Traite l'ajout d'un plan uploadé
-    case 'editPlan': $planController->editPlanAction(); break; // Affiche le formulaire de modification (métadonnées)
-    case 'handleUpdatePlan': $planController->handleUpdatePlanAction(); break; // Traite la modification (métadonnées)
-    case 'deletePlan': $planController->deletePlanAction(); break; // Supprime (soft delete) un plan
-    case 'viewPlan': $planController->viewPlanAction(); break; // Affiche l'éditeur/visualiseur unifié
-    case 'printPlan': $planController->printPlanAction(); break; // Action pour l'impression (vue simple pour l'instant)
+    // --- PLANS (Gestion) ---
+    case 'listPlans': $planController->listAction(); break;
+    case 'addPlanForm': $planController->addPlanFormAction(); break;
+    case 'handleAddPlan': $planController->handleAddPlanAction(); break;
+    case 'editPlan': $planController->editPlanAction(); break;
+    case 'handleUpdatePlan': $planController->handleUpdatePlanAction(); break;
+    case 'deletePlan': $planController->deletePlanAction(); break;
+    case 'viewPlan': $planController->viewPlanAction(); break; // Éditeur
+    case 'printPlan': $planController->printPlanAction(); break;
 
-    // --- API pour l'éditeur de plan (appelées par JS) ---
-    case 'apiSaveDrawing': $planController->saveDrawingAction(); break; // Sauvegarde le dessin Fabric.js
-    case 'apiPlaceGeoCode': $planController->placeGeoCodeAction(); break; // Ajoute/Met à jour une position
-    case 'apiRemoveGeoCode': $planController->removeGeoCodeAction(); break; // Supprime une position
-    case 'apiSavePageFormat': $planController->savePageFormatAction(); break; // Sauvegarde format de la page
+    // --- PLANS (Corbeille) - C'est ici que ça manquait ---
+    case 'trashPlans': $planController->trashAction(); break;
+    case 'restorePlan': $planController->restoreAction(); break;
+    case 'forceDeletePlan': $planController->forceDeleteAction(); break;
+
+    // --- API ÉDITEUR PLANS (AJAX) ---
+    case 'apiSaveDrawing': $planController->saveDrawingAction(); break;
+    case 'apiPlaceGeoCode': $planController->placeGeoCodeAction(); break;
+    case 'apiRemoveGeoCode': $planController->removeGeoCodeAction(); break;
+    case 'apiSavePageFormat': $planController->savePageFormatAction(); break;
 
     // --- ASSETS ---
-    case 'manageAssets': $assetsController->manageAction(); break; // Page de gestion (HTML)
+    case 'manageAssets': $assetsController->manageAction(); break;
     case 'handleAssetUpload': $assetsController->handleUploadAction(); break;
-    // API Actions (JSON)
-    case 'apiListAssets': $assetsController->listAction(); break;   // Récupère la liste
-    case 'apiGetAsset': $assetsController->getAction(); break;     // Récupère un asset spécifique
-    case 'apiCreateAsset': $assetsController->createAction(); break; // Crée un asset depuis l'éditeur
-    case 'apiDeleteAsset': $assetsController->deleteAction(); break; // Supprime un asset
+    case 'apiListAssets': $assetsController->listAction(); break;
+    case 'apiGetAsset': $assetsController->getAction(); break;
+    case 'apiCreateAsset': $assetsController->createAction(); break;
+    case 'apiDeleteAsset': $assetsController->deleteAction(); break;
 
     // Action non trouvée ou par défaut
     default:
@@ -122,5 +118,4 @@ switch ($action) {
         $dashboardController->indexAction();
         break;
 }
-
 ?>
