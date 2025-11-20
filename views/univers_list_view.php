@@ -72,9 +72,14 @@
                                         </td>
                                         <td class="item-actions text-center">
                                             <button type="submit" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
-                                            <a href="index.php?action=deleteUnivers&id=<?= $univers['id'] ?>" class="btn btn-sm btn-danger" title="Supprimer" onclick="return confirm('Attention ! Suppression impossible si l\'univers est utilisé.');"><i class="bi bi-trash-fill"></i></a>
                                         </td>
                                     </form>
+                                    <td class="text-center" style="border-top: none;">
+                                        <form action="index.php?action=deleteUnivers" method="POST" class="d-inline" onsubmit="return confirm('Attention ! Suppression impossible si l\'univers est utilisé.');">
+                                            <input type="hidden" name="id" value="<?= $univers['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-danger" title="Supprimer"><i class="bi bi-trash-fill"></i></button>
+                                        </form>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>

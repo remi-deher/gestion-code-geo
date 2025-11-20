@@ -28,8 +28,14 @@
                             <td><?= htmlspecialchars($code['libelle']) ?></td>
                             <td><?= date('d/m/Y H:i', strtotime($code['deleted_at'])) ?></td>
                             <td class="item-actions text-center">
-                                <a href="index.php?action=restore&id=<?= $code['id'] ?>" class="btn btn-success" title="Restaurer"><i class="bi bi-arrow-counterclockwise"></i></a>
-                                <a href="index.php?action=forceDelete&id=<?= $code['id'] ?>" class="btn btn-danger" title="Supprimer définitivement" onclick="return confirm('Cette action est irréversible. Êtes-vous sûr ?');"><i class="bi bi-trash-fill"></i></a>
+                                <form action="index.php?action=restore" method="POST" class="d-inline">
+                                    <input type="hidden" name="id" value="<?= $code['id'] ?>">
+                                    <button type="submit" class="btn btn-success" title="Restaurer"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                </form>
+                                <form action="index.php?action=forceDelete" method="POST" class="d-inline" onsubmit="return confirm('Cette action est irréversible. Êtes-vous sûr ?');">
+                                    <input type="hidden" name="id" value="<?= $code['id'] ?>">
+                                    <button type="submit" class="btn btn-danger" title="Supprimer définitivement"><i class="bi bi-trash-fill"></i></button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>

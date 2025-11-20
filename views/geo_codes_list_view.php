@@ -1,10 +1,8 @@
 <?php $title = 'Liste des Codes Géo'; ?>
 <?php
-// On injecte le chemin vers app.js ici, car cette vue en dépend fortement
-// Assurez-vous que layout.php charge bien les dépendances JS avant $body_scripts
 ob_start();
 ?>
-<script src="js/app.js" defer></script> <?php // 'defer' pour attendre que le DOM soit prêt ?>
+<script src="js/app.js" defer></script>
 <?php $body_scripts = ob_get_clean(); ?>
 
 <div class="container">
@@ -85,7 +83,6 @@ ob_start();
                     <div class="alert alert-info">Aucun code géo n'a été trouvé. <a href="index.php?action=create">Ajoutez-en un !</a></div>
                 <?php else: ?>
                     <?php
-                    // Tri initial par Code Géo par défaut (ou selon le selecteur si besoin)
                     usort($geoCodes, function($a, $b) {
                         return strnatcasecmp($a['code_geo'] ?? '', $b['code_geo'] ?? '');
                     });
@@ -120,13 +117,18 @@ ob_start();
                                 </div>
 
                                  <div class="col-md-auto geo-card-actions">
-                                     <div class="d-grid d-md-flex gap-2 justify-content-md-end">
+                                     <div class="d-grid d-md-flex gap-2 justify-content-md-end align-items-center">
                                         <a href="index.php?action=edit&id=<?= $code['id'] ?>" class="btn btn-sm btn-warning" title="Modifier"><i class="bi bi-pencil-fill"></i><span class="btn-text d-none d-md-inline"> Modifier</span></a>
                                         <a href="index.php?action=history&id=<?= $code['id'] ?>" class="btn btn-sm btn-info" title="Historique"><i class="bi bi-clock-history"></i><span class="btn-text d-none d-md-inline"> Historique</span></a>
                                         <button type="button" class="btn btn-sm btn-secondary btn-print-single" data-id="<?= $code['id'] ?>" title="Imprimer l'étiquette">
                                             <i class="bi bi-printer-fill"></i><span class="btn-text d-none d-md-inline"> Imprimer</span>
                                         </button>
-                                        <a href="index.php?action=delete&id=<?= $code['id'] ?>" class="btn btn-sm btn-danger" title="Mettre à la corbeille" onclick="return confirm('Mettre ce code à la corbeille ?');"><i class="bi bi-trash-fill"></i><span class="btn-text d-none d-md-inline"> Corbeille</span></a>
+                                        <form action="index.php?action=delete" method="POST" class="d-inline" onsubmit="return confirm('Mettre ce code à la corbeille ?');">
+                                            <input type="hidden" name="id" value="<?= $code['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-danger" title="Mettre à la corbeille">
+                                                <i class="bi bi-trash-fill"></i><span class="btn-text d-none d-md-inline"> Corbeille</span>
+                                            </button>
+                                        </form>
                                     </div>
                                  </div>
                             </div>

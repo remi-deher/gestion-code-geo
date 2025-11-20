@@ -19,7 +19,6 @@ class UniversController extends BaseController {
 
     public function addAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // On ajoute la couleur lors de la création
             $this->universManager->addUnivers(
                 trim($_POST['nom']), 
                 $_POST['zone_assignee'],
@@ -30,7 +29,6 @@ class UniversController extends BaseController {
         exit();
     }
     
-    // NOUVELLE méthode pour la mise à jour complète
     public function updateAction() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->universManager->updateUnivers(
@@ -46,7 +44,14 @@ class UniversController extends BaseController {
 
 
     public function deleteAction() {
-        $id = (int)($_GET['id'] ?? 0);
+        // SÉCURITÉ POST
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+             $_SESSION['flash_message'] = ['type' => 'danger', 'message' => 'Action interdite.'];
+             header('Location: index.php?action=listUnivers');
+             exit();
+        }
+
+        $id = (int)($_POST['id'] ?? 0);
         $this->universManager->deleteUnivers($id);
         header('Location: index.php?action=listUnivers');
         exit();
