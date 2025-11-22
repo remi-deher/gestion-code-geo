@@ -1,203 +1,239 @@
-document.addEventListener('DOMContentLoaded', () => {
+// Fichier: public/js/app.js
 
-    // 1. Initialisation des Toasts (Notifications)
-    [].slice.call(document.querySelectorAll('.toast')).map(function (toastEl) {
+// On attend que le DOM soit chargé ET que jQuery soit prêt
+$(document).ready(function() {
+
+    // --- 0. VÉRIFICATION DE SÉCURITÉ ---
+    if (!$.fn.DataTable) {
+        console.error("❌ ERREUR : DataTables n'est pas chargé. Vérifiez l'ordre des scripts dans layout.php");
+        return;
+    }
+
+    // --- 1. INITIALISATION DES TOASTS (Notifications) ---
+    const toastElList = [].slice.call(document.querySelectorAll('.toast'));
+    toastElList.map(function (toastEl) {
         new bootstrap.Toast(toastEl).show();
     });
 
+
     // =========================================================
-    // 2. LIST.JS (Recherche & Tri)
+    // 2. CONFIGURATION DATATABLES (Tableau + Filtres)
     // =========================================================
-    const listId = 'fiches-list-js';
-    const listContainer = document.getElementById(listId);
     
-    // Sécurité : On vérifie s'il y a des items avant d'initier List.js
-    // Cela empêche le crash "The list needs to have at least one item..."
-    const hasItems = document.querySelectorAll('.list-item-entry').length > 0;
-    let geoCodeList = null;
+    const $table = $('#table-codes');
 
-    if (listContainer && hasItems) {
-        const options = {
-            // Ces classes CSS doivent exister dans vos <td>
-            valueNames: [ 'code_geo', 'libelle', 'univers', 'zone' ],
-            listClass: 'list', 
-            page: 20, // Pagination
-            pagination: {
-                paginationClass: 'pagination',
-                innerWindow: 1, 
-                outerWindow: 1,
-                item: '<li class="page-item"><a class="page-link" href="#"></a></li>'
+    // On ne lance DataTables que si le tableau existe sur la page
+    if ($table.length > 0) {
+        
+        const table = $table.DataTable({
+            // Configuration de la langue
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/fr-FR.json',
+                searchPanes: {
+                    title: {
+                        _: 'Filtres actifs - %d',
+                        0: 'Filtres (Aucun)',
+                        1: '1 Filtre actif'
+                    },
+                    collapse: { 0: 'Filtres', _: 'Filtres (%d)' },
+                    clearMessage: 'Effacer tout',
+                    count: '{total}',
+                    countFiltered: '{shown} ({total})'
+                }
+            },
+
+            // Disposition des éléments (DOM Layout)
+            // P = SearchPanes (Les filtres)
+            // f = Champ de recherche global
+            // r = Indicateur de chargement
+            // t = Le tableau
+            // i = Info (1 à 10 sur 50)
+            // p = Pagination
+            dom: '<"d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3"P f>rt<"d-flex justify-content-between align-items-center mt-3"ip>',
+            
+            // Configuration des Filtres Automatiques (SearchPanes)
+            searchPanes: {
+                layout: 'columns-2', // Affichage sur 2 colonnes
+                initCollapsed: true, // Replié par défaut
+                cascadePanes: true,  // Filtrer "Zone" met à jour les options de "Univers"
+                viewTotal: true      // Affiche le nombre total (ex: Vente (12))
+            },
+            
+            // Configuration des colonnes
+            columnDefs: [
+                // Désactiver le tri sur: Checkbox(0), QR(1), Actions(6)
+                { orderable: false, targets: [0, 1, 6] },
+                
+                // Activer les filtres automatiques UNIQUEMENT sur Univers(4) et Zone(5)
+                { searchPanes: { show: true }, targets: [4, 5] },
+                
+                // Désactiver les filtres automatiques sur les autres colonnes
+                { searchPanes: { show: false }, targets: '_all' }
+            ],
+
+            // CALLBACK IMPORTANT : Appelé à chaque fois que le tableau est dessiné (page, tri, filtre)
+            drawCallback: function() {
+                generateQRs();  // On doit régénérer les QR codes visibles
+                updateBulkUI(); // On met à jour l'état des checkboxes
             }
-        };
-
-        // Démarrage de List.js
-        geoCodeList = new List(listId, options);
-
-        // Événement : Se déclenche après une recherche, un tri ou un changement de page
-        geoCodeList.on('updated', function () {
-            generateQRs(); // Regénérer les QR de la page visible
-            updateBulkUI(); // Mettre à jour l'état des cases à cocher
         });
     }
 
 
     // =========================================================
-    // 3. QR CODES (Génération automatique)
+    // 3. QR CODES (Génération dynamique)
     // =========================================================
     function generateQRs() {
         if (typeof QRCode === 'undefined') return;
         
-        document.querySelectorAll('.qr-mini').forEach(el => {
-            // On ne génère que si le conteneur est vide et visible
-            if (el.innerHTML.trim() === '') {
-                const code = el.dataset.code;
+        // On sélectionne les conteneurs QR qui sont actuellement visibles dans le DOM
+        $('.qr-mini').each(function() {
+            const el = $(this);
+            // Si le conteneur est vide (pas encore de QR généré)
+            if (el.html().trim() === '') {
+                const code = el.data('code');
                 if (code) {
                     try {
-                        new QRCode(el, { 
-                            text: code, 
+                        new QRCode(this, { 
+                            text: String(code), 
                             width: 28, 
                             height: 28, 
                             correctLevel: QRCode.CorrectLevel.L 
                         });
-                    } catch(e) {
-                        console.error("Erreur QR", e);
+                    } catch(e) { 
+                        console.error("Erreur génération QR", e); 
                     }
                 }
             }
         });
     }
-    // Premier appel au chargement de la page
-    generateQRs();
 
 
     // =========================================================
-    // 4. ACTIONS DE MASSE (Barre flottante)
+    // 4. ACTIONS DE MASSE (Checkboxes persistantes)
     // =========================================================
-    const bulkBar = document.getElementById('bulk-actions-bar');
-    const countEl = document.getElementById('selected-count');
-    const checkAll = document.getElementById('check-all');
     let selectedIds = new Set();
+    const bulkBar = $('#bulk-actions-bar');
+    const countEl = $('#selected-count');
 
-    const updateBulkUI = () => {
-        // 1. Cocher visuellement les cases correspondantes au Set
-        document.querySelectorAll('.item-checkbox').forEach(cb => {
-            cb.checked = selectedIds.has(cb.value);
+    function updateBulkUI() {
+        // On parcourt les checkboxes visibles pour voir si elles doivent être cochées
+        $('.item-checkbox').each(function() {
+            const val = $(this).val();
+            $(this).prop('checked', selectedIds.has(val));
         });
         
-        // 2. Mettre à jour la barre flottante
-        if(countEl) countEl.textContent = selectedIds.size;
-        if(bulkBar) {
-            selectedIds.size > 0 ? bulkBar.classList.add('visible') : bulkBar.classList.remove('visible');
-        }
-    };
-
-    // A. Clic sur une case individuelle (Délégation d'événement)
-    if(listContainer) {
-        listContainer.addEventListener('change', (e) => {
-            if(e.target.classList.contains('item-checkbox')) {
-                if(e.target.checked) selectedIds.add(e.target.value);
-                else selectedIds.delete(e.target.value);
-                updateBulkUI();
-            }
-        });
+        // Mise à jour de la barre flottante
+        countEl.text(selectedIds.size);
+        if(selectedIds.size > 0) bulkBar.addClass('visible');
+        else bulkBar.removeClass('visible');
     }
 
-    // B. Clic sur "Tout cocher" (seulement la page visible)
-    if(checkAll) {
-        checkAll.addEventListener('change', (e) => {
-            const isChecked = e.target.checked;
-            // Sélectionner seulement les lignes visibles (non masquées par le filtre)
-            const visibleCheckboxes = document.querySelectorAll('.list-item-entry:not([style*="display: none"]) .item-checkbox');
-            
-            visibleCheckboxes.forEach(cb => {
-                cb.checked = isChecked;
-                if(isChecked) selectedIds.add(cb.value);
-                else selectedIds.delete(cb.value);
-            });
-            updateBulkUI();
-        });
-    }
-
-    // C. Bouton "Fermer la barre"
-    document.getElementById('bulk-close')?.addEventListener('click', () => {
-        selectedIds.clear();
-        if(checkAll) checkAll.checked = false;
+    // Délégation d'événement : On écoute sur le TBODY car les lignes changent avec la pagination
+    $('#table-codes tbody').on('change', '.item-checkbox', function() {
+        const val = $(this).val();
+        if(this.checked) selectedIds.add(val);
+        else selectedIds.delete(val);
         updateBulkUI();
     });
 
+    // Bouton "Tout cocher" (Coche tout ce qui est visible sur la page actuelle)
+    $('#check-all').on('change', function() {
+        const isChecked = this.checked;
+        $('.item-checkbox').each(function() {
+            const val = $(this).val();
+            $(this).prop('checked', isChecked);
+            if(isChecked) selectedIds.add(val);
+            else selectedIds.delete(val);
+        });
+        updateBulkUI();
+    });
 
-    // =========================================================
-    // 5. IMPRESSION UNITAIRE & ACTIONS
-    // =========================================================
-    document.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-print-single');
-        if (btn) {
-            e.preventDefault();
-            printSingleLabel(btn.dataset.id, btn);
+    // Bouton "Fermer / Tout désélectionner"
+    $('#bulk-close').click(function() {
+        selectedIds.clear();
+        $('#check-all').prop('checked', false);
+        updateBulkUI();
+    });
+
+    // Action Suppression (Exemple)
+    $('#bulk-delete').click(function() {
+        if (selectedIds.size === 0) return;
+        if(confirm('Voulez-vous vraiment supprimer ' + selectedIds.size + ' éléments ?')) {
+            alert("Logique de suppression à implémenter pour les IDs: " + Array.from(selectedIds).join(', '));
+            // Ici: Appel AJAX ou soumission de formulaire
         }
     });
 
-    // Logique d'impression PDF (Simplifiée)
+
+    // =========================================================
+    // 5. IMPRESSION ÉTIQUETTE UNITAIRE (PDF)
+    // =========================================================
+    $(document).on('click', '.btn-print-single', function(e) {
+        e.preventDefault();
+        const btn = $(this);
+        printSingleLabel(btn.data('id'), btn[0]);
+    });
+
     async function printSingleLabel(id, btn) {
-        if (typeof jspdf === 'undefined' || typeof QRCode === 'undefined') {
-            alert("Erreur : Bibliothèques JS manquantes (jsPDF ou QRCode).");
-            return;
+        // Vérification des librairies
+        if (typeof window.jspdf === 'undefined' || typeof QRCode === 'undefined') {
+            alert("Erreur : Les librairies jsPDF ou QRCode ne sont pas chargées."); return;
         }
+        
         const { jsPDF } = window.jspdf;
         const oldHtml = btn.innerHTML;
         
-        // Feedback visuel
+        // Feedback chargement
         btn.disabled = true; 
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
         try {
-            // Récupération des données JSON
+            // 1. Récupération des données
             const res = await fetch(`index.php?action=getSingleGeoCodeJson&id=${id}`);
             const json = await res.json();
             
-            if(!json.success) throw new Error(json.error || "Données introuvables");
+            if(!json.success) throw new Error(json.error || "Erreur inconnue");
             const data = json.data;
 
-            // Création PDF (70x35mm)
+            // 2. Création du PDF (70x35mm)
             const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: [70, 35] });
             
-            // Texte
             doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-            doc.text(data.code_geo, 35, 12, { align: 'center' });
+            doc.text(String(data.code_geo), 35, 12, { align: 'center' });
             
             doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-            // Tronquer libellé si trop long
             let libelle = data.libelle || '';
+            // Tronquer si trop long
             if(libelle.length > 30) libelle = libelle.substring(0, 27) + '...';
             doc.text(libelle, 35, 20, { align: 'center' });
 
-            if(data.univers_nom) {
-                doc.setFontSize(8); doc.setTextColor(100);
-                doc.text(data.univers_nom, 35, 28, { align: 'center' });
-            }
-
-            // Génération QR temporaire pour l'insérer dans le PDF
-            const div = document.createElement('div');
-            new QRCode(div, { text: data.code_geo, width: 100, height: 100 });
+            // 3. Génération QR Code temporaire (pour l'insérer comme image)
+            const tempDiv = document.createElement('div');
+            // QR haute qualité pour l'impression
+            new QRCode(tempDiv, { text: String(data.code_geo), width: 100, height: 100 });
             
-            // Petit délai pour laisser le QR se dessiner dans le DOM virtuel
+            // Petit délai pour laisser le QR se générer
             setTimeout(() => {
-                const img = div.querySelector('img');
-                if(img && img.src) {
-                    doc.addImage(img.src, 'PNG', 2, 2, 14, 14); // QR en haut à gauche
+                const img = tempDiv.querySelector('img');
+                if(img) {
+                    // Ajout image au PDF (x:2, y:2, w:14, h:14)
+                    doc.addImage(img.src, 'PNG', 2, 2, 14, 14);
                 }
-                doc.output('dataurlnewwindow'); // Ouvrir dans un nouvel onglet
+                // Ouvrir PDF dans nouvel onglet
+                doc.output('dataurlnewwindow');
                 
                 // Reset bouton
                 btn.disabled = false; 
                 btn.innerHTML = oldHtml;
-            }, 50);
+            }, 100);
 
         } catch(e) {
             console.error(e);
-            alert("Erreur lors de l'impression : " + e.message);
+            alert("Erreur impression : " + e.message);
             btn.disabled = false; 
             btn.innerHTML = oldHtml;
         }
     }
+
 });
