@@ -1,10 +1,17 @@
 <?php
+// Fichier : config/database.php
 
-// Ce fichier retourne un tableau contenant les paramètres de connexion à la BDD.
 return [
-    'host' => 'MY_IP_OR_FQDN',
-    'dbname' => 'DATABSE_NAME', // Le nom de votre base de données
-    'user' => 'USERENAME',     // Votre nom d'utilisateur
-    'password' => 'PASSWORD', // Votre mot de passe
-    'charset' => 'utf8mb4'
+    'host' => 'IP_OU_FQDN',
+    'dbname' => 'NOM_BDDE',
+    'user' => 'USERNAME',
+    'password' => 'PASSWORD',
+    'charset' => 'utf8mb4',
+
+    // --- CONFIGURATION SSL ---
+    // Valeurs possibles :
+    // - 'system' : Utilise le certificat racine de Debian
+    // - '/chemin/vers/fichier.pem' : Chemin spécifique si besoin
+    // - null ou '' : Désactive le SSL (laissez vide pour développer en local sans SSL)
+    'ssl_mode' => 'system', 
 ];
