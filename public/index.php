@@ -10,17 +10,32 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
 }
 
-// Connexion à la base de données
+// 1. Chargement de la configuration de la base de données
 $dbConfigPath = __DIR__ . '/../config/database.php';
 if (!file_exists($dbConfigPath)) {
     die("Erreur: Le fichier de configuration de la base de données 'config/database.php' est manquant.");
 }
 $dbConfig = require $dbConfigPath;
+
+// 2. Chargement des options PDO (Gestion SSL déportée)
+// On charge le fichier helper qui génère les options SSL en fonction de la config
+$pdoOptionsPath = __DIR__ . '/../config/pdo_options.php';
+if (file_exists($pdoOptionsPath)) {
+    $getPDOOptions = require $pdoOptionsPath;
+    $options = $getPDOOptions($dbConfig);
+} else {
+    // Fallback : Options par défaut si le fichier helper n'est pas encore créé
+    $options = [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ];
+}
+
+// 3. Connexion à la base de données
 $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset={$dbConfig['charset']}";
 try {
-    $db = new PDO($dsn, $dbConfig['user'], $dbConfig['password']);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    // On passe les options (qui contiennent la config SSL si activée)
+    $db = new PDO($dsn, $dbConfig['user'], $dbConfig['password'], $options);
 } catch (PDOException $e) {
     error_log('Erreur de connexion BDD: ' . $e->getMessage());
     die('Erreur de connexion à la base de données. Veuillez vérifier la configuration et réessayer.');
@@ -93,7 +108,7 @@ switch ($action) {
     case 'viewPlan': $planController->viewPlanAction(); break; // Éditeur
     case 'printPlan': $planController->printPlanAction(); break;
 
-    // --- PLANS (Corbeille) - C'est ici que ça manquait ---
+    // --- PLANS (Corbeille) ---
     case 'trashPlans': $planController->trashAction(); break;
     case 'restorePlan': $planController->restoreAction(); break;
     case 'forceDeletePlan': $planController->forceDeleteAction(); break;
